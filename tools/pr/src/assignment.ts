@@ -141,15 +141,24 @@ function deriveStateBadges(facts: PrFacts): string[] {
 }
 
 /**
- * Translates the existing tag set into a status line + blocker bullets.
- * Status precedence (when multiple apply): rebase > unresolved-CR > stale-
- * approval > awaiting-* > bot-only-approval > merge-ready > in review.
+ * Translates the existing tag set + PR metadata into a status line + blocker
+ * bullets. Status precedence (when multiple apply): blockers → bot-only-
+ * approval → ready-to-merge → in review.
+ *
+ * `ready to merge` requires `reviewDecision === "APPROVED"` and
+ * `mergeStateStatus ∈ {CLEAN, UNSTABLE}` (UNSTABLE = mergeable but a non-
+ * required check is failing — still actionable for the maintainer). Without
+ * this branch, an APPROVED + CLEAN PR with a human reviewer renders the
+ * same as a REVIEW_REQUIRED one, which drops the main triage signal.
  *
  * Each blocker bullet is a one-liner that carries the tag's `reason`
  * verbatim — no judgment language, no priority labels. The assigner can
  * scan the bullets and decide.
  */
-function deriveStatus(tags: ReadonlyArray<Tag>): { status: string; blockers: string[] } {
+function deriveStatus(
+  tags: ReadonlyArray<Tag>,
+  facts: PrFacts,
+): { status: string; blockers: string[] } {
   const byName = new Map(tags.map((t) => [t.name, t] as const));
   const get = (name: string) => byName.get(name);
 
@@ -166,11 +175,17 @@ function deriveStatus(tags: ReadonlyArray<Tag>): { status: string; blockers: str
   const awaitFirst = get("awaiting-first-review-24h");
   if (awaitFirst) blockers.push(`no human review yet (${formatDuration(awaitFirst.awaitingHours ?? null)} since createdAt)`);
 
+  const mergeReadyState =
+    facts.reviewDecision === "APPROVED" &&
+    (facts.mergeStateStatus === "CLEAN" || facts.mergeStateStatus === "UNSTABLE");
+
   let status: string;
   if (blockers.length > 0) {
     status = "blocked";
   } else if (get("bot-only-approval")) {
     status = "approved (bot-only — no human formal sign-off)";
+  } else if (mergeReadyState) {
+    status = "ready to merge";
   } else {
     status = "in review";
   }
@@ -185,7 +200,7 @@ function buildAssignmentEntries(
 ): AssignmentEntry[] {
   const eventIndex = indexAssignmentEvents(events);
   const stateBadges = deriveStateBadges(facts);
-  const { status, blockers } = deriveStatus(tags);
+  const { status, blockers } = deriveStatus(tags, facts);
 
   return facts.assignees.map((assignee) => {
     const event = eventIndex.get(assignee) ?? null;
@@ -241,7 +256,7 @@ function buildReport(
     const events = timelines.get(facts.number) ?? [];
     const tags = classifyPr(facts, ctx);
     if (facts.assignees.length === 0) {
-      const { status, blockers } = deriveStatus(tags);
+      const { status, blockers } = deriveStatus(tags, facts);
       unassigned.push({
         number: facts.number,
         title: facts.title,

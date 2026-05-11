@@ -180,29 +180,18 @@ async function fetchPaginatedPrList<N>(nodeFields: string): Promise<N[]> {
 }
 
 /**
- * Fetches per-PR commit timestamps via `gh api graphql`. We cap at
- * `commits(last: 5)` to keep the node count well under GitHub's
- * 500,000 traversal limit; `gh pr list --json commits` blows the
- * budget even at limit=50 because it traverses the full commits +
- * authors connection.
+ * Fetches per-PR commit timestamps via cursor-paginated `gh api graphql`.
+ * Capped at `commits(last: 5)` per PR to keep node count well under
+ * GitHub's 500,000 traversal limit; `gh pr list --json commits` blows the
+ * budget even at limit=50 because it traverses the full commits + authors
+ * connection.
+ *
+ * Pagination removes the prior `first: <CLI limit>` one-shot — GraphQL's
+ * connection page size is capped at 100 by the server, so the previous
+ * implementation would error at runtime when callers passed `--limit
+ * 200`. Reusing `fetchPaginatedPrList` keeps this fetch consistent with
+ * the other heavy chunks (reviews, comments, assignment timelines).
  */
-const GRAPHQL_COMMITS_QUERY = `query($owner: String!, $name: String!, $first: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: $first, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      nodes {
-        number
-        commits(last: 5) {
-          nodes {
-            commit {
-              committedDate
-              author { user { login } }
-            }
-          }
-        }
-      }
-    }
-  }
-}`;
 
 async function fetchOpenPrReviews(): Promise<GhReviewsLite[]> {
   type Node = {
@@ -361,47 +350,32 @@ export async function fetchCurrentUser(): Promise<string> {
   return login;
 }
 
-async function fetchOpenPrCommits(limit: number): Promise<GhCommitsLite[]> {
-  const { owner, name } = await detectRepoSlug();
-  const { stdout } = await execFile(
-    "gh",
-    [
-      "api",
-      "graphql",
-      "-F",
-      `owner=${owner}`,
-      "-F",
-      `name=${name}`,
-      "-F",
-      `first=${limit}`,
-      "-f",
-      `query=${GRAPHQL_COMMITS_QUERY}`,
-    ],
-    { maxBuffer: 16 * 1024 * 1024 },
-  );
-  type Response = {
-    data: {
-      repository: {
-        pullRequests: {
-          nodes: Array<{
-            number: number;
-            commits: {
-              nodes: Array<{
-                commit: {
-                  committedDate: string;
-                  author: { user: { login: string } | null } | null;
-                };
-              }>;
-            };
-          }>;
+async function fetchOpenPrCommits(): Promise<GhCommitsLite[]> {
+  type Node = {
+    number: number;
+    commits: {
+      nodes: {
+        commit: {
+          committedDate: string;
+          author: { user: { login: string } | null } | null;
         };
-      };
+      }[];
     };
   };
-  const parsed = JSON.parse(stdout) as Response;
-  return parsed.data.repository.pullRequests.nodes.map((node) => ({
-    number: node.number,
-    commits: node.commits.nodes.map((entry) => ({
+  const rows = await fetchPaginatedPrList<Node>(
+    `number
+     commits(last: 5) {
+       nodes {
+         commit {
+           committedDate
+           author { user { login } }
+         }
+       }
+     }`,
+  );
+  return rows.map((row) => ({
+    number: row.number,
+    commits: row.commits.nodes.map((entry) => ({
       oid: "",
       committedDate: entry.commit.committedDate,
       authors: [{ login: entry.commit.author?.user?.login ?? null }],
@@ -441,7 +415,7 @@ export async function fetchOpenPrs(
   const filesPromise = gh<GhFiles[]>([...baseArgs, "--json", "number,files"]);
   const reviewsPromise = fetchOpenPrReviews();
   const commitsPromise = options.includeCommits
-    ? fetchOpenPrCommits(limit)
+    ? fetchOpenPrCommits()
     : Promise.resolve<GhCommitsLite[] | undefined>(undefined);
   const commentsPromise = options.includeComments
     ? fetchOpenPrComments()
