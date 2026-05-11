@@ -67,6 +67,13 @@ export function diagnoseClaudeCliFailure(
     /apikeysource["'\s:]+none/i.test(text) ||
     /(auth|oauth|credential|token).*(fail|invalid|missing|expired|not found|none|unauthorized)/i.test(text) ||
     /(unauthorized|invalid api key|missing api key|could not authenticate|authentication failed)/i.test(text);
+  if (authFailure && hasCustomBaseUrl) {
+    return withContext(
+      'Claude Code could not authenticate with the configured custom Anthropic endpoint.',
+      'Check ANTHROPIC_BASE_URL, proxy credentials, endpoint authentication environment, and model access. Remove the custom endpoint only if you want to retry with standard Claude Code auth.',
+      input,
+    );
+  }
   if (authFailure) {
     const configHint = hasConfigDir
       ? 'The configured Claude config directory may contain stale or expired auth state.'

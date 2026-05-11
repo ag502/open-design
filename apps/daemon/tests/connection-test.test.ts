@@ -1221,6 +1221,34 @@ console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_messag
     }
   });
 
+  it('returns custom endpoint guidance for Claude auth failures with a custom endpoint', async () => {
+    const previous = process.env.ANTHROPIC_BASE_URL;
+    process.env.ANTHROPIC_BASE_URL = 'https://proxy.example.com';
+    try {
+      await withFakeClaude(
+        `console.error(JSON.stringify({ apiKeySource: 'none', error_status: 401 })); process.exit(1);`,
+        async () => {
+          const result = await testAgentConnection({ agentId: 'claude' });
+
+          expect(result).toMatchObject({
+            ok: false,
+            kind: 'agent_spawn_failed',
+            agentName: 'Claude Code',
+          });
+          expect(result.detail).toContain('ANTHROPIC_BASE_URL');
+          expect(result.detail).toContain('proxy credentials');
+          expect(result.detail).not.toContain('use `/login`');
+        },
+      );
+    } finally {
+      if (previous == null) {
+        delete process.env.ANTHROPIC_BASE_URL;
+      } else {
+        process.env.ANTHROPIC_BASE_URL = previous;
+      }
+    }
+  });
+
   it('classifies structured Codex model errors as not_found_model', async () => {
     await withFakeCodex(
       `console.log(JSON.stringify({ type: 'error', message: "The 'dddd' model is not supported when using Codex with a ChatGPT account." }));`,
