@@ -31,7 +31,7 @@ export function resolveAgentLaunch(
     ...resolution,
     launchPath: native.path ?? resolution.selectedPath,
     launchKind: native.path ? 'codex-native' : 'selected',
-    childPathPrepend,
+    childPathPrepend: [...childPathPrepend, ...native.childPathPrepend],
     diagnostic: native.diagnostic,
   };
 }
@@ -48,17 +48,24 @@ export function applyAgentLaunchEnv(
   return { ...env, PATH };
 }
 
-function tryResolveCodexNativeBinary(wrapperPath: string): { path: string | null; diagnostic: string | null } {
+function tryResolveCodexNativeBinary(wrapperPath: string): {
+  path: string | null;
+  childPathPrepend: string[];
+  diagnostic: string | null;
+} {
   const packageSuffix = codexNativePackageSuffix();
   const targetTriple = codexNativeTargetTriple();
   for (const root of codexSearchRoots(wrapperPath)) {
     for (const candidate of codexNativeCandidates(root, packageSuffix, targetTriple)) {
-      if (isExecutableFile(candidate)) return { path: candidate, diagnostic: null };
+      if (isExecutableFile(candidate.path)) {
+        return { path: candidate.path, childPathPrepend: existingDirectories(candidate.childPathPrepend), diagnostic: null };
+      }
     }
   }
-  if (!looksLikeCodexNodeWrapper(wrapperPath)) return { path: null, diagnostic: null };
+  if (!looksLikeCodexNodeWrapper(wrapperPath)) return { path: null, childPathPrepend: [], diagnostic: null };
   return {
     path: null,
+    childPathPrepend: [],
     diagnostic: `Codex native binary was not found for ${packageSuffix}/${targetTriple}; falling back to wrapper ${wrapperPath}. Set CODEX_BIN to a native Codex binary if this wrapper cannot launch from a GUI environment.`,
   };
 }
@@ -76,7 +83,11 @@ function codexSearchRoots(wrapperPath: string): string[] {
   return [...roots];
 }
 
-function codexNativeCandidates(root: string, packageSuffix: string, targetTriple: string): string[] {
+function codexNativeCandidates(
+  root: string,
+  packageSuffix: string,
+  targetTriple: string,
+): Array<{ path: string; childPathPrepend: string[] }> {
   const scoped = path.join(root, 'node_modules', '@openai');
   const packageDirs = [path.join(scoped, `codex-${packageSuffix}`)];
   try {
@@ -86,15 +97,19 @@ function codexNativeCandidates(root: string, packageSuffix: string, targetTriple
   } catch {
     // Optional package layouts vary by npm version; absence uses wrapper fallback.
   }
-  return [...new Set(packageDirs)].flatMap((dir) => [
-    path.join(dir, 'vendor', targetTriple, 'codex', 'codex'),
-    path.join(dir, 'vendor', targetTriple, 'codex', 'codex.exe'),
-    path.join(dir, 'codex'),
-    path.join(dir, 'bin', 'codex'),
-    path.join(dir, 'vendor', 'codex'),
-    path.join(dir, 'codex.exe'),
-    path.join(dir, 'bin', 'codex.exe'),
-  ]);
+  return [...new Set(packageDirs)].flatMap((dir) => {
+    const vendorPathDir = path.join(dir, 'vendor', targetTriple, 'path');
+    const childPathPrepend = [vendorPathDir];
+    return [
+      { path: path.join(dir, 'vendor', targetTriple, 'codex', 'codex'), childPathPrepend },
+      { path: path.join(dir, 'vendor', targetTriple, 'codex', 'codex.exe'), childPathPrepend },
+      { path: path.join(dir, 'codex'), childPathPrepend },
+      { path: path.join(dir, 'bin', 'codex'), childPathPrepend },
+      { path: path.join(dir, 'vendor', 'codex'), childPathPrepend },
+      { path: path.join(dir, 'codex.exe'), childPathPrepend },
+      { path: path.join(dir, 'bin', 'codex.exe'), childPathPrepend },
+    ];
+  });
 }
 
 function codexNativePackageSuffix(): string {
@@ -126,6 +141,16 @@ function safeRealpath(filePath: string): string | null {
   } catch {
     return null;
   }
+}
+
+function existingDirectories(dirs: string[]): string[] {
+  return dirs.filter((dir) => {
+    try {
+      return statSync(dir).isDirectory();
+    } catch {
+      return false;
+    }
+  });
 }
 
 function isExecutableFile(filePath: string): boolean {

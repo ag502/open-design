@@ -63,10 +63,12 @@ fsTest('resolveAgentLaunch resolves a Codex npm wrapper to the native packaged b
       const wrapperLinkDir = join(root, 'node_modules', '.bin');
       const wrapperLinkPath = join(wrapperLinkDir, 'codex');
       const nativePkgDir = join(wrapperPkgDir, 'node_modules', '@openai', `codex-${process.platform}-${process.arch}`);
+      const nativePathDir = join(nativePkgDir, 'vendor', codexNativeTargetTriple(), 'path');
       const nativeBin = join(nativePkgDir, 'vendor', codexNativeTargetTriple(), 'codex', 'codex');
       mkdirSync(join(wrapperPkgDir, 'bin'), { recursive: true });
       mkdirSync(wrapperLinkDir, { recursive: true });
       mkdirSync(join(nativePkgDir, 'vendor', codexNativeTargetTriple(), 'codex'), { recursive: true });
+      mkdirSync(nativePathDir, { recursive: true });
       writeFileSync(wrapperRealPath, '#!/usr/bin/env node\nrequire("@openai/codex");\n');
       writeFileSync(nativeBin, '#!/bin/sh\nexit 0\n');
       chmodSync(wrapperRealPath, 0o755);
@@ -80,7 +82,7 @@ fsTest('resolveAgentLaunch resolves a Codex npm wrapper to the native packaged b
       assert.equal(launch.selectedPath, wrapperLinkPath);
       assert.equal(launch.launchPath, realpathSync(nativeBin));
       assert.equal(launch.launchKind, 'codex-native');
-      assert.deepEqual(launch.childPathPrepend, [wrapperLinkDir]);
+      assert.deepEqual(launch.childPathPrepend, [wrapperLinkDir, realpathSync(nativePathDir)]);
       assert.equal(launch.diagnostic, null);
     });
   } finally {
