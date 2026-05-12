@@ -437,7 +437,9 @@ export function EntryView({
             type="button"
             className="foot-pill foot-pill-env"
             onClick={() => onOpenSettings()}
-            aria-label={t('settings.envConfigure')}
+            aria-label={`${
+              config.mode === 'daemon' ? t('settings.localCli') : apiProtocolLabel(config.apiProtocol)
+            } ${envMetaLine}`}
             title={t('settings.envConfigure')}
           >
             <Icon name="settings" size={12} />
