@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction } from 'react';
 import { validateBaseUrl } from '@open-design/contracts/api/connectionTest';
+import {
+  agentIdToTracking,
+  executionModeToTracking,
+  settingsSectionToTracking,
+} from '@open-design/contracts/analytics';
+import { useAnalytics } from '../analytics/provider';
+import {
+  trackSettingsClickByokField,
+  trackSettingsClickCliProviderCard,
+  trackSettingsClickExecutionModeTab,
+  trackSettingsView,
+} from '../analytics/events';
 import { LOCALE_LABEL, LOCALES, useI18n } from '../i18n';
 import type { Locale } from '../i18n';
 import type { Dict } from '../i18n/types';
@@ -637,11 +649,18 @@ export function SettingsDialog({
   onReloadMediaProviders,
 }: Props) {
   const { t, locale, setLocale } = useI18n();
+  const analytics = useAnalytics();
   const [cfg, setCfg] = useState<AppConfig>(initial);
   const lastSavedAppearanceRef = useRef({
     theme: initial.theme ?? 'system',
     accentColor: resolveAccentColor(initial.accentColor),
   });
+
+  // settings_view — fire on dialog open and on every section switch so the
+  // configuration funnel can see which section the user spent time in.
+  // The fire is keyed on section so a section bounce (open → switch →
+  // close) emits one event per surface.
+  const lastViewSectionRef = useRef<string | null>(null);
 
   useEffect(() => {
     lastSavedAppearanceRef.current = {
@@ -699,6 +718,26 @@ export function SettingsDialog({
   useEffect(() => {
     setActiveSection(initialSection);
   }, [initialSection]);
+
+  // settings_view — fires whenever the active section changes (and once on
+  // mount). Keying the fire on a section+section-string lets us dedupe
+  // accidental double-renders while still capturing genuine tab switches.
+  useEffect(() => {
+    if (lastViewSectionRef.current === activeSection) return;
+    lastViewSectionRef.current = activeSection;
+    const hasCli = agents.some((a) => a.available);
+    const selected = agents.find((a) => a.id === cfg.agentId && a.available);
+    trackSettingsView(analytics.track, {
+      page: 'settings',
+      area: 'settings_panel',
+      element: 'page',
+      view_type: 'page',
+      active_section: settingsSectionToTracking(activeSection),
+      execution_mode: executionModeToTracking(cfg.mode),
+      has_available_cli: hasCli,
+      ...(selected ? { selected_cli_id: agentIdToTracking(selected.id) } : {}),
+    });
+  }, [activeSection, agents, cfg.mode, cfg.agentId, analytics.track]);
   useEffect(() => {
     const el = settingsContentRef.current;
     if (el) el.scrollTop = 0;
@@ -795,7 +834,23 @@ export function SettingsDialog({
     [agents],
   );
 
-  const setMode = (mode: ExecMode) => setCfg((c) => ({ ...c, mode }));
+  const setMode = (mode: ExecMode) => {
+    setCfg((c) => {
+      const modeBefore = executionModeToTracking(c.mode);
+      const modeAfter = executionModeToTracking(mode);
+      if (modeBefore !== modeAfter) {
+        trackSettingsClickExecutionModeTab(analytics.track, {
+          page: 'settings',
+          area: 'execution_model',
+          element: 'execution_mode_tab',
+          action: 'switch_execution_mode',
+          mode_before: modeBefore,
+          mode_after: modeAfter,
+        });
+      }
+      return { ...c, mode };
+    });
+  };
   const setApiProtocol = (protocol: ApiProtocol) => {
     setApiModelCustomEditing(false);
     setCfg((c) => switchApiProtocolConfig(c, protocol));
@@ -1840,9 +1895,18 @@ export function SettingsDialog({
                             className={
                               'agent-card' + (active ? ' active' : '')
                             }
-                            onClick={() =>
-                              setCfg((c) => ({ ...c, agentId: a.id }))
-                            }
+                            onClick={() => {
+                              trackSettingsClickCliProviderCard(analytics.track, {
+                                page: 'settings',
+                                area: 'execution_model',
+                                element: 'cli_provider_card',
+                                action: 'select_cli_provider',
+                                cli_provider_id: agentIdToTracking(a.id),
+                                install_status: a.available ? 'installed' : 'not_installed',
+                                is_selected: !active,
+                              });
+                              setCfg((c) => ({ ...c, agentId: a.id }));
+                            }}
                             aria-pressed={active}
                           >
                             <AgentIcon id={a.id} size={40} />
@@ -2247,6 +2311,17 @@ export function SettingsDialog({
                     placeholder={API_KEY_PLACEHOLDERS[apiProtocol]}
                     value={cfg.apiKey}
                     onChange={(e) => updateApiConfig({ apiKey: e.target.value })}
+                    onFocus={() => {
+                      trackSettingsClickByokField(analytics.track, {
+                        page: 'settings',
+                        area: 'execution_model',
+                        element: 'byok_field',
+                        action: 'focus_byok_field',
+                        field_id: 'api_key',
+                        provider_id: apiProtocol,
+                        has_value: Boolean(cfg.apiKey?.trim()),
+                      });
+                    }}
                     autoFocus
                   />
                   <button
@@ -2269,6 +2344,17 @@ export function SettingsDialog({
                 </span>
                 <select
                   value={apiModelSelectValue}
+                  onFocus={() => {
+                    trackSettingsClickByokField(analytics.track, {
+                      page: 'settings',
+                      area: 'execution_model',
+                      element: 'byok_field',
+                      action: 'focus_byok_field',
+                      field_id: 'model',
+                      provider_id: apiProtocol,
+                      has_value: Boolean(cfg.model?.trim()),
+                    });
+                  }}
                   onChange={(e) => {
                     if (e.target.value === CUSTOM_MODEL_SENTINEL) {
                       setApiModelCustomEditing(true);
@@ -2323,6 +2409,17 @@ export function SettingsDialog({
                   aria-describedby={
                     baseUrlInvalid ? 'settings-base-url-error' : undefined
                   }
+                  onFocus={() => {
+                    trackSettingsClickByokField(analytics.track, {
+                      page: 'settings',
+                      area: 'execution_model',
+                      element: 'byok_field',
+                      action: 'focus_byok_field',
+                      field_id: 'base_url',
+                      provider_id: apiProtocol,
+                      has_value: Boolean(cfg.baseUrl?.trim()),
+                    });
+                  }}
                   onChange={(e) => updateApiConfig({ baseUrl: e.target.value, apiProviderBaseUrl: null })}
                 />
                 {baseUrlInvalid ? (
