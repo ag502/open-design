@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  buildAssistantMessageUpdate,
   dedupeDesignSystemIds,
   resolveDryRunDesignSystems,
   validateExplicitDesignSystemIds,
@@ -35,6 +36,53 @@ test("resolveDryRunDesignSystems rejects --all-design-systems in dry-run mode", 
   assert.throws(
     () => resolveDryRunDesignSystems({ allDesignSystems: true }),
     /dry-run with --all-design-systems still requires daemon access/,
+  );
+});
+
+test("buildAssistantMessageUpdate persists the daemon run id on queued assistant rows", () => {
+  assert.deepEqual(
+    buildAssistantMessageUpdate({
+      agentId: "claude",
+      runId: "run-123",
+      runStatus: "queued",
+      createdAt: 123,
+    }),
+    {
+      role: "assistant",
+      content: "",
+      agentId: "claude",
+      agentName: "claude",
+      runId: "run-123",
+      runStatus: "queued",
+      startedAt: 123,
+      createdAt: 123,
+    },
+  );
+});
+
+test("buildAssistantMessageUpdate keeps the daemon run id on final assistant updates", () => {
+  assert.deepEqual(
+    buildAssistantMessageUpdate({
+      agentId: "claude",
+      runId: "run-123",
+      runStatus: "succeeded",
+      createdAt: 123,
+      content: "done",
+      endedAt: 456,
+      producedFiles: [{ path: "index.html" }],
+    }),
+    {
+      role: "assistant",
+      content: "done",
+      agentId: "claude",
+      agentName: "claude",
+      runId: "run-123",
+      runStatus: "succeeded",
+      startedAt: 123,
+      createdAt: 123,
+      endedAt: 456,
+      producedFiles: [{ path: "index.html" }],
+    },
   );
 });
 

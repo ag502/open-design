@@ -115,6 +115,19 @@ interface BatchResult {
   error?: string;
 }
 
+interface AssistantMessageUpdate {
+  role: 'assistant';
+  content: string;
+  agentId: string;
+  agentName: string;
+  runId: string;
+  runStatus: RunStatusResponse['status'];
+  startedAt: number;
+  createdAt: number;
+  endedAt?: number;
+  producedFiles?: unknown[];
+}
+
 function buildRunPrompt(prompt: string, skipDiscoveryBrief: boolean): string {
   if (!skipDiscoveryBrief) return prompt;
   // The persisted skipDiscoveryBrief flag is understood by newer daemons, but
@@ -215,6 +228,30 @@ export function validateExplicitDesignSystemIds(requestedIds: string[], availabl
     throw new Error(`unknown design system id(s): ${unknown.join(', ')}`);
   }
   return requested;
+}
+
+export function buildAssistantMessageUpdate(params: {
+  agentId: string;
+  runId: string;
+  runStatus: RunStatusResponse['status'];
+  createdAt: number;
+  content?: string;
+  endedAt?: number;
+  producedFiles?: unknown[];
+}): AssistantMessageUpdate {
+  const { agentId, runId, runStatus, createdAt, content = '', endedAt, producedFiles } = params;
+  return {
+    role: 'assistant',
+    content,
+    agentId,
+    agentName: agentId,
+    runId,
+    runStatus,
+    startedAt: createdAt,
+    createdAt,
+    ...(endedAt !== undefined ? { endedAt } : {}),
+    ...(producedFiles !== undefined ? { producedFiles } : {}),
+  };
 }
 
 function parseJsonObject(value: string, label: string): Record<string, unknown> {
@@ -535,6 +572,17 @@ async function runOne(params: {
     model: config.model ?? null,
     reasoning: config.reasoning ?? null,
   });
+  await api(
+    daemonUrl,
+    'PUT',
+    `/api/projects/${projectId}/conversations/${conversationId}/messages/${assistantMessageId}`,
+    buildAssistantMessageUpdate({
+      agentId: config.agentId,
+      runId: run.runId,
+      runStatus: 'queued',
+      createdAt: now,
+    }),
+  );
   if (!config.wait) {
     return { designSystemId, projectId, projectName, conversationId, runId: run.runId, status: 'queued', daemonUrl };
   }
@@ -545,17 +593,20 @@ async function runOne(params: {
     .then((body) => body.files ?? [])
     .catch(() => []);
   const endedAt = Date.now();
-  await api(daemonUrl, 'PUT', `/api/projects/${projectId}/conversations/${conversationId}/messages/${assistantMessageId}`, {
-    role: 'assistant',
-    content: assistantText,
-    agentId: config.agentId,
-    agentName: config.agentId,
-    runStatus: finalStatus.status,
-    startedAt: now,
-    endedAt,
-    producedFiles,
-    createdAt: now,
-  }).catch((err) => {
+  await api(
+    daemonUrl,
+    'PUT',
+    `/api/projects/${projectId}/conversations/${conversationId}/messages/${assistantMessageId}`,
+    buildAssistantMessageUpdate({
+      agentId: config.agentId,
+      runId: run.runId,
+      runStatus: finalStatus.status,
+      createdAt: now,
+      content: assistantText,
+      endedAt,
+      producedFiles,
+    }),
+  ).catch((err) => {
     process.stderr.write(`warning: failed to persist assistant message for ${designSystemId}: ${(err as Error).message || String(err)}\n`);
   });
   return {
