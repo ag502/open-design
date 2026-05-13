@@ -1,7 +1,7 @@
 ---
 id: 20260513-unify-agent-runtime-abstraction
 name: Unify Agent Runtime Abstraction
-status: researched
+status: designed
 created: '2026-05-13'
 ---
 
@@ -76,34 +76,138 @@ created: '2026-05-13'
 
 ## Design
 
-<!-- Technical approach, architecture decisions, and test strategy. Each design decision should cite a fact source. -->
+### Assumptions
+
+- 本次只做“最小 runtime 抽象”，不实现文档中的完整 `AgentAdapter.run(): AsyncIterable<AgentEvent>` / `detect()` / `cancel()` 体系；完整 adapter 形态留给后续演进。Source: `docs/agent-adapters.md:13-69`
+- 现有 `RuntimeAgentDef`、`runtimes/defs/*` 和 registry 结构保持不搬迁，避免大范围重命名和合并冲突。Source: `apps/daemon/src/runtimes/types.ts:37-68`, `apps/daemon/src/runtimes/registry.ts:1-48`
+- Critique Theater 本轮继续只支持 plain stdout；本次目标是把这个限制从上层的 `streamFormat === 'plain'` 字符串判断改成 adapter capability，不扩展 structured adapters 的 critique 支持。Source: `apps/daemon/src/server.ts:3060-3138`, `apps/daemon/src/server.ts:3923-4034`
+
+### Design Summary
+
+- 新增一个薄的 `RuntimeAdapter` 底层模块，作为 `RuntimeAgentDef` 与 daemon 上层 chat/connection flow 之间的唯一 runtime 差异封装层。
+- `RuntimeAgentDef.streamFormat`、`eventParser`、`promptViaStdin` 等字段先保留，但只允许 runtime adapter factory 内部解释；`server.ts` 和 connection test path 改为调用语义方法，例如 prompt delivery、critique eligibility、stream attachment、close classification。
+- 不重写 spawn/run 生命周期，不搬迁 parser/session 模块；adapter 只把现有 `create*StreamHandler`、`attachAcpSession`、`attachPiRpcSession` 和 plain stdout forwarding 包成统一 attachment contract。
+- 采用 fail-fast 策略：adapter factory 遇到未知 `streamFormat` 直接抛错，不默默降级成 plain，避免隐藏坏 runtime definition。
+
+### Design Decisions
+
+- Decision: 保留 `RuntimeAgentDef` 作为 runtime 定义源，只新增 adapter 层解释底层协议字段；这符合现有 defs/registry 集中管理 runtime 的结构，也避免改动每个 runtime 文件。Source: `apps/daemon/src/runtimes/types.ts:37-68`, `apps/daemon/src/runtimes/registry.ts:19-48`
+- Decision: adapter 暴露语义能力而非协议字符串，例如 `supportsCritiqueTheater()`、`stdinMode()`、`attach()`、`classifyClose()`；上层不再按 `claude-stream-json` / `pi-rpc` / `acp-json-rpc` 等字符串分支。Source: `apps/daemon/src/server.ts:3787-3867`, `apps/daemon/src/server.ts:4036-4176`
+- Decision: parser/session 实现继续复用现有模块，由 adapter 负责选择和接线；现有模块已经分别封装 Claude/Qoder/Copilot/json-event/Pi/ACP 协议细节。Source: `apps/daemon/src/claude-stream.ts:1-30`, `apps/daemon/src/qoder-stream.ts:1-12`, `apps/daemon/src/copilot-stream.ts:1-31`, `apps/daemon/src/json-event-stream.ts:376-421`, `apps/daemon/src/acp.ts:398-569`, `apps/daemon/src/pi-rpc.ts:315-529`
+- Decision: ACP 与 Pi 只共享 adapter contract，不共享协议实现；二者包含不同的 session lifecycle、abort、fatal/completion 和安全检查，强行合并会扩大范围。Source: `apps/daemon/src/acp.ts:350-388`, `apps/daemon/src/acp.ts:492-528`, `apps/daemon/src/pi-rpc.ts:399-449`
+- Decision: structured stream 的 substantive-output guard、stream error、ACP forced SIGTERM success、Claude diagnostics 等 close semantics 迁移到 adapter attachment/close classifier 返回值，保持 fail-fast/visible failure 行为。Source: `apps/daemon/src/server.ts:4061-4078`, `apps/daemon/src/server.ts:4192-4264`
+- Decision: connection test 使用同一个 adapter helper，避免 `server.ts` 和 connection test 各自维护一套 runtime protocol 分支并继续漂移。Source: `apps/daemon/src/connectionTest.ts:305-305`, `apps/daemon/src/server.ts:4080-4167`
+- Decision: SSE `start` payload 不再作为上层 runtime protocol 依赖点；若客户端无合同字段依赖，移除或停止消费 `streamFormat`。Source: `apps/daemon/src/server.ts:3789-3799`, `packages/contracts/src/sse/chat.ts:1-30`
+
+### System Structure
+
+```mermaid
+flowchart TD
+  Def[RuntimeAgentDef\nexisting defs/*] --> Factory[createRuntimeAdapter(def)]
+  Factory --> Adapter[RuntimeAdapter\nsemantic behavior]
+  Server[server.ts chat flow] --> Adapter
+  Conn[connectionTest flow] --> Adapter
+  Adapter --> Plain[plain stdout forwarding]
+  Adapter --> JSON[Claude/Qoder/Copilot/json-event handlers]
+  Adapter --> RPC[ACP/Pi sessions]
+```
+
+### Interfaces / APIs
+
+Pseudo-type sketch:
+
+```ts
+type RuntimeAdapter = {
+  readonly id: string;
+  readonly displayName: string;
+  supportsCritiqueTheater(): boolean;
+  stdinMode(): 'pipe' | 'ignore';
+  shouldWritePromptToStdin(): boolean;
+  attach(ctx: RuntimeAttachContext): RuntimeAttachment;
+};
+
+type RuntimeAttachment = {
+  session?: RuntimeSessionHandle | null;
+  trackingSubstantiveOutput: boolean;
+  producedSubstantiveOutput(): boolean;
+  streamError(): string | null;
+  classifyClose(exit: RuntimeExit): 'succeeded' | 'failed' | 'canceled' | null;
+};
+
+type RuntimeSessionHandle = {
+  abort?: () => void;
+  hasFatalError?: () => boolean;
+  completedSuccessfully?: () => boolean;
+};
+```
+
+The adapter owns protocol-specific mapping:
+
+- `plain`: forward stdout as `stdout` chunks.
+- `claude-stream-json`: attach `createClaudeStreamHandler`.
+- `qoder-stream-json`: attach `createQoderStreamHandler` and substantive-output/error tracking.
+- `copilot-stream-json`: attach `createCopilotStreamHandler`.
+- `json-event-stream`: attach `createJsonEventStreamHandler(def.eventParser || def.id, ...)` and substantive-output/error tracking.
+- `pi-rpc`: attach `attachPiRpcSession`, image safety inputs, session abort/fatal handling, and substantive-output/error tracking.
+- `acp-json-rpc`: attach `attachAcpSession`, MCP server inputs, session abort/fatal/completion handling.
+
+### System Procedure
+
+Flow:
+  1. Chat run resolves `RuntimeAgentDef` as today.
+  2. Chat run creates `adapter = createRuntimeAdapter(def)` once.
+  3. Prompt composition and Critique Theater use adapter semantics, not `streamFormat`.
+  4. Spawn code uses adapter stdin behavior while preserving existing launch/env helpers.
+  5. After spawn, `adapter.attach(...)` wires stdout/stderr/parser/session and returns attachment state.
+  6. Close handler asks attachment/classifier for fatal/error/empty-output/ACP completion semantics, then finishes the run.
+  7. Connection test path reuses the same adapter attach/stdin behavior.
+
+### Change Scope
+
+- Area: Runtime abstraction foundation. Impact: add a small module under `apps/daemon/src/runtimes/` and keep protocol switches there. Files: `apps/daemon/src/runtimes/types.ts`, new `apps/daemon/src/runtimes/adapter.ts`. Source: `apps/daemon/src/runtimes/types.ts:37-68`
+- Area: Chat run spawn/stream handling. Impact: replace upper-level `def.streamFormat` / `def.eventParser` / `def.promptViaStdin` branches with adapter calls; keep existing spawn/env/invocation helpers. Files: `apps/daemon/src/server.ts`. Source: `apps/daemon/src/server.ts:3787-3867`, `apps/daemon/src/server.ts:4036-4268`
+- Area: Critique Theater gating. Impact: replace plain-stream string gate with `adapter.supportsCritiqueTheater()` while preserving current behavior. Files: `apps/daemon/src/server.ts`, `apps/daemon/tests/critique-spawn-wiring.test.ts`. Source: `apps/daemon/src/server.ts:3060-3138`, `apps/daemon/tests/critique-spawn-wiring.test.ts:174-214`
+- Area: Connection tests/runtime smoke path. Impact: reuse adapter attach/stdin behavior so daemon runtime checks do not maintain duplicate protocol branching. Files: `apps/daemon/src/connectionTest.ts`, `apps/daemon/tests/runtimes/*`. Source: `apps/daemon/src/connectionTest.ts:305-305`, `apps/daemon/tests/runtimes/agent-args.test.ts:148-175`
+- Area: Contracts/UI compatibility. Impact: avoid adding new `streamFormat` dependency to public contract; remove only if verified unused by clients. Files: `packages/contracts/src/sse/chat.ts`, web SSE consumers if needed. Source: `packages/contracts/src/sse/chat.ts:1-30`, `apps/daemon/src/server.ts:3789-3799`
+
+### Edge Cases
+
+- Unknown `streamFormat`: throw during adapter creation so bad runtime definitions fail visibly.
+- Structured stream exits 0 without substantive output: keep explicit failure, not success with empty assistant message.
+- ACP clean completion followed by forced SIGTERM: keep succeeded only for the narrow clean-completion shape.
+- Pi image forwarding: adapter must pass existing image/upload root checks through `attachPiRpcSession`; no bypass or mock path.
+- Stdin write errors: keep the existing EPIPE-specific recovery only; non-EPIPE stdin errors remain visible.
+- Critique on non-plain runtimes: still disabled, but the reason is adapter capability rather than protocol string knowledge in prompt/spawn code.
+
+### Verification Strategy
+
+- Runtime adapter unit tests: cover every existing `streamFormat`, unknown format fail-fast, stdin mode, prompt write behavior, and critique eligibility. Source: `apps/daemon/src/runtimes/types.ts:50-55`, `apps/daemon/tests/runtimes/agent-args.test.ts:148-175`
+- Stream attachment tests: feed representative stdout samples into fake child streams for plain, Claude, Qoder, Copilot, json-event, Pi, and ACP paths; assert emitted `stdout`/`agent`/`error` events match current behavior. Source: `apps/daemon/src/claude-stream.ts:1-30`, `apps/daemon/src/json-event-stream.ts:376-421`, `apps/daemon/src/acp.ts:398-569`, `apps/daemon/src/pi-rpc.ts:315-529`
+- Close semantics tests: preserve structured empty-output failure, ACP fatal failure, ACP forced SIGTERM success, stream error failure, and cancel classification. Source: `apps/daemon/src/server.ts:4192-4264`
+- Critique wiring tests: update assertions from protocol strings to adapter capability while preserving current non-plain skip behavior. Source: `apps/daemon/tests/critique-spawn-wiring.test.ts:174-214`
+- Package validation: run `pnpm --filter @open-design/daemon test`, `pnpm --filter @open-design/daemon typecheck`, then repo-level `pnpm guard` and `pnpm typecheck`. Source: `apps/AGENTS.md:47-59`, `AGENTS.md#validation-strategy`
 
 ## Plan
 
-<!-- Optional: Step breakdown for complex features that need multiple implementation steps.
-     Decided during Design. Checked off during Implement.
-     Keep this section compact and step-based.
-     Use markdown checkboxes for all step and substep items, for example:
-     - [ ] Step 1: Foo
-       - [ ] Substep 1.1 Implement: Foo foundation
-       - [ ] Substep 1.2 Implement: Foo integration
-       - [ ] Substep 1.3 Implement: Foo edge handling
-       - [ ] Substep 1.4 Verify: Foo automated coverage
-       - [ ] Substep 1.5 Verify: Foo manual workflow
-     - [ ] Step 2: Bar
-       - [ ] Substep 2.1 Implement: Bar
-       - [ ] Substep 2.2 Verify: Bar
-     - [ ] Step 3: Baz
-       - [ ] Substep 3.1 Implement: Baz
-       - [ ] Substep 3.2 Verify: Baz
-     Use a capability-based step breakdown with reviewable, meaningful increments.
-     Good boundaries align with one user-visible workflow, one subsystem/integration boundary, one migration/rollout step, or one stabilization milestone.
-     Each step must include small, independent substeps for implementation and immediate testing/verification.
-     Within each step, list implementation substeps before verification substeps.
-     The final step may focus on overall testing/verification, edge cases, regression coverage, and coverage improvements.
-     A step is complete only when relevant tests pass.
-     Size steps so one coding agent can implement + validate in a single session.
-     Write each substep as one small, independent task. -->
+- [ ] Step 1: Introduce runtime adapter foundation
+  - [ ] Substep 1.1 Implement: add `createRuntimeAdapter(def)` and minimal semantic types under `apps/daemon/src/runtimes/`.
+  - [ ] Substep 1.2 Implement: map every current `streamFormat` to existing parser/session helpers without moving helper files.
+  - [ ] Substep 1.3 Implement: make unknown formats throw with a clear error.
+  - [ ] Substep 1.4 Verify: add adapter unit tests for format coverage, stdin behavior, critique eligibility, and fail-fast unknown formats.
+- [ ] Step 2: Move chat run protocol branching behind adapter
+  - [ ] Substep 2.1 Implement: create the adapter once per run and use it for critique eligibility/prompt alignment.
+  - [ ] Substep 2.2 Implement: replace spawn stdin and prompt-write conditionals with adapter methods.
+  - [ ] Substep 2.3 Implement: replace stream parser/session branching with `adapter.attach(...)`.
+  - [ ] Substep 2.4 Implement: replace close-handler protocol checks with attachment/classifier state while preserving current failure semantics.
+  - [ ] Substep 2.5 Verify: update chat/critique tests to assert semantic capability behavior instead of protocol strings.
+- [ ] Step 3: Reuse adapter in connection/runtime checks
+  - [ ] Substep 3.1 Implement: route connection test stream/stdin behavior through the same adapter helper.
+  - [ ] Substep 3.2 Verify: add or update tests that would fail if connection checks reintroduce duplicate protocol branching.
+- [ ] Step 4: Compatibility and full validation
+  - [ ] Substep 4.1 Implement: remove or stop depending on public `streamFormat` SSE start data only after confirming no contract/UI consumer requires it.
+  - [ ] Substep 4.2 Verify: run `pnpm --filter @open-design/daemon test`.
+  - [ ] Substep 4.3 Verify: run `pnpm --filter @open-design/daemon typecheck`.
+  - [ ] Substep 4.4 Verify: run `pnpm guard` and `pnpm typecheck`.
 
 ## Notes
 
