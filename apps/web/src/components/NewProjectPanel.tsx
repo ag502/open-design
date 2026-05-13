@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   createTabToTracking,
   projectKindToTracking,
@@ -737,7 +737,6 @@ export function NewProjectPanel({
           <SurfaceOptions
             includeLandingPage={includeLandingPage}
             includeOsWidgets={includeOsWidgets}
-            osWidgetsAvailable={platformTargetsSupportOsWidgets(platformTargets)}
             onIncludeLandingPage={setIncludeLandingPage}
             onIncludeOsWidgets={setIncludeOsWidgets}
           />
@@ -914,6 +913,33 @@ function PlatformPicker({
   value: NewProjectPlatform[];
   onChange: (v: NewProjectPlatform[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const listboxId = useId();
+  const selectedOptions = DESIGN_PLATFORMS.filter((option) => value.includes(option.value));
+  const triggerLabel =
+    selectedOptions.length === 1
+      ? selectedOptions[0]!.label
+      : `${selectedOptions.length} platforms`;
+  const triggerTitle = selectedOptions.map((option) => `${option.label}: ${option.hint}`).join('\n');
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(e: MouseEvent) {
+      if (pickerRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   function togglePlatform(next: NewProjectPlatform) {
     const active = value.includes(next);
     const updated = active
@@ -929,23 +955,46 @@ function PlatformPicker({
         Pick one or more. Responsive web covers browser breakpoints only; add iOS,
         Android, tablet app, or desktop app for native cross-platform variants.
       </p>
-      <div className="platform-grid">
-        {DESIGN_PLATFORMS.map((option) => {
-          const active = value.includes(option.value);
-          return (
-            <button
-              key={option.value}
-              type="button"
-              className={`newproj-card platform-card${active ? ' active' : ''}`}
-              onClick={() => togglePlatform(option.value)}
-              title={option.hint}
-              aria-pressed={active}
-            >
-              <span className="platform-card-title">{option.label}</span>
-              <span className="platform-card-hint">{option.hint}</span>
-            </button>
-          );
-        })}
+      <div className="platform-dropdown" ref={pickerRef}>
+        <button
+          type="button"
+          className="platform-dropdown-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          title={triggerTitle}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="platform-dropdown-label">{triggerLabel}</span>
+          <span className="platform-dropdown-count">{selectedOptions.length}</span>
+          <Icon name="chevron-down" size={12} />
+        </button>
+        {open ? (
+          <div className="platform-dropdown-menu" id={listboxId} role="listbox" aria-label="Target platforms">
+            {DESIGN_PLATFORMS.map((option) => {
+              const active = value.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`platform-dropdown-item${active ? ' active' : ''}`}
+                  role="option"
+                  aria-selected={active}
+                  title={option.hint}
+                  onClick={() => togglePlatform(option.value)}
+                >
+                  <span className="platform-dropdown-check" aria-hidden>
+                    {active ? <Icon name="check" size={12} /> : null}
+                  </span>
+                  <span className="platform-dropdown-copy">
+                    <span className="platform-dropdown-title">{option.label}</span>
+                    <span className="platform-dropdown-hint">{option.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -954,13 +1003,11 @@ function PlatformPicker({
 function SurfaceOptions({
   includeLandingPage,
   includeOsWidgets,
-  osWidgetsAvailable,
   onIncludeLandingPage,
   onIncludeOsWidgets,
 }: {
   includeLandingPage: boolean;
   includeOsWidgets: boolean;
-  osWidgetsAvailable: boolean;
   onIncludeLandingPage: (v: boolean) => void;
   onIncludeOsWidgets: (v: boolean) => void;
 }) {
@@ -968,24 +1015,52 @@ function SurfaceOptions({
   return (
     <div className="newproj-section surface-options">
       <label className="newproj-label">{t('newproj.surfaceOptionsLabel')}</label>
-      <ToggleRow
-        label={t('newproj.includeLandingPage')}
-        hint={t('newproj.includeLandingPageHint')}
-        checked={includeLandingPage}
-        onChange={onIncludeLandingPage}
-      />
-      <ToggleRow
-        label={t('newproj.includeOsWidgets')}
-        hint={
-          osWidgetsAvailable
-            ? t('newproj.includeOsWidgetsHint')
-            : t('newproj.includeOsWidgetsDisabledHint')
-        }
-        checked={osWidgetsAvailable && includeOsWidgets}
-        disabled={!osWidgetsAvailable}
-        onChange={onIncludeOsWidgets}
-      />
+      <div className="surface-checkbox-row">
+        <SurfaceOptionCheckbox
+          label={t('newproj.includeLandingPage')}
+          hint={t('newproj.includeLandingPageHint')}
+          checked={includeLandingPage}
+          onChange={onIncludeLandingPage}
+        />
+        <SurfaceOptionCheckbox
+          label={t('newproj.includeOsWidgets')}
+          hint={t('newproj.includeOsWidgetsHint')}
+          checked={includeOsWidgets}
+          onChange={onIncludeOsWidgets}
+        />
+      </div>
     </div>
+  );
+}
+
+function SurfaceOptionCheckbox({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`surface-checkbox${checked ? ' active' : ''}`}
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={`${label}. ${hint}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="surface-checkbox-box" aria-hidden>
+        {checked ? <Icon name="check" size={12} /> : null}
+      </span>
+      <span className="surface-checkbox-label">{label}</span>
+      <span className="surface-checkbox-tip" role="tooltip">
+        {hint}
+      </span>
+    </button>
   );
 }
 
@@ -2397,10 +2472,9 @@ function buildMetadata(input: {
         : input.tab;
   const selectedPlatforms = normalizeSelectedPlatforms(input.platformTargets);
   const concreteTargets = platformTargetsFor(selectedPlatforms);
-  const canIncludeOsWidgets = platformTargetsSupportOsWidgets(concreteTargets);
   const surfaceOptions = {
     ...(input.includeLandingPage ? { includeLandingPage: true } : {}),
-    ...(input.includeOsWidgets && canIncludeOsWidgets ? { includeOsWidgets: true } : {}),
+    ...(input.includeOsWidgets ? { includeOsWidgets: true } : {}),
   };
   const base = {
     platform: selectedPlatforms[0],
