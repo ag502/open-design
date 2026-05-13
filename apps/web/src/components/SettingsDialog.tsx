@@ -1862,64 +1862,9 @@ export function SettingsDialog({
                   <div className="agent-grid">
                     {agents.flatMap((a) => {
                       const active = cfg.agentId === a.id;
-                      if (a.available) {
-                        return (
-                          <button
-                            type="button"
-                            key={a.id}
-                            className={
-                              'agent-card' + (active ? ' active' : '')
-                            }
-                            onClick={() => {
-                              trackSettingsClickCliProviderCard(analytics.track, {
-                                page: 'settings',
-                                area: 'execution_model',
-                                element: 'cli_provider_card',
-                                action: 'select_cli_provider',
-                                cli_provider_id: agentIdToTracking(a.id),
-                                install_status: a.available ? 'installed' : 'not_installed',
-                                is_selected: !active,
-                              });
-                              setCfg((c) => ({ ...c, agentId: a.id }));
-                            }}
-                            aria-pressed={active}
-                          >
-                            <AgentIcon id={a.id} size={32} />
-                            <div className="agent-card-body">
-                              <div className="agent-card-name">{a.name}</div>
-                              <div className="agent-card-meta">
-                                {a.authStatus === 'missing' ? (
-                                  <span title={a.authMessage ?? a.path ?? ''}>
-                                    {t('settings.agentAuthRequired')}
-                                  </span>
-                                ) : a.authStatus === 'unknown' ? (
-                                  <span title={a.authMessage ?? a.path ?? ''}>
-                                    {t('settings.agentAuthUnknown')}
-                                  </span>
-                                ) : a.version ? (
-                                  <span title={a.path ?? ''}>{a.version}</span>
-                                ) : (
-                                  <span title={a.path ?? ''}>
-                                    {t('common.installed')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <span
-                              className={
-                                'status-dot' + (active ? ' active' : '')
-                              }
-                              aria-hidden="true"
-                            />
-                          </button>
-                        );
-                      }
-                      const installUrl = sanitizeHttpsUrl(a.installUrl);
-                      const docsUrl = sanitizeHttpsUrl(a.docsUrl);
-                      const hasLinks = Boolean(installUrl || docsUrl);
-                      const cardLabel = `${a.name} · ${t('common.notInstalled')}`;
-                      return (
-                        <div
+                      const cardEl = a.available ? (
+                        <button
+                          type="button"
                           key={a.id}
                           className={
                             'agent-card' + (active ? ' active' : '')
