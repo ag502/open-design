@@ -196,6 +196,8 @@ export const uk: Dict = {
   'settings.runtimePackaged': 'Упакований додаток',
   'settings.runtimeDevelopment': 'Розробка',
   'settings.versionUnavailable': 'Деталі версії недоступні, поки фоновий процес перебуває в офлайні.',
+  'settings.installLatest': 'Встановити останню версію',
+  'settings.alreadyLatest': 'У вас встановлена остання версія',
 
   'entry.tabDesigns': 'Дизайни',
   'entry.tabTemplates': 'Шаблони',

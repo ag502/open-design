@@ -583,15 +583,22 @@ export function MemorySection() {
               translation sweep can lift it later.
             */}
             {rootDir ? (
-              <button
-                type="button"
-                className="memory-info-btn"
-                onClick={() => void onCopyPath()}
-                title={`${rootDir}\nClick to copy`}
-                aria-label="Memory storage path — click to copy"
-              >
-                <Icon name="info" size={13} />
-              </button>
+              <span className="memory-info-wrap">
+                <button
+                  type="button"
+                  className="memory-info-btn"
+                  onClick={() => void onCopyPath()}
+                  title={rootDir}
+                  aria-label="Memory storage path — click to copy"
+                >
+                  <Icon name="info" size={13} />
+                </button>
+                {flash?.kind === 'pathCopied' ? (
+                  <span key={flash.key} className="memory-path-copied-badge">
+                    {flashLabel.pathCopied}
+                  </span>
+                ) : null}
+              </span>
             ) : null}
           </h3>
           <p className="hint">{t('settings.memoryDescription')}</p>
@@ -661,7 +668,7 @@ export function MemorySection() {
         </button>
       </div>
 
-      {flash ? (
+      {flash && flash.kind !== 'pathCopied' ? (
         <div
           key={flash.key}
           role="status"
@@ -869,14 +876,16 @@ export function MemorySection() {
             </p>
           </div>
         ) : (
-          TYPES.filter((tt) => grouped.has(tt)).map((type) => (
+          TYPES.filter((tt) => grouped.has(tt)).map((type, _i, arr) => (
             <div key={type} className="library-group">
-              <h4 className="library-group-title">
-                {TYPE_LABEL[type]}{' '}
-                <span className="library-group-count">
-                  {grouped.get(type)!.length}
-                </span>
-              </h4>
+              {arr.length > 1 ? (
+                <h4 className="library-group-title">
+                  {TYPE_LABEL[type]}{' '}
+                  <span className="library-group-count">
+                    {grouped.get(type)!.length}
+                  </span>
+                </h4>
+              ) : null}
               {grouped.get(type)!.map((entry) => (
                 <div key={entry.id} className="library-card">
                   <div className="library-card-info">
@@ -935,7 +944,7 @@ export function MemorySection() {
         )}
       </div>
 
-      <details className="library-group memory-extractions" style={{ marginTop: 16 }}>
+      <details className="library-group memory-extractions memory-collapsible-card">
         <summary className="memory-details-summary">
           <span className="memory-details-title">
             {t('settings.memoryExtractions')}
@@ -953,17 +962,20 @@ export function MemorySection() {
             </span>
           ) : null}
         </summary>
-        <p className="hint" style={{ marginTop: 4, marginBottom: 8 }}>
-          {t('settings.memoryExtractionsHint')}
-        </p>
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 6,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 8,
             marginBottom: 8,
           }}
         >
+          <span style={{ flex: 1, fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+            {t('settings.memoryExtractionsHint')}
+          </span>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           {extractions.length > 0 ? (
             <button
               type="button"
@@ -989,7 +1001,8 @@ export function MemorySection() {
               {isRefreshing ? t('settings.memoryExtractionsRefreshing') : t('settings.memoryExtractionsRefresh')}
             </span>
           </button>
-        </div>
+          </div>{/* end buttons */}
+        </div>{/* end hint+buttons row */}
         {extractions.length === 0 ? (
           <p className="library-empty">{t('settings.memoryExtractionsEmpty')}</p>
         ) : (
@@ -1095,7 +1108,7 @@ export function MemorySection() {
         )}
       </details>
 
-      <details className="library-group" style={{ marginTop: 16 }}>
+      <details className="library-group memory-collapsible-card">
         <summary className="memory-details-summary">
           <span className="memory-details-title">
             {t('settings.memoryIndex')}

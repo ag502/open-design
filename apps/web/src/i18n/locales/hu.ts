@@ -195,6 +195,8 @@ export const hu: Dict = {
   'settings.runtimePackaged': 'Csomagolt alkalmazás',
   'settings.runtimeDevelopment': 'Fejlesztői',
   'settings.versionUnavailable': 'A verzió adatai nem érhetők el, amíg a daemon offline.',
+  'settings.installLatest': 'Legújabb verzió telepítése',
+  'settings.alreadyLatest': 'Ön már a legújabb verziót használja',
 
   'entry.tabDesigns': 'Tervek',
   'entry.tabTemplates': 'Sablonok',

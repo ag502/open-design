@@ -195,6 +195,8 @@ export const fa: Dict = {
   'settings.runtimePackaged': 'برنامه بسته‌بندی‌شده',
   'settings.runtimeDevelopment': 'توسعه',
   'settings.versionUnavailable': 'تا وقتی daemon آفلاین است جزئیات نسخه در دسترس نیست.',
+  'settings.installLatest': 'نصب جدیدترین',
+  'settings.alreadyLatest': 'شما آخرین نسخه را دارید',
 
   'entry.tabDesigns': 'طرح‌ها',
   'entry.tabTemplates': 'قالب‌ها',

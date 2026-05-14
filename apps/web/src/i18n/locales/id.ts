@@ -193,6 +193,8 @@ export const id: Dict = {
   'settings.runtimePackaged': 'Aplikasi paket',
   'settings.runtimeDevelopment': 'Development',
   'settings.versionUnavailable': 'Detail versi tidak tersedia saat daemon offline.',
+  'settings.installLatest': 'Pasang versi terbaru',
+  'settings.alreadyLatest': 'Anda sudah menggunakan versi terbaru',
   'settings.connectorsNavHint': 'Koneksi sistem eksternal',
   'settings.connectorsHint': 'Kelola pengaturan konektor dan penyedia alat untuk perangkat ini.',
   'settings.connectorsComposioApiKey': 'API key Composio',

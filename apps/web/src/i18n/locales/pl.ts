@@ -195,6 +195,8 @@ export const pl: Dict = {
   'settings.runtimePackaged': 'Aplikacja spakowana',
   'settings.runtimeDevelopment': 'Rozwojowe',
   'settings.versionUnavailable': 'Szczegóły wersji są niedostępne, gdy daemon jest offline.',
+  'settings.installLatest': 'Zainstaluj najnowszą wersję',
+  'settings.alreadyLatest': 'Masz już najnowszą wersję',
 
   'entry.tabDesigns': 'Projekty',
   'entry.tabTemplates': 'Szablony',

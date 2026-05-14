@@ -70,6 +70,7 @@ import { fetchProviderModels } from '../providers/provider-models';
 import { fetchConnectors, fetchDesignTemplates } from '../providers/registry';
 import { MEDIA_PROVIDERS } from '../media/models';
 import type { MediaProvider } from '../media/models';
+import { Toast } from './Toast';
 import { PetSettings } from './pet/PetSettings';
 import { McpClientSection } from './McpClientSection';
 import { SkillsSection } from './SkillsSection';
@@ -712,6 +713,32 @@ export function SettingsDialog({
   const [agentCustomModelIds, setAgentCustomModelIds] = useState<
     ReadonlySet<string>
   >(() => new Set());
+  const [versionChecking, setVersionChecking] = useState(false);
+  const [aboutToast, setAboutToast] = useState<string | null>(null);
+
+  const handleInstallLatest = useCallback(async () => {
+    if (versionChecking || !appVersionInfo) return;
+    setVersionChecking(true);
+    try {
+      const res = await fetch('https://api.github.com/repos/nexu-io/open-design/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (res.ok) {
+        const data = await res.json() as { tag_name?: string; html_url?: string };
+        const latestTag = (data.tag_name ?? '').replace(/^v/, '');
+        if (latestTag && latestTag === appVersionInfo.version) {
+          setAboutToast(t('settings.alreadyLatest'));
+          return;
+        }
+      }
+    } catch {
+      // network error — fall through to open releases page
+    } finally {
+      setVersionChecking(false);
+    }
+    window.open('https://github.com/nexu-io/open-design/releases', '_blank', 'noopener,noreferrer');
+  }, [versionChecking, appVersionInfo, t]);
+
   // Imperative handle for the External MCP section. The dialog footer Save
   // routes through this when the MCP tab is active so the user can press the
   // single Save button at the bottom instead of hunting for the inner one.
@@ -2658,12 +2685,6 @@ export function SettingsDialog({
 
           {activeSection === 'language' ? (
           <section className="settings-section">
-            <div className="section-head">
-              <div>
-                <h3>{t('settings.language')}</h3>
-                <p className="hint">{t('settings.languageHint')}</p>
-              </div>
-            </div>
             <div className="settings-language-grid" role="radiogroup" aria-label={t('settings.language')}>
               {LOCALES.map((code) => {
                 const active = locale === code;
@@ -2723,7 +2744,7 @@ export function SettingsDialog({
                 </div>
                 <textarea
                   className="custom-instructions-input"
-                  rows={5}
+                  rows={3}
                   maxLength={5000}
                   placeholder={t('settings.customInstructionsPlaceholder')}
                   value={cfg.customInstructions ?? ''}
@@ -2740,17 +2761,21 @@ export function SettingsDialog({
 
           {activeSection === 'about' ? (
             <section className="settings-section">
-              <div className="section-head">
-                <div>
-                  <h3>{t('settings.about')}</h3>
-                  <p className="hint">{t('settings.aboutHint')}</p>
-                </div>
-              </div>
               {appVersionInfo ? (
                 <dl className="settings-about-list">
-                  <div>
-                    <dt>{t('settings.appVersion')}</dt>
-                    <dd>{appVersionInfo.version}</dd>
+                  <div className="settings-about-version-row">
+                    <div className="settings-about-version-left">
+                      <dt>{t('settings.appVersion')}</dt>
+                      <span className="settings-about-version-num">{appVersionInfo.version}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="settings-about-download-link"
+                      disabled={versionChecking}
+                      onClick={handleInstallLatest}
+                    >
+                      {versionChecking ? t('common.loading') : t('settings.installLatest')}
+                    </button>
                   </div>
                   <div>
                     <dt>{t('settings.appChannel')}</dt>
@@ -2777,6 +2802,12 @@ export function SettingsDialog({
                 <div className="empty-card">{t('settings.versionUnavailable')}</div>
               )}
             </section>
+          ) : null}
+          {aboutToast ? (
+            <Toast
+              message={aboutToast}
+              onDismiss={() => setAboutToast(null)}
+            />
           ) : null}
           </div>
         </div>
@@ -3007,12 +3038,6 @@ function ConnectorSection({
 
   return (
     <section className="settings-section settings-section-connectors">
-      <div className="section-head">
-        <div>
-          <h3>{t('connectors.title')}</h3>
-          <p className="hint">{t('settings.connectorsHint')}</p>
-        </div>
-      </div>
 
       <label
         className={`field settings-section-connectors-credentials${composioConfigLoading ? ' is-loading' : ''}`}
@@ -4215,39 +4240,6 @@ function MediaProvidersSection({
 
   return (
     <section className="settings-section">
-      <div className="section-head">
-        <div>
-          <h3>{t('settings.mediaProviders')}</h3>
-          <p className="hint">{t('settings.mediaProvidersHint')}</p>
-        </div>
-        {onReloadMediaProviders ? (
-          <button
-            type="button"
-            className={`ghost${
-              reloadNotice?.kind === 'success' ? ' is-success-flash' : ''
-            }`}
-            onClick={() => void handleReload()}
-            disabled={reloadRunning}
-            aria-live="polite"
-          >
-            {reloadRunning ? (
-              t('common.loading')
-            ) : reloadNotice?.kind === 'success' ? (
-              <>
-                <Icon name="check" size={13} />
-                {/* TODO(i18n): inline English ack until the locale
-                    files get a dedicated `mediaProviderReloaded` key.
-                    Source-of-truth message still lives in
-                    settings.mediaProviderReloadSuccess (now used only
-                    for screen-reader announcement). */}
-                <span style={{ marginLeft: 4 }}>Reloaded</span>
-              </>
-            ) : (
-              t('settings.mediaProviderReload')
-            )}
-          </button>
-        ) : null}
-      </div>
       {mediaProvidersNotice ? (
         <p className="hint" role="alert">{mediaProvidersNotice}</p>
       ) : null}
@@ -4265,6 +4257,33 @@ function MediaProvidersSection({
         <span className="sr-only" role="status">
           {reloadNotice.message}
         </span>
+      ) : null}
+      {onReloadMediaProviders ? (
+        <div className="media-provider-reload-row">
+          <button
+            type="button"
+            className={`ghost media-provider-reload-btn${
+              reloadNotice?.kind === 'success' ? ' is-success-flash' : ''
+            }`}
+            onClick={() => void handleReload()}
+            disabled={reloadRunning}
+            aria-live="polite"
+          >
+            {reloadRunning ? (
+              t('common.loading')
+            ) : reloadNotice?.kind === 'success' ? (
+              <>
+                <Icon name="check" size={13} />
+                <span style={{ marginLeft: 4 }}>Reloaded</span>
+              </>
+            ) : (
+              <>
+                <Icon name="refresh" size={13} />
+                <span style={{ marginLeft: 4 }}>{t('settings.mediaProviderReload')}</span>
+              </>
+            )}
+          </button>
+        </div>
       ) : null}
       <div className="media-provider-list">
         {availableProviders.map((provider) => {
@@ -4760,14 +4779,7 @@ function IntegrationsSection() {
 
   return (
     <section className="settings-section">
-      <div className="section-head">
-        <div>
-          <h3>{t('settings.mcpTitle')}</h3>
-          <p className="hint">{t('settings.mcpHint')}</p>
-        </div>
-      </div>
-
-      <div className="settings-about-list" style={{ display: 'block' }}>
+      <div className="mcp-client-body">
         {infoError ? (
           <div
             className="empty-card"
@@ -4777,40 +4789,24 @@ function IntegrationsSection() {
           </div>
         ) : null}
 
-        {/* Capabilities first — user needs to know why to do this
-            before being asked to run a command. */}
-        <div style={{ marginBottom: 16, lineHeight: 1.55 }}>
-          <p
-            style={{
-              margin: '0 0 6px',
-              fontSize: 11,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              fontWeight: 600,
-            }}
-          >
+        {/* Group 1: what the MCP server does */}
+        <div className="mcp-capabilities-card">
+          <p className="mcp-capabilities-label">
             {t('settings.mcpCapabilitiesTitle')}
           </p>
-          <ul
-            style={{
-              margin: 0,
-              paddingLeft: 18,
-              fontSize: 13,
-              color: 'var(--text)',
-            }}
-          >
+          <ul className="mcp-capabilities-list">
             <li>{t('settings.mcpCapabilityRead')}</li>
             <li>{t('settings.mcpCapabilityPull')}</li>
             <li>{t('settings.mcpCapabilityDefault')}</li>
           </ul>
         </div>
 
-        <div
-          className="ds-picker"
-          ref={pickerRef}
-          style={{ marginBottom: 14 }}
-        >
+        {/* Group 2: setup flow */}
+        <div className="mcp-setup-card">
+          <div
+            className="ds-picker"
+            ref={pickerRef}
+          >
           <button
             type="button"
             className={`ds-picker-trigger${pickerOpen ? ' open' : ''}`}
@@ -4868,7 +4864,7 @@ function IntegrationsSection() {
         </div>
 
         {info ? (
-          <p style={{ margin: '0 0 10px' }}>{client.buildInstruction(info)}</p>
+          <p style={{ margin: 0 }}>{client.buildInstruction(info)}</p>
         ) : null}
 
         {client.buildDeeplink && info ? (
@@ -4967,10 +4963,7 @@ function IntegrationsSection() {
         {info && (!info.cliExists || !info.nodeExists) ? (
           <div
             className="empty-card"
-            style={{
-              marginTop: 10,
-              borderLeft: '3px solid var(--warning-fg, #fbbf24)',
-            }}
+            style={{ borderLeft: '3px solid var(--warning-fg, #fbbf24)' }}
           >
             <strong>
               {!info.cliExists
@@ -4985,7 +4978,6 @@ function IntegrationsSection() {
             not an error — keep it right after the code block. */}
         <div
           style={{
-            marginTop: 14,
             padding: '10px 12px',
             background: 'var(--bg-subtle)',
             border: '1px solid var(--border)',
@@ -5001,25 +4993,19 @@ function IntegrationsSection() {
           </span>
         </div>
 
-        <p
-          style={{
-            marginTop: 14,
-            fontSize: 12,
-            color: 'var(--text-muted)',
-            lineHeight: 1.5,
-          }}
-        >
-          {t('settings.mcpRunningNote')}
-        </p>
+          <p className="mcp-running-note">
+            {t('settings.mcpRunningNote')}
+          </p>
+        </div>{/* end mcp-setup-card */}
       </div>
     </section>
   );
 }
 
-const THEMES: Array<{ value: AppTheme; labelKey: 'settings.themeSystem' | 'settings.themeLight' | 'settings.themeDark' }> = [
+const THEMES: Array<{ value: AppTheme; labelKey: 'settings.themeSystem' | 'settings.themeLight' | 'settings.themeDark'; icon?: 'sun' | 'moon' }> = [
   { value: 'system', labelKey: 'settings.themeSystem' },
-  { value: 'light', labelKey: 'settings.themeLight' },
-  { value: 'dark', labelKey: 'settings.themeDark' },
+  { value: 'light', labelKey: 'settings.themeLight', icon: 'sun' },
+  { value: 'dark', labelKey: 'settings.themeDark', icon: 'moon' },
 ];
 
 function AppearanceSection({
@@ -5048,14 +5034,8 @@ function AppearanceSection({
 
   return (
     <section className="settings-section">
-      <div className="section-head">
-        <div>
-          <h3>{t('settings.appearance')}</h3>
-          <p className="hint">{t('settings.appearanceHint')}</p>
-        </div>
-      </div>
       <div className="seg-control" role="group" aria-label={t('settings.appearance')} style={{ '--seg-cols': THEMES.length } as React.CSSProperties}>
-        {THEMES.map(({ value, labelKey }) => (
+        {THEMES.map(({ value, labelKey, icon }) => (
           <button
             key={value}
             type="button"
@@ -5063,6 +5043,7 @@ function AppearanceSection({
             aria-pressed={current === value}
             onClick={() => setCfg((c) => ({ ...c, theme: value }))}
           >
+            {icon ? <Icon name={icon} size={14} aria-hidden="true" /> : null}
             <span className="seg-title">{t(labelKey)}</span>
           </button>
         ))}
@@ -5156,29 +5137,24 @@ function NotificationsSection({
 
   return (
     <section className="settings-section">
-      <div className="section-head">
-        <div>
-          <h3>{t('settings.notifications')}</h3>
-          <p className="hint">{t('settings.notificationsHint')}</p>
-        </div>
-      </div>
-
       <div className="settings-subsection">
-        <div className="section-head">
-          <div>
+        <div className="settings-notify-card">
+          <div className="settings-notify-card-header">
             <h4>{t('settings.notifyCompletionSound')}</h4>
-            <p className="hint">{t('settings.notifyCompletionSoundHint')}</p>
+            <div className="section-head-actions">
+              <div className="seg-control" role="group" aria-label={t('settings.notifyCompletionSound')} style={{ '--seg-cols': 1 } as React.CSSProperties}>
+                <button
+                  type="button"
+                  className={'seg-btn' + (notif.soundEnabled ? ' active' : '')}
+                  aria-pressed={notif.soundEnabled}
+                  onClick={toggleSound}
+                >
+                  <span className="seg-title">{notif.soundEnabled ? t('common.active') : t('common.offline')}</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="seg-control" role="group" aria-label={t('settings.notifyCompletionSound')} style={{ '--seg-cols': 1 } as React.CSSProperties}>
-          <button
-            type="button"
-            className={'seg-btn' + (notif.soundEnabled ? ' active' : '')}
-            aria-pressed={notif.soundEnabled}
-            onClick={toggleSound}
-          >
-            <span className="seg-title">{notif.soundEnabled ? t('common.active') : t('common.offline')}</span>
-          </button>
+          <p className="hint settings-notify-card-hint">{t('settings.notifyCompletionSoundHint')}</p>
         </div>
 
         {notif.soundEnabled ? (
@@ -5227,22 +5203,24 @@ function NotificationsSection({
       </div>
 
       <div className="settings-subsection">
-        <div className="section-head">
-          <div>
+        <div className="settings-notify-card">
+          <div className="settings-notify-card-header">
             <h4>{t('settings.notifyDesktop')}</h4>
-            <p className="hint">{t('settings.notifyDesktopHint')}</p>
+            <div className="section-head-actions">
+              <div className="seg-control" role="group" aria-label={t('settings.notifyDesktop')} style={{ '--seg-cols': 1 } as React.CSSProperties}>
+                <button
+                  type="button"
+                  className={'seg-btn' + (notif.desktopEnabled ? ' active' : '')}
+                  aria-pressed={notif.desktopEnabled}
+                  disabled={permission === 'unsupported'}
+                  onClick={() => { void toggleDesktop(); }}
+                >
+                  <span className="seg-title">{notif.desktopEnabled ? t('common.active') : t('common.offline')}</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="seg-control" role="group" aria-label={t('settings.notifyDesktop')} style={{ '--seg-cols': 1 } as React.CSSProperties}>
-          <button
-            type="button"
-            className={'seg-btn' + (notif.desktopEnabled ? ' active' : '')}
-            aria-pressed={notif.desktopEnabled}
-            disabled={permission === 'unsupported'}
-            onClick={() => { void toggleDesktop(); }}
-          >
-            <span className="seg-title">{notif.desktopEnabled ? t('common.active') : t('common.offline')}</span>
-          </button>
+          <p className="hint settings-notify-card-hint">{t('settings.notifyDesktopHint')}</p>
         </div>
         {permission === 'unsupported' ? (
           <p className="hint">{t('settings.notifyDesktopUnsupported')}</p>

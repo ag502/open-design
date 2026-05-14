@@ -185,6 +185,8 @@ export const tr: Dict = {
   'settings.runtimePackaged': 'Paketlenmiş uygulama',
   'settings.runtimeDevelopment': 'Geliştirme',
   'settings.versionUnavailable': 'Arka plan servisi devre dışıyken sürüm detayları mevcut değildir.',
+  'settings.installLatest': 'En son sürümü yükle',
+  'settings.alreadyLatest': 'En son sürüme sahipsiniz',
 
   'entry.tabDesigns': 'Tasarımlar',
   'entry.tabTemplates': 'Şablonlar',

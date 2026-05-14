@@ -195,6 +195,8 @@ export const ar: Dict = {
   'settings.runtimePackaged': 'تطبيق معبأ',
   'settings.runtimeDevelopment': 'تطوير',
   'settings.versionUnavailable': 'تفاصيل النسخة غير متوفرة بينما البرنامج الخفي غير متصل.',
+  'settings.installLatest': 'تثبيت الأحدث',
+  'settings.alreadyLatest': 'أنت تستخدم أحدث إصدار',
 
   'entry.tabDesigns': 'التصاميم',
   'entry.tabTemplates': 'قوالب',

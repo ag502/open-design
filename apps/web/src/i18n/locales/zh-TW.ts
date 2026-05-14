@@ -193,6 +193,8 @@ export const zhTW: Dict = {
   'settings.runtimePackaged': '已封裝應用程式',
   'settings.runtimeDevelopment': '開發環境',
   'settings.versionUnavailable': '守護程式離線時無法取得版本詳情。',
+  'settings.installLatest': '安裝最新版本',
+  'settings.alreadyLatest': '目前已是最新版本',
 
   // MCP server settings
   'settings.mcpTitle': 'MCP server',

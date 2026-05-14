@@ -200,6 +200,8 @@ export const zhCN: Dict = {
   'settings.runtimePackaged': '已打包应用',
   'settings.runtimeDevelopment': '开发环境',
   'settings.versionUnavailable': '守护进程离线时无法获取版本详情。',
+  'settings.installLatest': '安装最新版本',
+  'settings.alreadyLatest': '当前为最新版本',
 
   // MCP server settings
   'settings.mcpTitle': 'MCP server',

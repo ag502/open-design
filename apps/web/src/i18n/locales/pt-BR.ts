@@ -194,6 +194,8 @@ export const ptBR: Dict = {
   'settings.runtimePackaged': 'App empacotado',
   'settings.runtimeDevelopment': 'Desenvolvimento',
   'settings.versionUnavailable': 'Os detalhes de versão ficam indisponíveis enquanto o daemon está offline.',
+  'settings.installLatest': 'Instalar a versão mais recente',
+  'settings.alreadyLatest': 'Você já está na versão mais recente',
 
   'entry.tabDesigns': 'Designs',
   'entry.tabTemplates': 'Modelos',

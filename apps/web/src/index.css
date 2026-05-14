@@ -2377,6 +2377,7 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 4px 12px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -2531,6 +2532,12 @@ code {
   border-color: var(--accent-soft);
   background: var(--accent-tint);
   color: var(--accent-strong);
+}
+.section-head-actions .seg-control {
+  display: inline-grid;
+  grid-template-columns: repeat(var(--seg-cols, 2), auto);
+  min-height: unset;
+  min-width: unset;
 }
 .section-head-actions {
   display: inline-flex;
@@ -3321,6 +3328,7 @@ code {
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   pointer-events: none;
+  z-index: 0;
 }
 @keyframes orbitConfigGateIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -3400,6 +3408,8 @@ code {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 .orbit-config-gate-action {
   display: inline-flex;
@@ -3648,28 +3658,147 @@ code {
   flex-direction: column;
   gap: 8px;
 }
+.mcp-client-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Group 1: what the MCP server does */
+.mcp-capabilities-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  line-height: 1.55;
+}
+.mcp-capabilities-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mcp-capabilities-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Group 2: setup flow */
+.mcp-setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.mcp-setup-card .ds-picker {
+  margin-bottom: 0;
+}
+.mcp-running-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
 .settings-about-list > div {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
   padding: 12px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
+.settings-about-version-row {
+  justify-content: space-between;
+}
 .settings-about-list dt {
   font-size: 12px;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 .settings-about-list dd {
   margin: 0;
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
-  text-align: right;
   overflow-wrap: anywhere;
 }
+.settings-notify-card {
+  padding: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.settings-notify-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-notify-card-header h4 {
+  margin: 0;
+}
+.settings-notify-card-hint {
+  margin: 16px 0 0;
+}
+.settings-about-version-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-about-version-num {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.settings-about-download-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+.settings-about-download-link:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.settings-about-download-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
+.media-provider-reload-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+.media-provider-reload-btn {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  gap: 4px;
+}
+.media-provider-reload-btn:hover {
+  color: var(--text);
+}
 .media-provider-list {
   display: flex;
   flex-direction: column;
@@ -3962,17 +4091,14 @@ code {
 }
 .agent-card:hover:not(.disabled) {
   border-color: var(--border-strong);
-  background: var(--bg-subtle);
 }
 .agent-card.active {
-  border-color: var(--border-strong);
-  background: var(--bg-subtle);
-  box-shadow: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .agent-card.disabled {
   cursor: not-allowed;
   opacity: 0.55;
-  background: var(--bg-subtle);
 }
 .agent-card.disabled.agent-card-unavailable {
   opacity: 0.72;
@@ -6460,6 +6586,23 @@ button.connector-action.is-loading {
    blowing the dialog out vertically. */
 .tab-panel.connectors-panel.connectors-panel-embedded {
   gap: 14px;
+  position: relative;
+}
+/* Toast anchor: positions the connector error toast at the center-top
+   of the settings panel rather than at the bottom of the viewport. */
+.connectors-toast-anchor {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+  width: max-content;
+}
+.connectors-toast-anchor .od-toast {
+  position: static;
+  transform: none;
+  pointer-events: auto;
 }
 .connectors-panel-embedded .tab-panel-toolbar {
   justify-content: flex-end;
@@ -6494,6 +6637,10 @@ button.connector-action.is-loading {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   flex: 0 0 auto;
+}
+/* Hide the provider tabs when there is only one option — no choice = no need for a tab. */
+.connectors-provider-tabs:has(> :only-child) {
+  display: none;
 }
 .connectors-provider-tab {
   appearance: none;
@@ -14703,8 +14850,14 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   gap: 6px;
   margin-top: 12px;
 }
-.pet-tabs .subtab-pill {
-  align-self: flex-start;
+.pet-tabs-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pet-tabs-top-row .subtab-pill {
+  flex: 0 0 auto;
 }
 .pet-tabs-hint {
   margin: 0;
@@ -15848,8 +16001,9 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
 }
 
 .pet-codex-card {
+  position: relative;
   display: grid;
-  grid-template-columns: 56px 1fr auto;
+  grid-template-columns: 56px 1fr;
   align-items: center;
   gap: 10px;
   padding: 10px;
@@ -15942,6 +16096,7 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   display: grid;
   gap: 2px;
   min-width: 0;
+  padding-right: 8px;
 }
 
 .pet-codex-meta strong {
@@ -15960,6 +16115,26 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Adopt button: absolutely positioned at card's right edge so the
+   meta text always fills the full remaining width. Hidden until hover;
+   adopted (active) icon-only check stays visible at all times. */
+.pet-codex-adopt-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.pet-codex-adopt-btn:not(.active) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.pet-codex-card:hover .pet-codex-adopt-btn:not(.active),
+.pet-codex-card:focus-within .pet-codex-adopt-btn:not(.active) {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Slash-command popover in the chat composer */
@@ -16223,22 +16398,21 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   gap: 10px;
   margin-bottom: 16px;
 }
-/* Skills toolbar variant: search + all dropdowns on a single row.
-   Search grows to fill leftover space; dropdowns stay compact on
-   the right. Wraps gracefully on narrow viewports. */
-.library-toolbar.skills-toolbar-row {
-  flex-direction: row;
+/* Skills toolbar: two-row layout.
+   Row 1: search (grows) + New skill button (right, 12px gap).
+   Row 2: filter dropdowns with inline labels. */
+.library-toolbar.skills-toolbar {
+  flex-direction: column;
+  gap: 10px;
+}
+.skills-toolbar-top {
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
-.library-toolbar.skills-toolbar-row .library-search {
-  flex: 1 1 160px;
+.skills-toolbar-top .library-search {
+  flex: 1 1 0;
   min-width: 0;
-}
-.library-toolbar.skills-toolbar-row .library-filter-selects {
-  flex: 0 0 auto;
-  flex-wrap: nowrap;
 }
 
 /* Variant: filter pills on the left, primary action on the right.
@@ -16314,8 +16488,9 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
 }
 .library-filter-select {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
   min-width: 0;
@@ -16331,8 +16506,8 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  min-width: 140px;
-  max-width: 220px;
+  min-width: 100px;
+  max-width: 180px;
   cursor: pointer;
 }
 .library-filter-select select:hover:not(:disabled) {
@@ -16684,6 +16859,12 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   the discovery work without a permanent string of /Users/... text
   occupying a whole row in the card.
 */
+.memory-info-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .memory-info-btn {
   display: inline-flex;
   align-items: center;
@@ -16694,13 +16875,37 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   border: none;
   background: transparent;
   color: var(--text-muted);
-  cursor: help;
+  cursor: pointer;
   border-radius: 50%;
   transition: color 120ms ease, background 120ms ease;
 }
 .memory-info-btn:hover {
   color: var(--text);
   background: var(--bg-subtle);
+}
+.memory-path-copied-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--success-fg, #16a34a);
+  background: var(--success-bg, #dcfce7);
+  padding: 1px 6px;
+  border-radius: 999px;
+  animation: memory-badge-in 160ms ease;
+  white-space: nowrap;
+}
+@keyframes memory-badge-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Extraction history + MEMORY.md (index) as standalone bordered cards,
+   matching the "Advanced: proxy & custom paths" card style. */
+.memory-collapsible-card {
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  margin-top: 12px;
 }
 
 .memory-details-summary {

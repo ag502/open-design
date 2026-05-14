@@ -59,8 +59,7 @@ export const en: Dict = {
   'settings.modeApi': 'API provider',
   'settings.modeApiMeta': 'BYOK',
   'settings.codeAgent': 'Code agent',
-  'settings.codeAgentHint':
-    'Detected by scanning your PATH. Pick the CLI you want generations to flow through.',
+  'settings.codeAgentHint': 'Pick the CLI to route generations through.',
   'settings.rescan': '↻ Rescan',
   'settings.rescanTitle': 'Re-scan PATH',
   'settings.rescanRunning': 'Scanning...',
@@ -202,6 +201,8 @@ export const en: Dict = {
   'settings.runtimePackaged': 'Packaged app',
   'settings.runtimeDevelopment': 'Development',
   'settings.versionUnavailable': 'Version details are unavailable while the daemon is offline.',
+  'settings.installLatest': 'Install latest',
+  'settings.alreadyLatest': 'You\'re on the latest version',
 
   // MCP server settings
   'settings.mcpTitle': 'MCP server',
@@ -1434,7 +1435,7 @@ export const en: Dict = {
   'settings.connectorsKeyError': 'Couldn\u2019t save the key. Check that the local daemon is running and try again.',
   'settings.connectorsHelpSaved': 'Your key is saved in the local daemon. Paste a new key to replace it, or Clear to remove.',
   'settings.connectorsHelpUnsaved': 'Unsaved changes \u2014 click Save key to store this credential in the local daemon and refresh the catalog below.',
-  'settings.connectorsHelpEmpty': 'Add a key to load the catalog below. Keys are stored locally in the daemon and never sent through environment variables.',
+  'settings.connectorsHelpEmpty': 'Keys are stored locally and never shared.',
   'settings.connectorsLoadingSavedKey': 'Checking for a saved key in the local daemon\u2026',
   'settings.autosaveSaving': 'Saving\u2026',
   'settings.autosaveSaved': 'All changes saved',
@@ -1494,7 +1495,7 @@ export const en: Dict = {
   'settings.memoryToastClickHint': 'View',
   'settings.memoryAll': 'All',
   'settings.memoryExtractions': 'Extraction history',
-  'settings.memoryExtractionsHint': 'Recent extraction attempts. Heuristic regex extraction runs first; LLM extraction runs in the background after each turn.',
+  'settings.memoryExtractionsHint': 'Regex runs first, LLM runs in background.',
   'settings.memoryExtractionsEmpty': 'No extractions yet. The next chat turn will populate this list.',
   'settings.memoryExtractionsRefresh': 'Refresh',
   'settings.memoryExtractionsRefreshing': 'Refreshing…',

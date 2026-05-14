@@ -195,6 +195,8 @@ export const esES: Dict = {
   'settings.runtimePackaged': 'App empaquetada',
   'settings.runtimeDevelopment': 'Desarrollo',
   'settings.versionUnavailable': 'Los detalles de versión no están disponibles mientras el daemon está offline.',
+  'settings.installLatest': 'Instalar la última versión',
+  'settings.alreadyLatest': 'Ya tienes la última versión',
 
   'entry.tabDesigns': 'Diseños',
   'entry.tabTemplates': 'Plantillas',

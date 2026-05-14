@@ -335,34 +335,27 @@ export function SkillsSection({ cfg, setCfg }: Props) {
 
   return (
     <section className="settings-section settings-skills">
-      <div className="section-head">
-        <div>
-          <h3>{t('settings.skills')}</h3>
-          <p className="hint">{t('settings.skillsHint')}</p>
+      <div className="library-toolbar skills-toolbar">
+        {/* Row 1: search + New skill button */}
+        <div className="skills-toolbar-top">
+          <input
+            type="search"
+            className="library-search"
+            placeholder={t('settings.librarySearch')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button
+            type="button"
+            className="primary skills-add-btn"
+            onClick={startCreate}
+            data-testid="skills-new"
+          >
+            <Icon name="plus" size={13} />
+            <span>{t('settings.skillsNew')}</span>
+          </button>
         </div>
-        <button
-          type="button"
-          className="primary skills-add-btn"
-          onClick={startCreate}
-          data-testid="skills-new"
-        >
-          <Icon name="plus" size={13} />
-          <span>{t('settings.skillsNew')}</span>
-        </button>
-      </div>
-
-      {/* Single toolbar row: search expands to fill available space,
-          three dropdowns sit right of it. All filters are dropdowns
-          now — no pill rows. TODO(i18n): Source/Type/Category labels
-          are inline English until locale keys are added. */}
-      <div className="library-toolbar skills-toolbar-row">
-        <input
-          type="search"
-          className="library-search"
-          placeholder={t('settings.librarySearch')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        {/* Row 2: filter dropdowns */}
         <div className="library-filter-selects">
           <label className="library-filter-select">
             <span className="library-filter-select-label">Source</span>

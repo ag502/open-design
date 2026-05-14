@@ -195,6 +195,8 @@ export const ko: Dict = {
   'settings.runtimePackaged': '패키징된 앱',
   'settings.runtimeDevelopment': '개발 (Development)',
   'settings.versionUnavailable': '데몬이 오프라인 상태일 때는 버전 세부 정보를 확인할 수 없습니다.',
+  'settings.installLatest': '최신 버전 설치',
+  'settings.alreadyLatest': '최신 버전입니다',
 
   'entry.tabDesigns': '디자인',
   'entry.tabTemplates': '템플릿',

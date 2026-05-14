@@ -194,6 +194,8 @@ export const ru: Dict = {
   'settings.runtimePackaged': 'Упакованное приложение',
   'settings.runtimeDevelopment': 'Разработка',
   'settings.versionUnavailable': 'Сведения о версии недоступны, пока daemon не запущен.',
+  'settings.installLatest': 'Установить последнюю версию',
+  'settings.alreadyLatest': 'У вас установлена последняя версия',
 
   'entry.tabDesigns': 'Дизайны',
   'entry.tabTemplates': 'Шаблоны',

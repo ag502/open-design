@@ -195,6 +195,8 @@ export const ja: Dict = {
   'settings.runtimePackaged': 'パッケージ版アプリ',
   'settings.runtimeDevelopment': '開発環境',
   'settings.versionUnavailable': 'daemon がオフラインの間はバージョン詳細を取得できません。',
+  'settings.installLatest': '最新版をインストール',
+  'settings.alreadyLatest': '最新バージョンです',
 
   'entry.tabDesigns': 'デザイン',
   'entry.tabTemplates': 'テンプレート',

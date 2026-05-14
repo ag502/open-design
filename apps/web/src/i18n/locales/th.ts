@@ -178,6 +178,8 @@ export const th: Dict = {
   'settings.runtimePackaged': 'แอปที่แพ็กเกจแล้ว',
   'settings.runtimeDevelopment': 'การพัฒนา',
   'settings.versionUnavailable': 'ข้อมูลเวอร์ชันไม่พร้อมใช้งานขณะที่ daemon ออฟไลน์',
+  'settings.installLatest': 'ติดตั้งเวอร์ชันล่าสุด',
+  'settings.alreadyLatest': 'คุณใช้เวอร์ชันล่าสุดอยู่แล้ว',
 
   'entry.tabDesigns': 'ดีไซน์',
   'entry.tabTemplates': 'ตัวอย่าง',
