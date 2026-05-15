@@ -84,7 +84,21 @@ function normalizeImportedClaudeDesignFile(relPath: string, body: Buffer): Buffe
   if (path.basename(relPath) !== 'design-canvas.jsx') return body;
   const source = body.toString('utf8');
   const normalized = normalizeDesignCanvasWheelHandling(source);
-  return normalized === source ? body : Buffer.from(normalized, 'utf8');
+  if (normalized === source) {
+    // We already confirmed via basename that this came from a Claude Design
+    // canvas export, so reaching this branch means neither rewrite regex
+    // matched. Almost always that is because Anthropic touched the canvas
+    // template (whitespace, comment prose, statement layout); the importer
+    // will then silently write the unpatched source and the imported canvas
+    // will reproduce the zoom-on-scroll bug this normalizer exists to
+    // prevent. Log loudly so operators have something to grep before the
+    // bug report comes back in.
+    console.warn(
+      '[claude-design-import] design-canvas.jsx found but wheel-handler regex did not match; imported canvas may zoom on scroll. Update normalizeDesignCanvasWheelHandling to match the new template.',
+    );
+    return body;
+  }
+  return Buffer.from(normalized, 'utf8');
 }
 
 function normalizeDesignCanvasWheelHandling(source: string): string {
@@ -108,12 +122,24 @@ function normalizeDesignCanvasWheelHandling(source: string): string {
       apply();
     };
 
+    // Cmd+wheel still zooms, but we have to split notched mouse wheels from
+    // smooth trackpad pinch deltas inside the Cmd branch: a single mouse
+    // notch arrives as deltaY≈100, and Math.exp(-100*0.01)≈0.367 would shrink
+    // the canvas by ~63% per click. The notched ratio Math.exp(-sign*0.18)
+    // gives ~17% per click — the same feel the original Claude export had
+    // before this normalizer collapsed both paths.
+    const isNotchedWheel = (e) =>
+      e.deltaMode !== 0 ||
+      (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
     const onWheel = (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (isGesturing) return;
       if (e.metaKey) {
-        zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+        const factor = isNotchedWheel(e)
+          ? Math.exp(-Math.sign(e.deltaY) * 0.18)
+          : Math.exp(-e.deltaY * 0.01);
+        zoomAt(e.clientX, e.clientY, factor);
         return;
       }
       panByWheel(e);

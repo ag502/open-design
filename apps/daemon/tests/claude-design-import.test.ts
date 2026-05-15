@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'n
 import path from 'node:path';
 import os from 'node:os';
 import { deflateRawSync } from 'node:zlib';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { importClaudeDesignZip } from '../src/claude-design-import.js';
 
 function buildZip(
@@ -237,13 +237,62 @@ function DCViewport() {
       expect(result.files).toContain('design-canvas.jsx');
       const written = readFileSync(path.join(projectDir, 'design-canvas.jsx'), 'utf8');
       expect(written).not.toContain('const isMouseWheel');
-      expect(written).not.toContain('Math.exp(-Math.sign(e.deltaY) * 0.18)');
       expect(written).not.toContain('(gsBase * e.scale) / tf.current.scale');
       expect(written).toContain('const panByWheel = (e) =>');
       expect(written).toContain('if (e.metaKey)');
-      expect(written).toContain('zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));');
+      // The rewritten Cmd-zoom path now keeps both ratios so a physical mouse
+      // wheel does not shrink the canvas by ~63% per notch: the notched
+      // detector matches deltaMode!==0 or large integer pixel deltas, and the
+      // notched factor (Math.sign * 0.18) gives ~17% per click while trackpad
+      // smooth scrolls keep the original deltaY * 0.01 ratio.
+      expect(written).toContain('const isNotchedWheel = (e) =>');
+      expect(written).toContain('Math.exp(-Math.sign(e.deltaY) * 0.18)');
+      expect(written).toContain('Math.exp(-e.deltaY * 0.01)');
       expect(written).toContain("const limit = axis === 'y' ? 72 : 160;");
     } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('warns and preserves source when the design-canvas wheel-handler shape drifts', async () => {
+    // Same general layout as a real Claude Design canvas export, but with
+    // tab indentation and a rephrased comment so neither rewrite regex
+    // matches. The importer should leave the source untouched and emit a
+    // console.warn that operators can grep when the zoom-on-scroll bug
+    // reappears with a future canvas template.
+    const driftedCanvas = `
+function DCViewport() {
+\tReact.useEffect(() => {
+\t\t// Wheel routing: distinguish trackpad pan from notched mouse wheel zoom.
+\t\tconst onWheel = (e) => {
+\t\t\te.preventDefault();
+\t\t};
+\t});
+}
+`;
+    const zip = buildZip([
+      { name: 'index.html', body: Buffer.from('<html><script src="design-canvas.jsx"></script></html>') },
+      { name: 'design-canvas.jsx', body: Buffer.from(driftedCanvas) },
+    ]);
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'cd-import-drift-'));
+    const zipPath = path.join(tmp, 'in.zip');
+    const projectDir = path.join(tmp, 'proj');
+    writeFileSync(zipPath, zip);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await importClaudeDesignZip(zipPath, projectDir);
+      expect(result.files).toContain('design-canvas.jsx');
+      const written = readFileSync(path.join(projectDir, 'design-canvas.jsx'), 'utf8');
+      // Source must be preserved verbatim — no partial rewrite, no crash.
+      expect(written).toBe(driftedCanvas);
+      // And the importer must have logged so the regression is greppable.
+      expect(warn).toHaveBeenCalledTimes(1);
+      const firstCall = warn.mock.calls[0]?.[0];
+      expect(typeof firstCall).toBe('string');
+      expect(firstCall).toContain('[claude-design-import]');
+      expect(firstCall).toContain('design-canvas.jsx');
+    } finally {
+      warn.mockRestore();
       rmSync(tmp, { recursive: true, force: true });
     }
   });
