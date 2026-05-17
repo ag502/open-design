@@ -6,6 +6,7 @@ import {
 } from '../i18n/content';
 import { fetchDesignSystemShowcase } from '../providers/registry';
 import { buildSrcdoc } from '../runtime/srcdoc';
+import { Icon } from './Icon';
 import type { DesignSystemSummary, Surface } from '../types';
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onPreview: (id: string) => void;
+  onCreate?: () => void;
+  onOpenSystem?: (id: string) => void;
 }
 
 const CATEGORY_ORDER = [
@@ -42,7 +45,14 @@ function surfaceOf(system: DesignSystemSummary): Surface {
   return system.surface ?? 'web';
 }
 
-export function DesignSystemsTab({ systems, selectedId, onSelect, onPreview }: Props) {
+export function DesignSystemsTab({
+  systems,
+  selectedId,
+  onSelect,
+  onPreview,
+  onCreate,
+  onOpenSystem,
+}: Props) {
   const { locale, t } = useI18n();
   const [filter, setFilter] = useState('');
   const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilter>('all');
@@ -136,6 +146,12 @@ export function DesignSystemsTab({ systems, selectedId, onSelect, onPreview }: P
             </option>
           ))}
         </select>
+        {onCreate ? (
+          <button type="button" className="primary" onClick={onCreate}>
+            <Icon name="plus" />
+            Create
+          </button>
+        ) : null}
       </div>
       <div
         className="examples-filter-row"
@@ -172,6 +188,7 @@ export function DesignSystemsTab({ systems, selectedId, onSelect, onPreview }: P
               thumbHtml={thumbs[s.id]}
               onIntersect={() => loadThumb(s.id)}
               onSelect={() => onSelect(s.id)}
+              onOpenSystem={onOpenSystem ? () => onOpenSystem(s.id) : undefined}
               onPreview={() => onPreview(s.id)}
             />
           ))}
@@ -187,6 +204,7 @@ interface CardProps {
   thumbHtml: string | null | undefined;
   onIntersect: () => void;
   onSelect: () => void;
+  onOpenSystem?: () => void;
   onPreview: () => void;
 }
 
@@ -196,6 +214,7 @@ function DesignSystemCard({
   thumbHtml,
   onIntersect,
   onSelect,
+  onOpenSystem,
   onPreview,
 }: CardProps) {
   const { locale, t } = useI18n();
@@ -310,6 +329,19 @@ function DesignSystemCard({
             </div>
           ) : null}
         </div>
+        {onOpenSystem ? (
+          <button
+            type="button"
+            className="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenSystem();
+            }}
+          >
+            <Icon name={system.isEditable ? 'edit' : 'external-link'} />
+            {system.isEditable ? 'Edit' : 'Open'}
+          </button>
+        ) : null}
       </div>
     </div>
   );

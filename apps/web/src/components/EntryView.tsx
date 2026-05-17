@@ -106,6 +106,8 @@ interface Props {
   onDeleteProject: (id: string) => void;
   onRenameProject: (id: string, name: string) => void;
   onChangeDefaultDesignSystem: (id: string) => void;
+  onCreateDesignSystem?: () => void;
+  onOpenDesignSystem?: (id: string) => void;
   onPersistComposioKey: (composio: AppConfig['composio']) => Promise<void> | void;
   onOpenSettings: (section?: 'execution' | 'media' | 'composio' | 'orbit' | 'integrations' | 'mcpClient' | 'language' | 'appearance' | 'notifications' | 'pet' | 'library' | 'about') => void;
 }
@@ -257,6 +259,8 @@ export function EntryView({
   onDeleteProject,
   onRenameProject,
   onChangeDefaultDesignSystem,
+  onCreateDesignSystem,
+  onOpenDesignSystem,
   onPersistComposioKey,
   onOpenSettings,
 }: Props) {
@@ -342,6 +346,8 @@ export function EntryView({
       onDeleteProject={onDeleteProject}
       onRenameProject={onRenameProject}
       onChangeDefaultDesignSystem={onChangeDefaultDesignSystem}
+      onCreateDesignSystem={onCreateDesignSystem}
+      onOpenDesignSystem={onOpenDesignSystem}
       onPersistComposioKey={onPersistComposioKey}
       onOpenSettings={onOpenSettings}
     />
