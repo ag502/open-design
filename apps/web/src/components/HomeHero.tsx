@@ -768,7 +768,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
               title="Attach files"
               aria-label="Attach files"
             >
-              <Icon name="attach" size={14} />
+              <Icon name="attach" size={18} />
             </button>
             <span className="home-hero__hint">
               <kbd>↵</kbd> to run · <kbd>Shift</kbd>+<kbd>↵</kbd> for new line
@@ -783,7 +783,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
             title={canSubmit ? 'Run' : 'Type something to run'}
             aria-label="Run"
           >
-            <Icon name="arrow-up" size={18} />
+            <Icon name="arrow-up" size={22} />
           </button>
         </div>
       </div>

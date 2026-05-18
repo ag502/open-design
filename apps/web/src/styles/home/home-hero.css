@@ -763,8 +763,12 @@
 }
 .home-hero__attach {
   appearance: none;
-  width: 32px;
-  height: 32px;
+  /* Match the submit button size and make the paper-clip glyph
+     readable at typical viewing distance. The previous 32px / 14px
+     glyph combo rendered the icon at roughly 11–12px after stroke
+     antialiasing and washed out against the white card. */
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: 50%;
@@ -797,8 +801,11 @@
 }
 .home-hero__submit {
   appearance: none;
-  width: 32px;
-  height: 32px;
+  /* Larger send button so the arrow glyph reads at typical viewing
+     distance and the primary call-to-action carries enough visual
+     weight against the surrounding muted controls. */
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: none;
   background: var(--accent);
