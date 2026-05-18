@@ -35,7 +35,7 @@ interface ParsedOptions {
 const CONNECTORS_USAGE = `Usage:
   od tools connectors list [--use-case personal_daily_digest] [--format compact]
   od tools connectors execute --connector <id> --tool <name> --input input.json
-  od tools connectors github-design-context --repo owner/repo [--ref main] [--output context/github/owner-repo.md] [--max-files 24] [--require-connector]
+  od tools connectors github-design-context --repo owner/repo [--ref main] [--output context/github/owner-repo.md] [--max-files 48] [--require-connector]
 
 Environment:
   OD_NODE_BIN     Node-compatible runtime for agent wrapper invocations
@@ -54,9 +54,10 @@ const GITHUB_GET_README_TOOL = 'github.github_get_a_repository_readme';
 const GITHUB_GET_RAW_CONTENT_TOOL = 'github.github_get_raw_repository_content';
 const GITHUB_GET_REPOSITORY_CONTENT_TOOL = 'github.github_get_repository_content';
 
-const DEFAULT_GITHUB_CONTEXT_MAX_FILES = 24;
+const DEFAULT_GITHUB_CONTEXT_MAX_FILES = 48;
 const MAX_GITHUB_CONTEXT_FILES = 80;
 const MAX_CONTEXT_FILE_BYTES = 120_000;
+const MAX_CONTEXT_ASSET_BYTES = 1_500_000;
 const MAX_MARKDOWN_EXCERPT_CHARS = 2_400;
 const MAX_CONNECTOR_DIRECTORY_SCAN_DIRS = 48;
 const GITHUB_CLONE_TIMEOUT_MS = 120_000;
@@ -72,9 +73,10 @@ interface ParsedGitHubRepo {
 interface GithubSnapshotFile {
   repoPath: string;
   outputPath?: string;
-  content: string;
+  content: string | Buffer;
   bytes: number;
   source: 'connector' | 'git-clone';
+  binary?: boolean;
 }
 
 interface GithubDesignEvidence {
@@ -441,13 +443,21 @@ function scoreDesignFile(repoPath: string): number {
   let score = 0;
   if (/(^|\/)readme\.(md|mdx|txt|rst)$/u.test(normalized)) score += 100;
   if (/(^|\/)package\.json$/u.test(normalized)) score += 95;
-  if (/(^|\/)(tailwind|theme|tokens?|colors?|typography|design-system|design)\.(config\.)?(ts|tsx|js|jsx|json|css|scss|less|md)$/u.test(normalized)) score += 90;
-  if (/(^|\/)(globals?|index|style|styles|app)\.(css|scss|less)$/u.test(normalized)) score += 82;
+  if (/(^|\/)(tailwind|theme|themes?|themeprovider|antdprovider|tokens?|colors?|typography|design-system|design|constant|constants|env|style|styles)\.(config\.)?(ts|tsx|js|jsx|json|css|scss|less|md)$/u.test(normalized)) score += 95;
+  if (/(^|\/)(globals?|index|style|styles|app|root)\.(css|scss|less)$/u.test(normalized)) score += 88;
+  if (/^(build|assets?|public|resources)\/(cherry[-_])?(logo|icon|tray[_-]?icon|avatar|wordmark|brand|mark)[^/]*\.(svg|png|jpe?g|webp|ico)$/u.test(normalized)) score += 150;
+  if (/^(fonts?|assets?\/fonts?|public\/fonts?|resources\/fonts?)\/.*\.(ttf|otf|woff2?)$/u.test(normalized)) score += 145;
+  if (/(^|\/)(build|assets?|public|resources|fonts?)\/.*(logo|icon|avatar|tray|brand|wordmark|mark)[^/]*\.(svg|png|jpe?g|webp|ico)$/u.test(normalized)) score += 86;
+  if (/(^|\/)(build|assets?|public|resources|fonts?)\/.*\.(ttf|otf|woff2?)$/u.test(normalized)) score += 84;
+  if (/\/(context|providers?|theme|styles?|config|utils?)\//u.test(normalized)) score += 70;
+  if (/\/(app|layout|shell|navbar|sidebar|home|chat|settings|inputbar|assistants?|topics?)\//u.test(normalized)) score += 68;
   if (/\/(components?|ui|design-system|primitives?)\//u.test(normalized)) score += 65;
-  if (/(button|card|dialog|modal|input|form|nav|sidebar|table|badge|avatar|toast|menu|tabs|layout|shell)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)) score += 55;
+  if (/(button|card|dialog|modal|input|form|nav|navbar|sidebar|table|badge|avatar|toast|menu|tabs|layout|shell|composer|message|assistant|model|provider|settings)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)) score += 58;
   if (/(^|\/)(app|pages|src)\/(layout|page|app|index|main)\.(tsx|ts|jsx|js|css)$/u.test(normalized)) score += 45;
-  if (/(^|\/)(logo|brand|icon)[^/]*\.svg$/u.test(normalized)) score += 40;
+  if (isDesignAssetPath(normalized)) score += 42;
   if (/\.(css|scss|less|tsx|ts|jsx|js|md|mdx|json|svg)$/u.test(normalized)) score += 10;
+  if (isBinaryDesignAssetPath(normalized)) score += 6;
+  if (/\/assets\/images\/providers?\//u.test(normalized)) score -= 72;
   return score;
 }
 
@@ -457,20 +467,40 @@ function scoreDesignDirectory(repoPath: string): number {
   const segments = normalized.split('/');
   const basename = segments.at(-1) ?? normalized;
   let score = 0;
-  if (/^(apps?|packages?|src|source|frontend|web|client|ui|components?|design-system|styles?|theme|themes|tokens?|assets?|public)$/u.test(basename)) {
+  if (/^(apps?|packages?|src|source|frontend|web|client|ui|components?|design-system|styles?|theme|themes|tokens?|assets?|public|resources|build|fonts?)$/u.test(basename)) {
     score += 80;
   }
   if (/(^|\/)(apps?|packages?)\//u.test(normalized)) score += 35;
-  if (/(^|\/)(components?|ui|design-system|primitives?|styles?|theme|tokens?|assets?)$/u.test(normalized)) score += 45;
+  if (/(^|\/)(components?|ui|design-system|primitives?|styles?|theme|tokens?|assets?|public|resources|build|fonts?)$/u.test(normalized)) score += 45;
   if (segments.length <= 2) score += 10;
   if (segments.length > 5) score -= 20;
   return score;
 }
 
 function shouldSkipRepoPath(normalizedPath: string): boolean {
+  if (isDesignAssetDirectory(normalizedPath) || isDesignAssetPath(normalizedPath)) return false;
   return /(^|\/)(node_modules|vendor|dist|build|coverage|\.next|\.nuxt|\.git|out|target|storybook-static)\//u.test(normalizedPath)
     || /(^|\/)(package-lock\.json|pnpm-lock\.ya?ml|yarn\.lock|bun\.lockb)$/u.test(normalizedPath)
-    || /\.(png|jpe?g|gif|webp|avif|mp4|mov|zip|tar|gz|woff2?|ttf|otf|pdf)$/u.test(normalizedPath);
+    || /\.(gif|avif|mp4|mov|zip|tar|gz|pdf)$/u.test(normalizedPath)
+    || (/\.(png|jpe?g|webp|ico|woff2?|ttf|otf)$/u.test(normalizedPath) && !isDesignAssetPath(normalizedPath));
+}
+
+function isDesignAssetDirectory(normalizedPath: string): boolean {
+  return /(^|\/)(assets?|public|resources|build|fonts?)\/$/u.test(normalizedPath)
+    || /(^|\/)src\/renderer\/src\/assets\//u.test(normalizedPath);
+}
+
+function isDesignAssetPath(normalizedPath: string): boolean {
+  return /(^|\/)(assets?|public|resources|build|fonts?)\/.*(logo|icon|avatar|tray|brand|wordmark|mark|font|ubuntu)[^/]*\.(svg|png|jpe?g|webp|ico|ttf|otf|woff2?)$/u.test(normalizedPath)
+    || /(^|\/)src\/renderer\/src\/assets\/.*\.(svg|png|jpe?g|webp|ico|ttf|otf|woff2?)$/u.test(normalizedPath);
+}
+
+function isBinaryDesignAssetPath(normalizedPath: string): boolean {
+  return /\.(png|jpe?g|webp|ico|ttf|otf|woff2?)$/u.test(normalizedPath);
+}
+
+function isTextSnapshotPath(normalizedPath: string): boolean {
+  return /\.(css|scss|less|tsx|ts|jsx|js|md|mdx|json|svg|txt|rst)$/u.test(normalizedPath);
 }
 
 function selectDesignFiles(paths: string[], maxFiles: number): string[] {
@@ -666,9 +696,23 @@ async function collectGithubEvidenceWithGitClone(
     for (const repoPath of selectedPaths) {
       const absolutePath = path.join(cloneDir, repoPath);
       const fileStat = await stat(absolutePath);
-      if (!fileStat.isFile() || fileStat.size > MAX_CONTEXT_FILE_BYTES) continue;
+      if (!fileStat.isFile()) continue;
+      const normalizedPath = repoPath.toLowerCase();
+      const binary = isBinaryDesignAssetPath(normalizedPath);
+      if (binary) {
+        if (fileStat.size > MAX_CONTEXT_ASSET_BYTES) continue;
+        files.push({
+          repoPath,
+          content: await readFile(absolutePath),
+          bytes: fileStat.size,
+          source: 'git-clone',
+          binary: true,
+        });
+        continue;
+      }
+      if (!isTextSnapshotPath(normalizedPath) || fileStat.size > MAX_CONTEXT_FILE_BYTES) continue;
       const content = await readFile(absolutePath, 'utf8');
-      if (!readme && /(^|\/)readme\.(md|mdx|txt|rst)$/iu.test(repoPath)) {
+      if (!readme && /(^|\/)readme\.(md|mdx|txt|rst)$/iu.test(normalizedPath)) {
         readme = { path: repoPath, content };
         continue;
       }
@@ -872,7 +916,11 @@ async function writeGithubDesignEvidence(outputPath: string, evidence: GithubDes
     if (!safeRelativePath) continue;
     const fileOutputPath = path.join(snapshotRoot, safeRelativePath);
     await ensureParentDirectory(fileOutputPath);
-    await writeFile(fileOutputPath, file.content, 'utf8');
+    if (file.binary) {
+      await writeFile(fileOutputPath, file.content);
+    } else {
+      await writeFile(fileOutputPath, file.content, 'utf8');
+    }
     writtenFiles.push({ ...file, outputPath: path.relative(process.cwd(), fileOutputPath).split(path.sep).join('/') });
   }
   const nextEvidence = { ...evidence, files: writtenFiles };
@@ -907,11 +955,22 @@ function renderGithubDesignEvidenceMarkdown(evidence: GithubDesignEvidence): str
   if (evidence.files.length > 0) {
     lines.push('', '## Files Inspected', '');
     for (const file of evidence.files) {
-      lines.push(`- ${file.repoPath}${file.outputPath ? ` -> \`${file.outputPath}\`` : ''} (${file.bytes} bytes, ${file.source})`);
+      const kind = file.binary ? ', binary asset' : '';
+      lines.push(`- ${file.repoPath}${file.outputPath ? ` -> \`${file.outputPath}\`` : ''} (${file.bytes} bytes, ${file.source}${kind})`);
     }
-    lines.push('', '## Design-Relevant Excerpts', '');
-    for (const file of evidence.files.slice(0, 12)) {
-      lines.push(`### ${file.repoPath}`, '', fencedExcerpt(file.repoPath, file.content), '');
+    const binaryFiles = evidence.files.filter((file) => file.binary);
+    if (binaryFiles.length > 0) {
+      lines.push('', '## Binary Assets Preserved', '');
+      for (const file of binaryFiles) {
+        lines.push(`- ${file.repoPath}${file.outputPath ? ` -> \`${file.outputPath}\`` : ''}`);
+      }
+    }
+    const textFiles = evidence.files.filter((file): file is GithubSnapshotFile & { content: string } => !file.binary && typeof file.content === 'string');
+    if (textFiles.length > 0) {
+      lines.push('', '## Design-Relevant Excerpts', '');
+      for (const file of textFiles.slice(0, 12)) {
+        lines.push(`### ${file.repoPath}`, '', fencedExcerpt(file.repoPath, file.content), '');
+      }
     }
   }
   lines.push(

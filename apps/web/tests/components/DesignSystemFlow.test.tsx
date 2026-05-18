@@ -165,6 +165,24 @@ describe('DesignSystemCreationFlow', () => {
         pendingPrompt: expect.stringContaining('Do not emit `<question-form>`, "Quick brief — 30 seconds", `AskUserQuestion`'),
       }),
     );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('A Claude Design-quality package'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('preview/colors-primary.html'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('ui_kits/app/'),
+      }),
+    );
     expect(window.sessionStorage.getItem(`od:auto-send-first:${project.id}`)).toBe('1');
     expect(onCreated).toHaveBeenCalledWith(project.id);
     expect(onSystemsRefresh).toHaveBeenCalled();
@@ -849,6 +867,17 @@ describe('DesignSystemCreationFlow', () => {
       expect.objectContaining({
         pendingPrompt: expect.stringContaining('The command may use a shallow local clone fallback after connector output is unavailable, permission-blocked, rate-limited, or oversized.'),
       }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('selects design-system-relevant source files plus available logos/icons/fonts'),
+      }),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('assets/, fonts/, and context/ should preserve logos'),
     );
   });
 });

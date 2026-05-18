@@ -136,16 +136,16 @@ describe('connectors tool CLI', () => {
       }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
+        output: { data: ':root { --color-brand: #ff5500; --radius-md: 8px; }' },
+      }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
         output: { data: { content: { mimetype: 'text/plain', name: 'Button.tsx', s3url: 'https://signed.example/Button.tsx' } } },
       }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
       .mockResolvedValueOnce(new Response('export function Button(){ return <button className="rounded-md" /> }', { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         output: { data: '{"dependencies":{"@radix-ui/react-slot":"latest"}}' },
-      }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        ok: true,
-        output: { data: ':root { --color-brand: #ff5500; --radius-md: 8px; }' },
       }), { headers: { 'Content-Type': 'application/json' }, status: 200 }));
 
     const result = await runConnectorsToolCli(['github-design-context', '--repo', 'acme/ui', '--max-files', '3']);
@@ -299,11 +299,11 @@ describe('connectors tool CLI', () => {
       }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
-        output: { data: '{"dependencies":{"@radix-ui/react-slot":"latest"}}' },
+        output: { data: ':root { --color-brand: #ff5500; }' },
       }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
-        output: { data: ':root { --color-brand: #ff5500; }' },
+        output: { data: '{"dependencies":{"@radix-ui/react-slot":"latest"}}' },
       }), { headers: { 'Content-Type': 'application/json' }, status: 200 }));
 
     const result = await runConnectorsToolCli(['github-design-context', '--repo', 'acme/huge-ui', '--max-files', '2', '--require-connector']);
@@ -336,6 +336,8 @@ describe('connectors tool CLI', () => {
     await writeFile(fakeGitPath, `#!/bin/sh
 for last do :; done
 mkdir -p "$last/src"
+mkdir -p "$last/build"
+mkdir -p "$last/fonts/ubuntu"
 cat > "$last/README.md" <<'EOF'
 # Fallback UI
 EOF
@@ -345,6 +347,9 @@ EOF
 cat > "$last/src/styles.css" <<'EOF'
 :root { --color-brand: #dc5b3e; --radius-md: 10px; }
 EOF
+printf '\\211PNG\\r\\n\\032\\n' > "$last/build/icon.png"
+printf '\\211PNG\\r\\n\\032\\n' > "$last/build/logo.png"
+printf 'font-data' > "$last/fonts/ubuntu/Ubuntu-Regular.ttf"
 `, 'utf8');
     await chmod(fakeGitPath, 0o755);
     process.env.PATH = `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`;
@@ -392,7 +397,7 @@ EOF
         error: { code: 'CONNECTOR_RATE_LIMITED', message: 'connector tool rate limit exceeded' },
       }), { headers: { 'Content-Type': 'application/json' }, status: 429 }));
 
-    const result = await runConnectorsToolCli(['github-design-context', '--repo', 'acme/rate-limited-ui', '--max-files', '3', '--require-connector']);
+    const result = await runConnectorsToolCli(['github-design-context', '--repo', 'acme/rate-limited-ui', '--max-files', '6', '--require-connector']);
 
     expect(result.exitCode).toBe(0);
     const stdout = JSON.parse(stdoutOutput.join(''));
@@ -402,6 +407,8 @@ EOF
       localCloneMethod: 'git',
       snapshotFiles: expect.arrayContaining([
         'context/github/acme-rate-limited-ui/files/package.json',
+        'context/github/acme-rate-limited-ui/files/build/icon.png',
+        'context/github/acme-rate-limited-ui/files/build/logo.png',
         'context/github/acme-rate-limited-ui/files/src/styles.css',
       ]),
       warnings: expect.arrayContaining([
@@ -410,7 +417,11 @@ EOF
       ]),
     }));
     await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui.md'), 'utf8')).resolves.toContain('shallow local clone fallback');
+    await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui.md'), 'utf8')).resolves.toContain('Binary Assets Preserved');
+    await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui.md'), 'utf8')).resolves.toContain('build/icon.png');
     await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui/files/src/styles.css'), 'utf8')).resolves.toContain('--color-brand');
+    const iconBytes = await readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui/files/build/icon.png'));
+    expect(iconBytes.length).toBeGreaterThan(0);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
