@@ -15,13 +15,10 @@ import type { AppConfig, DesignSystemDetail, Project } from '../../src/types';
 
 const mocks = vi.hoisted(() => ({
   connectConnector: vi.fn(),
-  createConversation: vi.fn(),
   createDesignSystemDraft: vi.fn(),
   disconnectConnector: vi.fn(),
   ensureDesignSystemWorkspace: vi.fn(),
   fetchConnectorDetail: vi.fn(),
-  listConversations: vi.fn(),
-  listMessages: vi.fn(),
   openFolderDialog: vi.fn(),
   patchProject: vi.fn(),
   uploadProjectFile: vi.fn(),
@@ -51,9 +48,6 @@ vi.mock('../../src/state/projects', async () => {
   );
   return {
     ...actual,
-    createConversation: mocks.createConversation,
-    listConversations: mocks.listConversations,
-    listMessages: mocks.listMessages,
     patchProject: mocks.patchProject,
   };
 });
@@ -68,15 +62,6 @@ beforeEach(() => {
   mocks.connectConnector.mockResolvedValue({ connector: null });
   mocks.disconnectConnector.mockResolvedValue(null);
   mocks.fetchConnectorDetail.mockResolvedValue(null);
-  mocks.listConversations.mockResolvedValue([]);
-  mocks.listMessages.mockResolvedValue([]);
-  mocks.createConversation.mockImplementation(async (projectId: string, title: string) => ({
-    id: `conversation-${projectId}`,
-    projectId,
-    title,
-    createdAt: 1,
-    updatedAt: 1,
-  }));
   mocks.openFolderDialog.mockResolvedValue(null);
   mocks.uploadProjectFile.mockImplementation(async (_projectId: string, file: File, desiredName?: string) => ({
     name: desiredName ?? file.name,
@@ -119,14 +104,28 @@ describe('design system package audit helpers', () => {
         code: 'missing_source_component_examples',
         message: 'Copy source examples into source_examples/.',
         path: 'source_examples/',
+      }, {
+        severity: 'warning' as const,
+        code: 'missing_build_assets',
+        message: 'Preserve runtime icons under build/.',
+        path: 'build/',
       }],
     };
 
     expect(summarizeDesignSystemPackageAudit(failingAudit)).toContain(
-      'Package audit found 1 error and 1 warning',
+      'Package audit found 1 error and 2 warnings',
     );
     expect(buildDesignSystemPackageAuditRepairPrompt(failingAudit)).toContain(
       'tools connectors design-system-package-audit --path . --fail-on-warnings',
+    );
+    expect(buildDesignSystemPackageAuditRepairPrompt(failingAudit)).toContain(
+      'Treat every error and warning as blocking',
+    );
+    expect(buildDesignSystemPackageAuditRepairPrompt(failingAudit)).toContain(
+      'preserve representative originals under root `build/`',
+    );
+    expect(buildDesignSystemPackageAuditRepairPrompt(failingAudit)).toContain(
+      'copy substantive original component snapshots into `source_examples/`',
     );
     expect(buildDesignSystemPackageAuditRepairPrompt(failingAudit)).toContain(
       '[warning] missing_source_component_examples source_examples/',
@@ -135,7 +134,7 @@ describe('design system package audit helpers', () => {
 });
 
 describe('DesignSystemCreationFlow', () => {
-  it('uses the real project chat pane while the design-system run is being prepared', async () => {
+  it('keeps extraction and build work out of the create page before handing off to the project chat', async () => {
     const system: DesignSystemDetail = {
       id: 'user:acme-design-system',
       title: 'Acme Design System',
@@ -178,7 +177,7 @@ describe('DesignSystemCreationFlow', () => {
     mocks.patchProject.mockResolvedValue({ ...project, pendingPrompt: 'Create this project as a design system.' });
     const onCreated = vi.fn();
 
-    const { container } = render(
+    render(
       <DesignSystemCreationFlow
         onBack={() => {}}
         onCreated={onCreated}
@@ -193,15 +192,12 @@ describe('DesignSystemCreationFlow', () => {
     fireEvent.click(screen.getByText('Continue to generation'));
     fireEvent.click(screen.getByText('Generate'));
 
-    await waitFor(() => expect(mocks.createConversation).toHaveBeenCalledWith(project.id, 'Design system'));
-    await waitFor(() => expect(container.querySelector('.ds-project-chat')).toBeTruthy());
-
-    expect(screen.getByText('Acme Design System')).toBeTruthy();
-    expect(screen.getByText('Draft')).toBeTruthy();
-    expect(container.querySelector('.chat-log')).toBeTruthy();
-    expect(screen.queryByText('Opening')).toBeNull();
+    await waitFor(() => expect(screen.getByText('Opening project...')).toBeTruthy());
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(screen.queryByText('Creating your design system...')).toBeNull();
     expect(screen.queryByText('Opening project chat...')).toBeNull();
     expect(screen.queryByText('Updated todos')).toBeNull();
+    expect(mocks.patchProject).not.toHaveBeenCalled();
 
     resolveManifestWrite({
       name: 'context/source-context.md',
@@ -211,6 +207,12 @@ describe('DesignSystemCreationFlow', () => {
       mime: 'text/markdown',
     });
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(project.id));
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('Create this project as a complete Open Design design system workspace.'),
+      }),
+    );
   });
 
   it('creates a project-backed design system and hands the first task to the normal project chat', async () => {
@@ -319,6 +321,12 @@ describe('DesignSystemCreationFlow', () => {
       project.id,
       expect.objectContaining({
         pendingPrompt: expect.stringContaining('Do not emit `<question-form>`, "Quick brief — 30 seconds", `AskUserQuestion`'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('All GitHub extraction, local evidence intake, source reading, design-system construction, package audit, and final artifact writes must happen inside this project workspace and this project chat run.'),
       }),
     );
     expect(mocks.patchProject).toHaveBeenCalledWith(
@@ -552,6 +560,11 @@ describe('DesignSystemCreationFlow', () => {
       project.id,
       'context/source-context.md',
       expect.stringContaining('fix every reported error or warning'),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('All GitHub extraction, local evidence intake, source reading, design-system construction, package audit, and artifact writes should happen inside this project workspace.'),
     );
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,
@@ -792,11 +805,12 @@ describe('DesignSystemCreationFlow', () => {
     mocks.createDesignSystemDraft.mockResolvedValue(system);
     mocks.ensureDesignSystemWorkspace.mockResolvedValue({ project, files: [] });
     mocks.patchProject.mockResolvedValue({ ...project, pendingPrompt: 'Create this project as a design system.' });
+    const onCreated = vi.fn();
 
     const { container } = render(
       <DesignSystemCreationFlow
         onBack={() => {}}
-        onCreated={() => {}}
+        onCreated={onCreated}
       />,
     );
     const localCodeInput = container.querySelector('input[webkitdirectory]') as HTMLInputElement | null;
@@ -829,12 +843,8 @@ describe('DesignSystemCreationFlow', () => {
       'context/source-context.md',
       expect.stringContaining('context/local-code/comfyui/src/tokens.css'),
     );
-    const composerInput = await screen.findByTestId('chat-composer-input');
-    fireEvent.change(composerInput, { target: { value: '@context' } });
-    await waitFor(() => {
-      expect(screen.getByText('context/source-context.md')).toBeTruthy();
-      expect(screen.getByText('context/local-code/comfyui/src/tokens.css')).toBeTruthy();
-    });
+    expect(window.sessionStorage.getItem(`od:auto-send-first:${project.id}`)).toBe('1');
+    expect(onCreated).toHaveBeenCalledWith(project.id);
   });
 
   it('recursively reads a dragged local code folder into the design-system project context', async () => {

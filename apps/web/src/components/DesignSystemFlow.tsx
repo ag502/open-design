@@ -50,7 +50,6 @@ import type {
   DesignSystemProvenance,
   DesignSystemRevision,
   OpenTabsState,
-  Project,
   ProjectFile,
   ProjectMetadata,
 } from '../types';
@@ -79,7 +78,7 @@ interface DetailProps {
   onProjectsRefresh?: () => Promise<void> | void;
 }
 
-type SetupStep = 'setup' | 'confirm' | 'generating';
+type SetupStep = 'setup' | 'confirm';
 type ReviewTab = 'system' | 'files';
 
 interface SetupState {
@@ -94,14 +93,6 @@ interface SetupState {
   assetFiles: string[];
   assetFileObjects: File[];
   notes: string;
-}
-
-interface GenerationWorkspaceState {
-  project: Project;
-  files: ProjectFile[];
-  conversations: Conversation[];
-  activeConversationId: string | null;
-  messages: ChatMessage[];
 }
 
 const EMPTY_SETUP: SetupState = {
@@ -169,14 +160,6 @@ function generationJobStorageKey(designSystemId: string): string {
   return `${GENERATION_JOB_STORAGE_PREFIX}${designSystemId}`;
 }
 
-function rememberGenerationJob(designSystemId: string, jobId: string): void {
-  try {
-    window.sessionStorage.setItem(generationJobStorageKey(designSystemId), jobId);
-  } catch {
-    // Session storage can be unavailable in locked-down browser contexts.
-  }
-}
-
 function readRememberedGenerationJob(designSystemId: string): string | null {
   try {
     return window.sessionStorage.getItem(generationJobStorageKey(designSystemId));
@@ -203,11 +186,7 @@ export function DesignSystemCreationFlow({
   const [step, setStep] = useState<SetupStep>('setup');
   const [state, setState] = useState<SetupState>(EMPTY_SETUP);
   const [error, setError] = useState<string | null>(null);
-  const [job, setJob] = useState<DesignSystemGenerationJob | null>(null);
-  const [handedOffJobId, setHandedOffJobId] = useState<string | null>(null);
   const [generationStarting, setGenerationStarting] = useState(false);
-  const [generationWorkspace, setGenerationWorkspace] =
-    useState<GenerationWorkspaceState | null>(null);
   const composioConfigured = isComposioConfigured(config?.composio);
   const [githubConnector, setGithubConnector] = useState<ConnectorDetail | null>(null);
   const [githubConnectorLoading, setGithubConnectorLoading] = useState(false);
@@ -336,205 +315,71 @@ export function DesignSystemCreationFlow({
     }));
   }
 
-  const generationProjectFileNames = useMemo(
-    () => new Set(generationWorkspace?.files.map((file) => file.name) ?? []),
-    [generationWorkspace?.files],
-  );
-
-  const loadGenerationWorkspaceChat = useCallback(async (
-    project: Project,
-    files: ProjectFile[],
-  ): Promise<GenerationWorkspaceState> => {
-    try {
-      let conversations = await listConversations(project.id);
-      if (conversations.length === 0) {
-        const fresh = await createConversation(project.id, 'Design system');
-        conversations = fresh ? [fresh] : [];
-      }
-      const activeConversationId = conversations[0]?.id ?? null;
-      const messages = activeConversationId
-        ? await listMessages(project.id, activeConversationId)
-        : [];
-      return { project, files, conversations, activeConversationId, messages };
-    } catch {
-      return { project, files, conversations: [], activeConversationId: null, messages: [] };
-    }
-  }, []);
-
-  const mergeGenerationWorkspaceFiles = useCallback((projectId: string, files: ProjectFile[]) => {
-    const nextFiles = files.filter(Boolean);
-    if (nextFiles.length === 0) return;
-    setGenerationWorkspace((current) =>
-      current?.project.id === projectId
-        ? { ...current, files: mergeProjectFiles(current.files, nextFiles) }
-        : current,
-    );
-  }, []);
-
-  function handleSelectGenerationConversation(conversationId: string) {
-    if (!generationWorkspace || conversationId === generationWorkspace.activeConversationId) return;
-    setGenerationWorkspace((current) =>
-      current
-        ? { ...current, activeConversationId: conversationId, messages: [] }
-        : current,
-    );
-  }
-
-  async function handleNewGenerationConversation() {
-    if (!generationWorkspace) return;
-    const fresh = await createConversation(generationWorkspace.project.id, 'Design system');
-    if (!fresh) return;
-    setGenerationWorkspace((current) =>
-      current
-        ? {
-            ...current,
-            conversations: [fresh, ...current.conversations],
-            activeConversationId: fresh.id,
-            messages: [],
-          }
-        : current,
-    );
-  }
-
-  useEffect(() => {
-    if (!generationWorkspace?.project.id || !generationWorkspace.activeConversationId) {
-      return undefined;
-    }
-    const projectId = generationWorkspace.project.id;
-    const conversationId = generationWorkspace.activeConversationId;
-    let cancelled = false;
-    void listMessages(projectId, conversationId).then((messages) => {
-      if (cancelled) return;
-      setGenerationWorkspace((current) =>
-        current?.project.id === projectId && current.activeConversationId === conversationId
-          ? { ...current, messages }
-          : current,
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [generationWorkspace?.activeConversationId, generationWorkspace?.project.id]);
-
   async function generate() {
     if (generationStarting) return;
     setGenerationStarting(true);
     setError(null);
-    setJob(null);
-    setHandedOffJobId(null);
-    setGenerationWorkspace(null);
-    const title = inferDesignSystemTitle(state);
-    const created = await createDesignSystemDraft({
-      title,
-      summary: state.company,
-      category: 'Custom',
-      surface: 'web',
-      status: 'draft',
-      artifactMode: 'agent-managed',
-      sourceNotes: buildSourceNotes(state),
-      provenance: buildProvenance(state),
-    });
-    if (!created) {
-      setError('Could not generate this design system.');
-      setGenerationStarting(false);
-      setStep('setup');
-      return;
-    }
-    const workspace = await ensureDesignSystemWorkspace(created.id);
-    if (!workspace) {
-      setError('Could not open the design system workspace.');
-      setGenerationStarting(false);
-      setStep('setup');
-      setGenerationWorkspace(null);
-      return;
-    }
-    setGenerationWorkspace(await loadGenerationWorkspaceChat(workspace.project, workspace.files));
-    setStep('generating');
-    setGenerationStarting(false);
-    const stagedLocalCode = await stageLocalCodeFiles(workspace.project.id, state.codeFileObjects);
-    const stagedFigma = await stageFigmaFiles(workspace.project.id, state.figFileObjects);
-    const stagedAssets = await stageAssetFiles(workspace.project.id, state.assetFileObjects);
-    const sourceContextFile = await writeProjectTextFile(
-      workspace.project.id,
-      SOURCE_CONTEXT_MANIFEST_PATH,
-      buildSourceContextManifest(state, {
-        composioConfigured,
-        githubConnector,
-        stagedLocalCode,
-        stagedFigma,
-        stagedAssets,
-      }),
-    );
-    mergeGenerationWorkspaceFiles(workspace.project.id, [
-      ...(sourceContextFile ? [sourceContextFile] : []),
-      ...stagedLocalCode.uploadedFiles,
-      ...stagedFigma.summaryFiles,
-      ...stagedAssets.uploadedFiles,
-    ]);
-    const metadata = mergeLinkedCodeFolders(workspace.project.metadata, state.codeFolders);
-    const prompt = buildCreationAgentPrompt(
-      state,
-      stagedLocalCode,
-      SOURCE_CONTEXT_MANIFEST_PATH,
-      stagedAssets,
-      stagedFigma,
-    );
-    setGenerationWorkspace((current) =>
-      current?.project.id === workspace.project.id
-        ? {
-            ...current,
-            project: { ...current.project, metadata, pendingPrompt: prompt },
-          }
-        : current,
-    );
-    await patchProject(workspace.project.id, { pendingPrompt: prompt, metadata });
     try {
-      window.sessionStorage.setItem(`od:auto-send-first:${workspace.project.id}`, '1');
-    } catch {
-      // If sessionStorage is unavailable, the project still opens with the
-      // pending prompt ready for the user to send manually.
+      const title = inferDesignSystemTitle(state);
+      const created = await createDesignSystemDraft({
+        title,
+        summary: state.company,
+        category: 'Custom',
+        surface: 'web',
+        status: 'draft',
+        artifactMode: 'agent-managed',
+        sourceNotes: buildSourceNotes(state),
+        provenance: buildProvenance(state),
+      });
+      if (!created) {
+        setError('Could not generate this design system.');
+        setStep('setup');
+        return;
+      }
+      const workspace = await ensureDesignSystemWorkspace(created.id);
+      if (!workspace) {
+        setError('Could not open the design system workspace.');
+        setStep('setup');
+        return;
+      }
+      const stagedLocalCode = await stageLocalCodeFiles(workspace.project.id, state.codeFileObjects);
+      const stagedFigma = await stageFigmaFiles(workspace.project.id, state.figFileObjects);
+      const stagedAssets = await stageAssetFiles(workspace.project.id, state.assetFileObjects);
+      await writeProjectTextFile(
+        workspace.project.id,
+        SOURCE_CONTEXT_MANIFEST_PATH,
+        buildSourceContextManifest(state, {
+          composioConfigured,
+          githubConnector,
+          stagedLocalCode,
+          stagedFigma,
+          stagedAssets,
+        }),
+      );
+      const metadata = mergeLinkedCodeFolders(workspace.project.metadata, state.codeFolders);
+      const prompt = buildCreationAgentPrompt(
+        state,
+        stagedLocalCode,
+        SOURCE_CONTEXT_MANIFEST_PATH,
+        stagedAssets,
+        stagedFigma,
+      );
+      await patchProject(workspace.project.id, { pendingPrompt: prompt, metadata });
+      try {
+        window.sessionStorage.setItem(`od:auto-send-first:${workspace.project.id}`, '1');
+      } catch {
+        // If sessionStorage is unavailable, the project still opens with the
+        // pending prompt ready for the user to send manually.
+      }
+      onCreated(workspace.project.id);
+      void onSystemsRefresh?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not prepare the design system project.');
+      setStep('setup');
+    } finally {
+      setGenerationStarting(false);
     }
-    onCreated(workspace.project.id);
-    void onSystemsRefresh?.();
   }
-
-  useEffect(() => {
-    if (step !== 'generating' || !job?.id || handedOffJobId === job.id) return undefined;
-    const jobId = job.id;
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    async function poll() {
-      const next = await fetchDesignSystemGenerationJob(jobId);
-      if (cancelled) return;
-      if (!next) {
-        setError('Could not read generation progress.');
-        setStep('setup');
-        return;
-      }
-      setJob(next);
-      if (next.designSystemId) {
-        rememberGenerationJob(next.designSystemId, next.id);
-        setHandedOffJobId(next.id);
-        await onSystemsRefresh?.();
-        if (cancelled) return;
-        onCreated(next.designSystemId);
-        return;
-      }
-      if (next.status === 'failed') {
-        setError(next.error ?? 'Could not generate this design system.');
-        setStep('setup');
-        return;
-      }
-      timeoutId = window.setTimeout(() => void poll(), 500);
-    }
-
-    timeoutId = window.setTimeout(() => void poll(), 180);
-    return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, [handedOffJobId, job?.id, onCreated, onSystemsRefresh, step]);
 
   if (step === 'confirm') {
     return (
@@ -558,80 +403,6 @@ export function DesignSystemCreationFlow({
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (step === 'generating') {
-    if (!generationWorkspace) {
-      return (
-        <div className="ds-setup-shell ds-setup-shell--center">
-          <div className="ds-setup-center-card">
-            <h1>Opening project workspace...</h1>
-            <p>Preparing the design system project.</p>
-          </div>
-        </div>
-      );
-    }
-    const progress = job?.progress ?? 0;
-    return (
-      <div className="ds-workspace ds-workspace--generation">
-        <aside className="ds-project-chat">
-          <div className="ds-project-chat__bar">
-            <button type="button" className="icon-only" onClick={onBack} aria-label="Back">
-              <Icon name="arrow-left" />
-            </button>
-            <strong>{generationWorkspace.project.name}</strong>
-            <span>Draft</span>
-          </div>
-          <div className="ds-project-chat__pane">
-            <ChatPane
-              key={`${generationWorkspace.project.id}:${generationWorkspace.activeConversationId ?? 'loading'}`}
-              messages={generationWorkspace.messages}
-              streaming={false}
-              sendDisabled
-              error={null}
-              projectId={generationWorkspace.project.id}
-              projectFiles={generationWorkspace.files}
-              hasActiveDesignSystem
-              projectFileNames={generationProjectFileNames}
-              onEnsureProject={async () => generationWorkspace.project.id}
-              onSend={() => {}}
-              onStop={() => {}}
-              conversations={generationWorkspace.conversations}
-              activeConversationId={generationWorkspace.activeConversationId}
-              onSelectConversation={handleSelectGenerationConversation}
-              onDeleteConversation={() => {}}
-              onNewConversation={() => {
-                void handleNewGenerationConversation();
-              }}
-              projectMetadata={generationWorkspace.project.metadata}
-              currentSkillId={generationWorkspace.project.skillId}
-              onProjectSkillChange={(skillId) => {
-                setGenerationWorkspace((current) =>
-                  current?.project.id === generationWorkspace.project.id
-                    ? { ...current, project: { ...current.project, skillId } }
-                    : current,
-                );
-              }}
-              researchAvailable={config?.mode === 'daemon'}
-            />
-          </div>
-        </aside>
-        <main className="ds-generation-stage">
-          <h1>Creating your design system...</h1>
-          <p>{job?.message ?? 'Keep this tab open and come back in a few minutes'}</p>
-          <div
-            className="ds-progress-line"
-            aria-label={`Generation progress ${progress}%`}
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progress}
-          >
-            <span style={{ width: `${progress}%` }} />
-          </div>
-        </main>
       </div>
     );
   }
@@ -2530,13 +2301,11 @@ function isTrustedConnectorCallbackOrigin(origin: string, currentOrigin?: string
 
 interface StagedLocalCodeContext {
   uploadedPaths: string[];
-  uploadedFiles: ProjectFile[];
   skippedCount: number;
 }
 
 interface StagedFigmaContext {
   summaryPaths: string[];
-  summaryFiles: ProjectFile[];
   skippedCount: number;
 }
 
@@ -2554,7 +2323,6 @@ interface FigmaLocalSummary {
 
 interface StagedAssetContext {
   uploadedPaths: string[];
-  uploadedFiles: ProjectFile[];
   skippedCount: number;
 }
 
@@ -2671,59 +2439,37 @@ function mergeLinkedCodeFolders(metadata: ProjectMetadata | undefined, codeFolde
   };
 }
 
-function projectFileKey(file: ProjectFile): string {
-  return file.path ?? file.name;
-}
-
-function mergeProjectFiles(existing: ProjectFile[], incoming: ProjectFile[]): ProjectFile[] {
-  if (incoming.length === 0) return existing;
-  const merged = new Map<string, ProjectFile>();
-  for (const file of existing) {
-    merged.set(projectFileKey(file), file);
-  }
-  for (const file of incoming) {
-    merged.set(projectFileKey(file), file);
-  }
-  return [...merged.values()];
-}
-
 async function stageLocalCodeFiles(projectId: string, files: File[]): Promise<StagedLocalCodeContext> {
-  if (files.length === 0) return { uploadedPaths: [], uploadedFiles: [], skippedCount: 0 };
+  if (files.length === 0) return { uploadedPaths: [], skippedCount: 0 };
   const selected = selectLocalCodeFiles(files);
   const uploadedPaths: string[] = [];
-  const uploadedFiles: ProjectFile[] = [];
   for (const file of selected) {
     const desiredName = `${LOCAL_CODE_UPLOAD_ROOT}/${localCodeRelativePath(file)}`;
     const uploaded = await uploadProjectFile(projectId, file, desiredName);
     if (uploaded) {
       uploadedPaths.push(uploaded.name);
-      uploadedFiles.push(uploaded);
     }
   }
   return {
     uploadedPaths,
-    uploadedFiles,
     skippedCount: Math.max(0, files.length - selected.length),
   };
 }
 
 async function stageFigmaFiles(projectId: string, files: File[]): Promise<StagedFigmaContext> {
-  if (files.length === 0) return { summaryPaths: [], summaryFiles: [], skippedCount: 0 };
+  if (files.length === 0) return { summaryPaths: [], skippedCount: 0 };
   const selected = selectFigmaFiles(files);
   const summaryPaths: string[] = [];
-  const summaryFiles: ProjectFile[] = [];
   for (const file of selected) {
     const summary = await summarizeFigmaFile(file);
     const desiredName = `${FIGMA_CONTEXT_ROOT}/${safeContextFileName(resourceRelativePath(file), 'figma-file')}`;
     const written = await writeProjectTextFile(projectId, desiredName, renderFigmaSummary(summary));
     if (written) {
       summaryPaths.push(written.name);
-      summaryFiles.push(written);
     }
   }
   return {
     summaryPaths,
-    summaryFiles,
     skippedCount: Math.max(0, files.length - selected.length),
   };
 }
@@ -2815,21 +2561,18 @@ function formatBytes(bytes: number): string {
 }
 
 async function stageAssetFiles(projectId: string, files: File[]): Promise<StagedAssetContext> {
-  if (files.length === 0) return { uploadedPaths: [], uploadedFiles: [], skippedCount: 0 };
+  if (files.length === 0) return { uploadedPaths: [], skippedCount: 0 };
   const selected = selectAssetFiles(files);
   const uploadedPaths: string[] = [];
-  const uploadedFiles: ProjectFile[] = [];
   for (const file of selected) {
     const desiredName = `${ASSET_UPLOAD_ROOT}/${resourceRelativePath(file)}`;
     const uploaded = await uploadProjectFile(projectId, file, desiredName);
     if (uploaded) {
       uploadedPaths.push(uploaded.name);
-      uploadedFiles.push(uploaded);
     }
   }
   return {
     uploadedPaths,
-    uploadedFiles,
     skippedCount: Math.max(0, files.length - selected.length),
   };
 }
@@ -2866,6 +2609,10 @@ function buildCreationAgentPrompt(
     '- Do not ask setup or clarification questions during design-system generation.',
     '- Do not emit `<question-form>`, "Quick brief — 30 seconds", `AskUserQuestion`, direction cards, choice cards, or any UI that waits for user input.',
     '- The setup page already collected the brief. If target surfaces, review priority, or workspace depth are missing, choose sensible defaults and begin generating the design-system artifacts immediately.',
+    '',
+    'Project boundary:',
+    '- All GitHub extraction, local evidence intake, source reading, design-system construction, package audit, and final artifact writes must happen inside this project workspace and this project chat run.',
+    '- Treat `/design-systems/create` as setup only. Do not depend on that page for progress, review, or generated output; the project is the source of truth.',
     '',
     'Use the files in this project as the design system source for future projects. Update `DESIGN.md` as the canonical rules document, and update supporting files when they make the system easier to review or reuse.',
     '',
@@ -3037,6 +2784,7 @@ function buildSourceContextManifest(
     '',
     '## Review Contract',
     '',
+    '- `/design-systems/create` only collected setup inputs. All GitHub extraction, local evidence intake, source reading, design-system construction, package audit, and artifact writes should happen inside this project workspace.',
     '- DESIGN.md is the canonical source of truth.',
     '- Use the canonical design-system title above for headings, README/SKILL names, preview labels, and UI-kit copy unless inspected evidence proves a more accurate product name. Never title the system from URL protocol text such as `https`.',
     '- colors_and_type.css should hold concrete reusable tokens when the source evidence supports them; if fonts/ contains preserved font files, colors_and_type.css must bind those files with @font-face, @import, or url(...) references so typography does not fall back to substitute fonts.',
