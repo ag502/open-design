@@ -526,10 +526,18 @@ function scoreDesignFile(repoPath: string): number {
   if (/\/(app|layout|shell|navbar|sidebar|home|chat|settings|inputbar|assistants?|topics?)\//u.test(normalized)) score += 68;
   if (/\/(components?|ui|design-system|primitives?)\//u.test(normalized)) score += 65;
   if (/(button|card|dialog|modal|input|form|nav|navbar|sidebar|table|badge|avatar|toast|menu|tabs|layout|shell|composer|message|assistant|model|provider|settings)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)) score += 58;
+  if (/\/components\/app\/(navbar|sidebar)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)) score += 150;
+  if (/\/pages\/home\/(homepage|chat|navbar)\.(tsx|ts|jsx|js)$/u.test(normalized)) score += 155;
+  if (/\/pages\/home\/(inputbar|messages|tabs)\/(inputbar|inputbarcore|messages|message|messagegroup|messagecontent|assistantlist|assistantitem|assistantstab|topicstab|index)\.(tsx|ts|jsx|js)$/u.test(normalized)) score += 145;
+  if (/\/pages\/home\/tabs\/components\/(assistantlist|assistantitem|topics?)\.(tsx|ts|jsx|js)$/u.test(normalized)) score += 90;
+  if (/\/pages\/home\/inputbar\/(components\/inputbarcore|sendmessagebutton|attachmentpreview)\.(tsx|ts|jsx|js)$/u.test(normalized)) score += 80;
+  if (/\/pages\/home\/components\/chatnavbar\/(index|chatnavbarcontent\/index|chatnavbarcontent\/topiccontent)\.(tsx|ts|jsx|js)$/u.test(normalized)) score += 115;
   if (/(^|\/)(app|pages|src)\/(layout|page|app|index|main)\.(tsx|ts|jsx|js|css)$/u.test(normalized)) score += 45;
   if (isDesignAssetPath(normalized)) score += 42;
   if (/\.(css|scss|less|tsx|ts|jsx|js|md|mdx|json|svg)$/u.test(normalized)) score += 10;
   if (isBinaryDesignAssetPath(normalized)) score += 6;
+  if (/\/pages\/home\/inputbar\/tools\/components\//u.test(normalized)) score -= 80;
+  if (/\/pages\/settings\//u.test(normalized)) score -= 120;
   if (/\/assets\/images\/providers?\//u.test(normalized)) score -= 72;
   return score;
 }
@@ -554,6 +562,8 @@ function shouldSkipRepoPath(normalizedPath: string): boolean {
   if (isDesignAssetDirectory(normalizedPath) || isDesignAssetPath(normalizedPath)) return false;
   return /(^|\/)(node_modules|vendor|dist|build|coverage|\.next|\.nuxt|\.git|out|target|storybook-static)\//u.test(normalizedPath)
     || /(^|\/)(package-lock\.json|pnpm-lock\.ya?ml|yarn\.lock|bun\.lockb)$/u.test(normalizedPath)
+    || /(^|\/)(__tests__|__snapshots__|test|tests)\//u.test(normalizedPath)
+    || /\.(test|spec|bench)\.(tsx|ts|jsx|js)$/u.test(normalizedPath)
     || /\.(gif|avif|mp4|mov|zip|tar|gz|pdf)$/u.test(normalizedPath)
     || (/\.(png|jpe?g|webp|ico|woff2?|ttf|otf)$/u.test(normalizedPath) && !isDesignAssetPath(normalizedPath));
 }
@@ -1323,10 +1333,11 @@ function designEvidenceInventoryCategory(repoPath: string): GithubEvidenceInvent
     return 'Theme, tokens, and styling';
   }
   if (/\/(app|layout|shell|navbar|sidebar|nav|chrome)\//u.test(normalized)
+    || /\/pages\/home\/(homepage|navbar)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)
     || /(navbar|sidebar|layout|shell|window|workspace)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)) {
     return 'App shell and navigation';
   }
-  if (/\/(chat|inputbar|composer|message|assistants?|topics?|models?)\//u.test(normalized)
+  if (/\/(chat|inputbar|composer|messages?|assistants?|topics?|models?)\//u.test(normalized)
     || /(chat|inputbar|composer|message|assistant|topic|selectmodel|updateapp|model)\.(tsx|ts|jsx|js|css|scss)$/u.test(normalized)) {
     return 'Chat and input surfaces';
   }

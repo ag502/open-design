@@ -395,6 +395,55 @@ describe('connectors tool CLI', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('prioritizes core app surfaces over nested tool buttons during local intake', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-local-core-context-'));
+    process.chdir(tmpDir);
+    const sourceDir = path.join(tmpDir, 'cherry-core');
+    const writeSource = async (relativePath: string, content = `export const marker = ${JSON.stringify(relativePath)};\n`) => {
+      const fullPath = path.join(sourceDir, ...relativePath.split('/'));
+      await mkdir(path.dirname(fullPath), { recursive: true });
+      await writeFile(fullPath, content);
+    };
+    await writeSource('README.md', '# Cherry Core\n');
+    await writeSource('package.json', JSON.stringify({ name: 'cherry-core' }));
+    await writeSource('src/renderer/src/pages/home/HomePage.tsx');
+    await writeSource('src/renderer/src/pages/home/Chat.tsx');
+    await writeSource('src/renderer/src/pages/home/Inputbar/Inputbar.tsx');
+    await writeSource('src/renderer/src/pages/home/Messages/Messages.tsx');
+    await writeSource('src/renderer/src/pages/home/Tabs/components/AssistantList.tsx');
+    await writeSource('src/renderer/src/pages/home/Inputbar/tools/components/AttachmentButton.tsx');
+    await writeSource('src/renderer/src/pages/settings/AgentSettings/components/AdvancedSettings.tsx');
+    await writeSource('src/renderer/src/pages/home/Messages/__tests__/MessageGroup.test.tsx');
+
+    const result = await runConnectorsToolCli([
+      'local-design-context',
+      '--path',
+      sourceDir,
+      '--max-files',
+      '7',
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const output = JSON.parse(stdoutOutput.join(''));
+    expect(output.snapshotFiles).toEqual(expect.arrayContaining([
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/HomePage.tsx',
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/Chat.tsx',
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/Inputbar/Inputbar.tsx',
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/Messages/Messages.tsx',
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/Tabs/components/AssistantList.tsx',
+    ]));
+    expect(output.snapshotFiles).not.toEqual(expect.arrayContaining([
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/Inputbar/tools/components/AttachmentButton.tsx',
+      'context/local-code/cherry-core/files/src/renderer/src/pages/settings/AgentSettings/components/AdvancedSettings.tsx',
+      'context/local-code/cherry-core/files/src/renderer/src/pages/home/Messages/__tests__/MessageGroup.test.tsx',
+    ]));
+    const evidenceNote = await readFile(path.join(tmpDir, 'context/local-code/cherry-core.md'), 'utf8');
+    expect(evidenceNote).toContain('App shell and navigation');
+    expect(evidenceNote).toContain('Chat and input surfaces');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('passes a Claude Design-style design-system package audit', async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-package-audit-pass-'));
     process.chdir(tmpDir);
