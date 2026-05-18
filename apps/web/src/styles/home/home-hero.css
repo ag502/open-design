@@ -361,7 +361,15 @@
   z-index: 1;
   width: 100%;
   min-height: 84px;
-  resize: vertical;
+  /* The textarea height is driven by the auto-grow effect in
+     HomeHero.tsx, which writes an explicit pixel height after every
+     keystroke. We disable the native resize grip and internal
+     scrollbar so users cannot accidentally shrink the box, and so
+     content never disappears behind a scroll — the box just grows
+     to fit. The outer page handles overflow when the prompt is
+     very long. */
+  resize: none;
+  overflow: hidden;
   font: inherit;
   font-size: 15px;
   line-height: 1.55;

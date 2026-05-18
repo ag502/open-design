@@ -7,7 +7,15 @@
 // composed with the recent-projects strip and plugins section
 // without owning their data lifecycles.
 
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ClipboardEvent as ReactClipboardEvent,
   DragEvent as ReactDragEvent,
@@ -290,6 +298,20 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
   useEffect(() => {
     setPromptScrollTop(inputElementRef.current?.scrollTop ?? 0);
   }, [prompt, promptOverlayParts]);
+
+  // Auto-grow the prompt textarea so the chat box height tracks the
+  // number of lines the user has typed. We never scroll the textarea
+  // internally (CSS sets `overflow: hidden` and `resize: none`), so
+  // the only height source of truth is `scrollHeight`. Resetting to
+  // `auto` before measuring forces the browser to recompute against
+  // the actual content, otherwise shrinking the prompt would leave
+  // the textarea stuck at its previous taller size.
+  useLayoutEffect(() => {
+    const el = inputElementRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [prompt]);
 
   const setInputRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
