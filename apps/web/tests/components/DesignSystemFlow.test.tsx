@@ -275,6 +275,12 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
+        pendingPrompt: expect.stringContaining('preserve representative files under `build/` as Claude Design does'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
         pendingPrompt: expect.stringContaining('bind them in `colors_and_type.css` with `@font-face`'),
       }),
     );
@@ -1180,7 +1186,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,
       'context/source-context.md',
-      expect.stringContaining('assets/, fonts/, and context/ should preserve logos'),
+      expect.stringContaining('assets/, build/, fonts/, and context/ should preserve logos'),
     );
   });
 });

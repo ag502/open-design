@@ -52,7 +52,7 @@ This package captures a source-backed Open Design design system for a desktop AI
 - colors_and_type.css contains reusable variables for color, type, spacing, radius, and states.
 - preview/ contains focused HTML cards for color, typography, spacing, components, and brand assets.
 - ui_kits/app/ contains an applied interface example for future project reuse.
-- assets/ and fonts/ preserve source-backed brand and typography evidence.
+- assets/, build/, and fonts/ preserve source-backed brand, runtime icons, and typography evidence.
 
 ## Review Workflow
 
@@ -82,10 +82,10 @@ description: Use this skill when creating Open Design artifacts that should matc
 user-invocable: true
 ---
 
-Read README.md, DESIGN.md, colors_and_type.css, the preview cards, preserved assets and fonts, source examples, and the modular UI kit before generating any new interface.
+Read README.md, DESIGN.md, colors_and_type.css, the preview cards, preserved assets, build icons, fonts, source examples, and the modular UI kit before generating any new interface.
 
 **What's inside:**
-- Source-backed visual foundations, token CSS, assets, fonts, preview cards, source examples, and UI kit components.
+- Source-backed visual foundations, token CSS, assets, build icons, fonts, preview cards, source examples, and UI kit components.
 - DESIGN.md as canonical rules and README.md as the package manifest.
 
 **How to use:**
@@ -564,9 +564,11 @@ describe('connectors tool CLI', () => {
     await mkdir(path.join(tmpDir, 'preview'), { recursive: true });
     await mkdir(path.join(tmpDir, 'ui_kits/app'), { recursive: true });
     await mkdir(path.join(tmpDir, 'assets'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'build'), { recursive: true });
     await mkdir(path.join(tmpDir, 'fonts/ubuntu'), { recursive: true });
     await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/src/components'), { recursive: true });
     await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/src/pages/home'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/build'), { recursive: true });
     await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
     await writeFile(path.join(tmpDir, 'README.md'), AUDIT_README);
     await writeFile(path.join(tmpDir, 'SKILL.md'), AUDIT_SKILL);
@@ -591,6 +593,7 @@ describe('connectors tool CLI', () => {
       );
     }
     await writeFile(path.join(tmpDir, 'assets/logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(path.join(tmpDir, 'build/icon.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     await writeFile(path.join(tmpDir, 'fonts/ubuntu/Ubuntu-Regular.ttf'), Buffer.from('font-data'));
     await writeFile(path.join(tmpDir, 'context/source-context.md'), [
       '# Design System Source Context',
@@ -607,10 +610,11 @@ describe('connectors tool CLI', () => {
     await writeFile(path.join(tmpDir, 'context/local-code/cherry.md'), [
       '# Local Design Evidence: cherry',
       '',
-      'Snapshot files written: 3',
+      'Snapshot files written: 4',
       '',
       '### Brand assets and icons',
       '- assets/logo.png -> `context/local-code/cherry/files/assets/logo.png` (binary asset)',
+      '- build/icon.png -> `context/local-code/cherry/files/build/icon.png` (binary asset)',
       '',
       '### Fonts',
       '- fonts/ubuntu/Ubuntu-Regular.ttf -> `context/local-code/cherry/files/fonts/ubuntu/Ubuntu-Regular.ttf` (binary asset)',
@@ -624,6 +628,7 @@ describe('connectors tool CLI', () => {
     await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/tokens.css'), ':root { --color-primary: #00b96b; }');
     await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/components/Button.tsx'), 'export function Button(){ return <button />; }');
     await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/pages/home/Chat.tsx'), 'export function Chat(){ return <main><InputBar /><Messages /></main>; }');
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/build/icon.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 
     const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
 
@@ -763,6 +768,63 @@ describe('connectors tool CLI', () => {
         code: 'missing_skill_frontmatter',
         path: 'SKILL.md',
         message: expect.stringContaining('YAML frontmatter'),
+      }),
+    ]));
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('warns when build runtime icon evidence is not preserved in the package', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-package-audit-build-assets-'));
+    process.chdir(tmpDir);
+    await mkdir(path.join(tmpDir, 'preview'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'assets'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/build'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
+    await writeFile(path.join(tmpDir, 'README.md'), AUDIT_README);
+    await writeFile(path.join(tmpDir, 'SKILL.md'), AUDIT_SKILL);
+    await writeFile(path.join(tmpDir, 'colors_and_type.css'), AUDIT_TOKENS_CSS);
+    for (const fileName of [
+      'colors-primary.html',
+      'colors-theme-light.html',
+      'typography-specimens.html',
+      'spacing-tokens.html',
+      'components-buttons.html',
+      'brand-assets.html',
+    ]) {
+      await writeFile(path.join(tmpDir, 'preview', fileName), auditHtml(fileName));
+    }
+    await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditUiKitIndex());
+    await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), '# UI kit\n');
+    for (const componentName of AUDIT_COMPONENT_FILES) {
+      await writeFile(
+        path.join(tmpDir, 'ui_kits/app/components', componentName),
+        auditUiKitComponent(componentName),
+      );
+    }
+    await writeFile(path.join(tmpDir, 'assets/logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(path.join(tmpDir, 'context/source-context.md'), '# Design System Source Context\n\n## Local Code\n\n- /tmp/cherry\n');
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry.md'), [
+      '# Local Design Evidence: cherry',
+      '',
+      'Snapshot files written: 2',
+      '',
+      '### Brand assets and icons',
+      '- build/icon.ico -> `context/local-code/cherry/files/build/icon.ico` (binary asset)',
+      '- build/tray_icon.png -> `context/local-code/cherry/files/build/tray_icon.png` (binary asset)',
+    ].join('\n'));
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/build/icon.ico'), Buffer.from([0x00, 0x00, 0x01, 0x00]));
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/build/tray_icon.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+    const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(stdoutOutput.join('')).warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'missing_build_assets',
+        path: 'build/',
+        message: expect.stringContaining('build/runtime icon asset'),
       }),
     ]));
 

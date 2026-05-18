@@ -1210,7 +1210,7 @@ function renderGithubDesignEvidenceMarkdown(evidence: GithubDesignEvidence): str
     '## Next Design-System Work',
     '',
     '- Use these source paths and snapshots as evidence before writing `DESIGN.md`.',
-    '- Convert the inventory above into a Claude Design-style package: `README.md`, `SKILL.md`, `colors_and_type.css`, `preview/colors-*`, `preview/typography-specimens.html`, `preview/spacing-*`, `preview/components-*`, `preview/brand-assets.html`, `ui_kits/app/`, and preserved `assets/` or `fonts/` when evidence exists.',
+    '- Convert the inventory above into a Claude Design-style package: `README.md`, `SKILL.md`, `colors_and_type.css`, `preview/colors-*`, `preview/typography-specimens.html`, `preview/spacing-*`, `preview/components-*`, `preview/brand-assets.html`, `ui_kits/app/`, and preserved `assets/`, `build/`, or `fonts/` when evidence exists.',
     '- Extract concrete colors, typography, spacing, radius, component behavior, assets, and product tone only when supported by inspected files.',
     '- If evidence is missing or ambiguous, mark that uncertainty instead of inventing tokens.',
     '',
@@ -1275,7 +1275,7 @@ function renderLocalDesignEvidenceMarkdown(evidence: LocalDesignEvidence): strin
     '## Next Design-System Work',
     '',
     '- Use these local source paths and snapshots as evidence before writing `DESIGN.md`.',
-    '- Convert the inventory above into a Claude Design-style package: `README.md`, `SKILL.md`, `colors_and_type.css`, `preview/colors-*`, `preview/typography-specimens.html`, `preview/spacing-*`, `preview/components-*`, `preview/brand-assets.html`, `ui_kits/app/`, and preserved `assets/` or `fonts/` when evidence exists.',
+    '- Convert the inventory above into a Claude Design-style package: `README.md`, `SKILL.md`, `colors_and_type.css`, `preview/colors-*`, `preview/typography-specimens.html`, `preview/spacing-*`, `preview/components-*`, `preview/brand-assets.html`, `ui_kits/app/`, and preserved `assets/`, `build/`, or `fonts/` when evidence exists.',
     '- Extract concrete colors, typography, spacing, radius, component behavior, assets, and product tone only when supported by inspected files.',
     '- If evidence is missing or ambiguous, mark that uncertainty instead of inventing tokens.',
     '',
@@ -1602,8 +1602,10 @@ async function auditDesignSystemPackage(
   const hasAssetEvidence = evidenceHasAssets(evidenceText) || files.some((filePath) => /^context\/(github|local-code)\/.+\/files\/.+\.(svg|png|jpe?g|webp|ico)$/iu.test(filePath));
   const hasFontEvidence = evidenceHasFonts(evidenceText) || files.some((filePath) => /^context\/(github|local-code)\/.+\/files\/.+\.(ttf|otf|woff2?)$/iu.test(filePath));
   const evidenceAssetFiles = evidenceSnapshotFiles(files, evidenceText, /\.(svg|png|jpe?g|webp|ico)$/iu);
+  const evidenceBuildAssetFiles = evidenceSnapshotFiles(files, evidenceText, /(^|\/)(build|resources|public-resources)\/[^`\s)]*(logo|icon|tray|wordmark|mark)[^/]*\.(svg|png|jpe?g|webp|ico)$/iu);
   const evidenceFontFiles = evidenceSnapshotFiles(files, evidenceText, /\.(ttf|otf|woff2?)$/iu);
   const preservedAssetFiles = files.filter((filePath) => /^assets\/.+\.(svg|png|jpe?g|webp|ico)$/iu.test(filePath));
+  const preservedBuildAssetFiles = files.filter((filePath) => /^build\/.+\.(svg|png|jpe?g|webp|ico)$/iu.test(filePath));
   const preservedFontFiles = files.filter((filePath) => /^fonts\/.+\.(ttf|otf|woff2?|css)$/iu.test(filePath));
   const evidenceComponentNames = sourceComponentNamesFromEvidence(files, evidenceText);
   const visualSourceAnchors = await sourceComponentAnchorsInVisualArtifacts(projectPath, files, evidenceComponentNames);
@@ -1751,6 +1753,14 @@ async function auditDesignSystemPackage(
     if (!fileSet.has('preview/brand-assets.html')) {
       addIssue('error', 'missing_brand_assets_preview', 'Source evidence includes brand assets; add preview/brand-assets.html.', 'preview/brand-assets.html');
     }
+  }
+  if (evidenceBuildAssetFiles.length > 0 && preservedBuildAssetFiles.length === 0) {
+    addIssue(
+      'warning',
+      'missing_build_assets',
+      `Source evidence includes ${evidenceBuildAssetFiles.length} build/runtime icon asset(s); preserve representative app, installer, tray, or wordmark files under build/ like Claude Design exports instead of collapsing them into prose.`,
+      'build/',
+    );
   }
   if (hasFontEvidence) {
     if (preservedFontFiles.length === 0) {
