@@ -138,6 +138,10 @@ import {
   listExtractions as listMemoryExtractions,
   removeExtraction as removeMemoryExtraction,
 } from './memory-extractions.js';
+import {
+  extractMemoryFromConnectors,
+  suggestMemoryFromConnectors,
+} from './memory-connectors.js';
 import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
 import {
@@ -211,6 +215,7 @@ import { generateMedia } from './media.js';
 import { listElevenLabsVoiceOptions } from './elevenlabs-voices.js';
 import { searchResearch, ResearchError } from './research/index.js';
 import { renderResearchCommandContract } from './prompts/research-contract.js';
+import { openBrowser } from './browser-open.js';
 import {
   AUDIO_DURATIONS_SEC,
   AUDIO_MODELS_BY_KIND,
@@ -3470,6 +3475,7 @@ export async function startServer({
       ]);
       res.json({
         enabled: config.enabled,
+        chatExtractionEnabled: config.chatExtractionEnabled,
         rootDir: memoryDir(RUNTIME_DATA_DIR),
         index,
         entries,
@@ -3531,6 +3537,9 @@ export async function startServer({
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const patch = {};
       if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
+      if (typeof body.chatExtractionEnabled === 'boolean') {
+        patch.chatExtractionEnabled = body.chatExtractionEnabled;
+      }
       // Three-state extraction handling so the UI can: (a) leave the
       // override alone (omit `extraction`), (b) clear it back to
       // auto-pick (`extraction: null`), or (c) commit a custom override
@@ -3593,6 +3602,7 @@ export async function startServer({
       const next = await writeMemoryConfig(RUNTIME_DATA_DIR, patch);
       res.json({
         enabled: next.enabled,
+        chatExtractionEnabled: next.chatExtractionEnabled,
         extraction: maskMemoryExtractionConfig(next.extraction),
       });
     } catch (err) {
@@ -3650,10 +3660,104 @@ export async function startServer({
     }
   });
 
-  app.delete('/api/memory/extractions/:id', async (req, res) => {
-    try {
-      const removed = removeMemoryExtraction(req.params.id);
-      res.json({ removed });
+	  app.delete('/api/memory/extractions/:id', async (req, res) => {
+	    try {
+	      const removed = removeMemoryExtraction(req.params.id);
+	      res.json({ removed });
+	    } catch (err) {
+	      res.status(400).json({ error: String((err && err.message) || err) });
+	    }
+	  });
+
+	  app.post('/api/memory/connectors/suggest', requireLocalDaemonRequest, async (req, res) => {
+	    try {
+	      const body = req.body && typeof req.body === 'object' ? req.body : {};
+	      const connectorIds = Array.isArray(body.connectorIds)
+	        ? body.connectorIds
+	          .filter((id) => typeof id === 'string')
+	          .map((id) => id.trim())
+	          .filter(Boolean)
+	          .slice(0, 12)
+	        : undefined;
+	      const query =
+	        typeof body.query === 'string' ? body.query.trim().slice(0, 240) : '';
+	      const projectId =
+	        typeof body.projectId === 'string' && body.projectId.trim()
+	          ? body.projectId.trim()
+	          : null;
+	      const appConfig = await readAppConfig(RUNTIME_DATA_DIR).catch(() => ({}));
+	      const chatAgentId =
+	        typeof body.chatAgentId === 'string' && body.chatAgentId.trim()
+	          ? body.chatAgentId.trim()
+	          : typeof appConfig.agentId === 'string' && appConfig.agentId.trim()
+	            ? appConfig.agentId.trim()
+	            : null;
+	      const requestChatModel =
+	        typeof body.chatModel === 'string' && body.chatModel.trim()
+	          ? body.chatModel.trim()
+	          : null;
+	      const chatModel =
+	        requestChatModel
+	        || (chatAgentId && appConfig.agentModels?.[chatAgentId]?.model
+	          ? appConfig.agentModels[chatAgentId].model
+	          : null);
+	      const result = await suggestMemoryFromConnectors(RUNTIME_DATA_DIR, {
+	        projectsRoot: PROJECTS_DIR,
+	        projectRoot: PROJECT_ROOT,
+	        projectId,
+	        connectorIds,
+	        query,
+	        chatAgentId,
+	        chatModel,
+	      });
+	      res.json(result);
+	    } catch (err) {
+	      res.status(400).json({ error: String((err && err.message) || err) });
+	    }
+	  });
+
+	  app.post('/api/memory/connectors/extract', requireLocalDaemonRequest, async (req, res) => {
+	    try {
+	      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const connectorIds = Array.isArray(body.connectorIds)
+        ? body.connectorIds
+          .filter((id) => typeof id === 'string')
+          .map((id) => id.trim())
+          .filter(Boolean)
+          .slice(0, 12)
+        : undefined;
+      const query =
+        typeof body.query === 'string' ? body.query.trim().slice(0, 240) : '';
+      const projectId =
+        typeof body.projectId === 'string' && body.projectId.trim()
+          ? body.projectId.trim()
+          : null;
+      const appConfig = await readAppConfig(RUNTIME_DATA_DIR).catch(() => ({}));
+      const chatAgentId =
+        typeof body.chatAgentId === 'string' && body.chatAgentId.trim()
+          ? body.chatAgentId.trim()
+          : typeof appConfig.agentId === 'string' && appConfig.agentId.trim()
+            ? appConfig.agentId.trim()
+            : null;
+      const requestChatModel =
+        typeof body.chatModel === 'string' && body.chatModel.trim()
+          ? body.chatModel.trim()
+          : null;
+      const chatModel =
+        requestChatModel
+        || (chatAgentId && appConfig.agentModels?.[chatAgentId]?.model
+          ? appConfig.agentModels[chatAgentId].model
+          : null);
+      const result = await extractMemoryFromConnectors(RUNTIME_DATA_DIR, {
+        projectsRoot: PROJECTS_DIR,
+        projectRoot: PROJECT_ROOT,
+        projectId,
+        connectorIds,
+        query,
+        chatAgentId,
+        chatModel,
+      });
+      res.json(result);
     } catch (err) {
       res.status(400).json({ error: String((err && err.message) || err) });
     }
@@ -3687,6 +3791,10 @@ export async function startServer({
       const assistantMessage =
         typeof body.assistantMessage === 'string' ? body.assistantMessage : '';
       const hasAssistant = assistantMessage.trim().length > 0;
+      const memoryConfig = await readMemoryConfig(RUNTIME_DATA_DIR);
+      if (memoryConfig.chatExtractionEnabled === false) {
+        return res.json({ changed: [], attemptedLLM: false });
+      }
       const changed = hasAssistant
         ? []
         : await extractFromMessage(RUNTIME_DATA_DIR, userMessage);
@@ -8030,9 +8138,33 @@ export async function startServer({
     }
   });
 
-  // Native OS folder picker dialog. Returns { path: string | null }.
-  app.post('/api/dialog/open-folder', async (req, res) => {
+  app.post('/api/system/open-external', async (req, res) => {
     if (!isLocalSameOrigin(req, resolvedPort)) {
+      return res.status(403).json({ error: 'cross-origin request rejected' });
+    }
+    try {
+      const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return res.status(400).json({ ok: false, error: 'url must be a valid URL' });
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return res.status(400).json({ ok: false, error: 'url must be http or https' });
+      }
+      const child = openBrowser(parsed.toString());
+      res.json({ ok: Boolean(child) });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ ok: false, error: String(err && err.message ? err.message : err) });
+    }
+  });
+
+	  // Native OS folder picker dialog. Returns { path: string | null }.
+	  app.post('/api/dialog/open-folder', async (req, res) => {
+	    if (!isLocalSameOrigin(req, resolvedPort)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     try {
@@ -9512,11 +9644,12 @@ export async function startServer({
               userMessage: userMsg,
               assistantMessage: captured,
             },
-            {
-              projectRoot: PROJECT_ROOT,
-              chatAgentId: typeof agentId === 'string' ? agentId : null,
-            },
-          ),
+              {
+                projectRoot: PROJECT_ROOT,
+                chatAgentId: typeof agentId === 'string' ? agentId : null,
+                chatModel: typeof safeModel === 'string' ? safeModel : null,
+              },
+            ),
         )
         .catch((err) => console.warn('[memory-llm] background failed', err));
     });
