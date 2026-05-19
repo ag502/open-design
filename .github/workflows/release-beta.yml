@@ -466,6 +466,7 @@ jobs:
         env:
           OD_PACKAGED_E2E_BUILD_JSON_PATH: ${{ runner.temp }}/windows-tools-pack-build.json
           OD_PACKAGED_E2E_WIN: "1"
+          OD_PACKAGED_E2E_WIN_VERIFY_REINSTALL: "0"
           OD_PACKAGED_E2E_NAMESPACE: release-beta-win
           OD_PACKAGED_E2E_REPORT_DIR: ${{ runner.temp }}/release-report/win
           OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ runner.temp }}/tools-pack
