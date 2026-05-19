@@ -70,26 +70,77 @@ describe('startCallbackListener', () => {
     });
   });
 
-  it('rejects state mismatch with kind=error', async () => {
+  it('rejects state mismatch with HTTP 400 but keeps the listener open for the real callback', async () => {
+    // A stale browser tab replaying an old /callback?state=… would
+    // close the singleton :56121 listener if the mismatch tore it down,
+    // stranding the real xAI redirect. The listener must reject with
+    // 400 but stay alive until the matching state arrives.
+    let onCallbackCount = 0;
     const outcomeRef: { current: CallbackOutcome | null } = { current: null };
     listener = await startCallbackListener({
       expectedState: 'state-abc',
       onCallback: async (o) => {
+        onCallbackCount += 1;
         outcomeRef.current = o;
       },
       port: TEST_PORT,
     });
-    const res = await fetchCallback(listener.address, {
-      code: 'whatever',
+
+    // 1. Stale tab fires a mismatched state.
+    const stale = await fetchCallback(listener.address, {
+      code: 'old',
       state: 'state-mismatch',
     });
-    expect(res.status).toBe(400);
-    expect(res.body).toContain('Sign-in failed');
+    expect(stale.status).toBe(400);
+    expect(stale.body).toContain('Sign-in failed');
     await new Promise((r) => setTimeout(r, 30));
-    expect(outcomeRef.current?.kind).toBe('error');
-    if (outcomeRef.current?.kind === 'error') {
-      expect(outcomeRef.current.error).toMatch(/state mismatch/);
-    }
+    // Listener should NOT have surfaced anything to the caller.
+    expect(onCallbackCount).toBe(0);
+    expect(outcomeRef.current).toBeNull();
+
+    // 2. Real callback arrives next; listener must still be live.
+    const real = await fetchCallback(listener.address, {
+      code: 'real-code',
+      state: 'state-abc',
+    });
+    expect(real.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(onCallbackCount).toBe(1);
+    expect(outcomeRef.current).toEqual({
+      kind: 'ok',
+      code: 'real-code',
+      state: 'state-abc',
+    });
+  });
+
+  it('keeps the listener open on missing-code/missing-state requests too', async () => {
+    let onCallbackCount = 0;
+    const outcomeRef: { current: CallbackOutcome | null } = { current: null };
+    listener = await startCallbackListener({
+      expectedState: 'state-real',
+      onCallback: async (o) => {
+        onCallbackCount += 1;
+        outcomeRef.current = o;
+      },
+      port: TEST_PORT,
+    });
+
+    // /callback with neither code nor state — e.g. browser prefetch or
+    // a malformed redirect. Must not consume the listener.
+    const empty = await fetchCallback(listener.address, {});
+    expect(empty.status).toBe(400);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(onCallbackCount).toBe(0);
+
+    // Real callback completes normally afterwards.
+    const real = await fetchCallback(listener.address, {
+      code: 'c',
+      state: 'state-real',
+    });
+    expect(real.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(onCallbackCount).toBe(1);
+    expect(outcomeRef.current?.kind).toBe('ok');
   });
 
   it('surfaces an explicit ?error= param', async () => {

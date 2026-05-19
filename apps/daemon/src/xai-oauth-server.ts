@@ -118,7 +118,6 @@ export async function startCallbackListener(
       return;
     }
 
-    consumed = true;
     const code = parsed.searchParams.get('code') ?? '';
     const state = parsed.searchParams.get('state') ?? '';
     const errorParam = parsed.searchParams.get('error') ?? '';
@@ -136,9 +135,35 @@ export async function startCallbackListener(
       outcome = { kind: 'ok', code, state };
     }
 
+    // Decide whether this hit *consumes* the listener. A stray browser
+    // tab replaying an old `/callback?state=…` would otherwise close the
+    // listener with a state-mismatch error before the real xAI redirect
+    // can arrive — we share a fixed singleton port, so killing it on a
+    // stale request strands the in-flight authorization. Keep the
+    // listener open on stale/malformed requests; the real callback will
+    // still find it. Consume on:
+    //   - ok callback (matched state, code present)
+    //   - explicit ?error= from xAI (the auth provider terminated the
+    //     dance; we should propagate, not wait until the 30 min
+    //     timeout). xAI may or may not echo state with the error;
+    //     a stale tab can't fabricate `?error=` without colluding
+    //     with the auth server, so this branch is safe to consume on.
+    const consumesListener =
+      outcome.kind === 'ok' || Boolean(errorParam);
+    if (consumesListener) {
+      consumed = true;
+    }
+
     res.statusCode = outcome.kind === 'ok' ? 200 : 400;
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.end(renderResultPage(outcome));
+
+    if (!consumesListener) {
+      // Stale-tab replay or malformed request — don't surface to the
+      // caller and don't tear down the listener. The browser sees the
+      // 400 page; the real flow can still complete on a later hit.
+      return;
+    }
 
     try {
       await input.onCallback(outcome);
