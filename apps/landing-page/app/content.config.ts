@@ -87,4 +87,26 @@ const blog = defineCollection({
   }),
 });
 
-export const collections = { skills, systems, craft, templates, blog };
+// Tutorials live in `app/content/tutorials/*.md`. Each entry maps to a
+// single YouTube video and renders an in-page player on `/tutorials/<slug>/`.
+// We embed via `https://www.youtube-nocookie.com/embed/<youtubeId>` so the
+// page does not require a cookie consent banner.
+const tutorials = defineCollection({
+  loader: glob({
+    pattern: ['*.md', '!_*.md'],
+    base: './app/content/tutorials',
+  }),
+  schema: z.object({
+    title: z.string(),
+    youtubeId: z.string().regex(/^[\w-]{11}$/, 'youtubeId must be 11 chars'),
+    summary: z.string(),
+    date: z.coerce.date(),
+    category: z.enum(['Getting started', 'Tutorial', 'Demo', 'Review', 'Community']),
+    durationSeconds: z.number().int().positive(),
+    author: z.string(),
+    official: z.boolean().default(false),
+    thumbnail: z.string().url().optional(),
+  }),
+});
+
+export const collections = { skills, systems, craft, templates, blog, tutorials };
