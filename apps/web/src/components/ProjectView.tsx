@@ -1629,7 +1629,7 @@ export function ProjectView({
   );
 
   useEffect(() => {
-    if (!daemonLive || !activeConversationId || streaming) return;
+    if (config.mode !== 'daemon' || !daemonLive || !activeConversationId || streaming) return;
     let cancelled = false;
     const reattachConversationId = activeConversationId;
 
@@ -1961,6 +1961,7 @@ export function ProjectView({
     };
   }, [
     daemonLive,
+    config.mode,
     activeConversationId,
     streaming,
     messages,

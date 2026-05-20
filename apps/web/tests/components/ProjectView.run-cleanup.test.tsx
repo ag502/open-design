@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ProjectView,
   clearStreamingConversationMarker,
@@ -23,6 +23,7 @@ const fetchDesignSystem = vi.fn();
 const getTemplate = vi.fn();
 const fetchChatRunStatus = vi.fn();
 const listActiveChatRuns = vi.fn();
+const listProjectRuns = vi.fn();
 const reattachDaemonRun = vi.fn();
 const streamViaDaemon = vi.fn();
 const saveMessage = vi.fn();
@@ -42,6 +43,7 @@ vi.mock('../../src/providers/anthropic', () => ({
 vi.mock('../../src/providers/daemon', () => ({
   fetchChatRunStatus: (...args: unknown[]) => fetchChatRunStatus(...args),
   listActiveChatRuns: (...args: unknown[]) => listActiveChatRuns(...args),
+  listProjectRuns: (...args: unknown[]) => listProjectRuns(...args),
   reattachDaemonRun: (...args: unknown[]) => reattachDaemonRun(...args),
   streamViaDaemon: (...args: unknown[]) => streamViaDaemon(...args),
 }));
@@ -116,6 +118,10 @@ async function waitForReadyChatPaneProps() {
 }
 
 describe('ProjectView daemon cleanup', () => {
+  beforeEach(() => {
+    listProjectRuns.mockResolvedValue([]);
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -564,7 +570,7 @@ describe('ProjectView daemon cleanup', () => {
     }
   });
 
-  it('audits design-system workspace output after first auto-send and auto-sends bounded repair prompts', async () => {
+  it('audits design-system workspace output after first auto-send and seeds a bounded repair prompt', async () => {
     listConversations.mockResolvedValue([{ id: 'conv-1', title: 'Conversation' }]);
     listMessages.mockResolvedValue([]);
     fetchPreviewComments.mockResolvedValue([]);
@@ -633,15 +639,8 @@ describe('ProjectView daemon cleanup', () => {
     );
 
     await waitFor(() => expect(fetchProjectDesignSystemPackageAudit).toHaveBeenCalledWith('project-ds'));
-    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(3));
-    const repairMessages = saveMessage.mock.calls.filter((call) =>
-      call[2]?.role === 'user'
-      && typeof call[2]?.content === 'string'
-      && call[2].content.includes('Fix the design-system package audit findings below.')
-      && call[2].content.includes('ui_kit_index_missing_runtime_bootstrap'),
-    );
-    expect(repairMessages).toHaveLength(2);
-    expect(window.sessionStorage.getItem('od:design-system-audit-auto-repair:project-ds')).toBeNull();
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    expect(window.sessionStorage.getItem('od:design-system-audit-auto-repair:project-ds')).toBe('1');
     await waitFor(() => {
       const repairSeed = chatPaneSpy.mock.calls.find(
         (call) => typeof call[0]?.initialDraft === 'string'
