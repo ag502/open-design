@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hyperlane / 26 — A one-night developer summit · Brooklyn · Oct 17, 2026</title>
+  <meta name="description" content="Twelve hours. Eight talks. Four live product launches. Brooklyn, October 17, 2026. Public list opens September 9." />
+  <meta name="theme-color" content="#1a120c" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700;800;900&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+/* inlined from tokens.css */
+/* Atom · pre-emit critique: P5 H5 E5 S5 R4 V5
+ * genre: atmospheric · macrostructure: Marquee Hero · theme: Bloom
+ * tokens · paper-band: dark · display-style: weighty-sans · accent-hue: warm-amber
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* === Color: Bloom (atmospheric) ============================== */
+  --color-paper:        oklch(13% 0.018 35);
+  --color-paper-2:      oklch(17% 0.020 35);
+  --color-paper-3:      oklch(22% 0.022 35);
+  --color-paper-4:      oklch(28% 0.020 35);
+  --color-ink:          oklch(95% 0.010 70);
+  --color-ink-2:        oklch(78% 0.015 60);
+  --color-ink-3:        oklch(58% 0.015 50);
+  --color-rule:         oklch(28% 0.018 40);
+  --color-rule-strong:  oklch(40% 0.025 40);
+  --color-accent:       oklch(74% 0.180 55);
+  --color-accent-2:     oklch(68% 0.220 18);
+  --color-accent-soft:  oklch(74% 0.060 55);
+  --color-accent-ink:   oklch(15% 0.040 50);
+  --color-focus:        oklch(82% 0.180 55);
+  --color-error:        oklch(70% 0.220 25);
+  --color-success:      oklch(74% 0.160 145);
+  --color-bloom-1:      oklch(74% 0.220 50);
+  --color-bloom-2:      oklch(60% 0.220 15);
+
+  /* === Typography ============================================== */
+  --font-display: "Inter Tight", system-ui, sans-serif;
+  --font-body:    "Inter", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-accent:  "Instrument Serif", "Times New Roman", Georgia, serif;
+
+  --text-xs:      0.75rem;
+  --text-sm:      0.8125rem;
+  --text-base:    1rem;
+  --text-md:      1.0625rem;
+  --text-lg:      1.25rem;
+  --text-xl:      1.5rem;
+  --text-2xl:     2rem;
+  --text-3xl:     2.75rem;
+  --text-4xl:     clamp(2.5rem, 4vw + 1rem, 4.5rem);
+  --text-display: clamp(3rem, 11vw + 0.25rem, 9.5rem);
+
+  --leading-display: 0.92;
+  --leading-tight:   1.05;
+  --leading-snug:    1.25;
+  --leading-body:    1.55;
+
+  /* === Spacing (4 pt) ========================================== */
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  /* === Motion ================================================== */
+  --ease-out:    cubic-bezier(0.20, 0.80, 0.20, 1.00);
+  --ease-in:     cubic-bezier(0.40, 0.00, 1.00, 1.00);
+  --ease-in-out: cubic-bezier(0.40, 0.00, 0.20, 1.00);
+  --dur-fast:    120ms;
+  --dur-base:    220ms;
+  --dur-slow:    400ms;
+
+  /* === Rules / radii =========================================== */
+  --rule-hair:   1px;
+  --rule-bold:   2px;
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius-md:   12px;
+  --radius-lg:   20px;
+  --radius-pill: 999px;
+
+  /* === Layout ================================================== */
+  --page-gutter: clamp(1rem, 4vw, 3rem);
+  --max-width:   80rem;
+  --measure:     60ch;
+}
+
+</style>
+  <style>
+/* inlined from styles.css */
+/* Atom · genre: atmospheric · macrostructure: Marquee Hero · theme: Bloom
+ * polish: HP3 Cursor-spotlight (scoped to hero only · reduced-motion fallback at 50%/30%)
+ * enrichment: none — typography only
+ * nav: N5 Floating pill · footer: Ft5 Statement
+ * accent: warm amber bloom (~3% page footprint) + secondary coral
+ * studied: no
+ */
+
+/* ── reset & root ─────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  position: relative;
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  font-feature-settings: "ss01", "cv11";
+  font-variant-ligatures: contextual;
+}
+
+img, svg { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+/* tabular-numbers utility */
+.tnum { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* skip link */
+.skip {
+  position: absolute;
+  top: -40px;
+  left: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  z-index: 100;
+}
+.skip:focus { top: var(--space-md); }
+
+/* ── ambient blooms (atmospheric backdrop) ───────────────── */
+
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bloom {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  will-change: opacity;
+}
+
+.bloom--1 {
+  top: -10vmax;
+  left: -8vmax;
+  width: 60vmax;
+  height: 60vmax;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklch, var(--color-bloom-1) 50%, transparent),
+    transparent 70%
+  );
+}
+
+.bloom--2 {
+  bottom: -20vmax;
+  right: -15vmax;
+  width: 55vmax;
+  height: 55vmax;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklch, var(--color-bloom-2) 38%, transparent),
+    transparent 70%
+  );
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.94  0 0 0 0 0.92  0 0 0 0.06 0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.6'/></svg>");
+  background-size: 200px 200px;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+}
+
+/* ── nav · N5 floating pill ──────────────────────────────── */
+
+.nav {
+  position: sticky;
+  top: var(--space-md);
+  z-index: 40;
+  padding: 0 var(--page-gutter);
+  pointer-events: none;
+  transition: top var(--dur-slow) var(--ease-out);
+}
+
+.nav[data-state="scrolled"] { top: var(--space-sm); }
+
+.nav__inner {
+  pointer-events: auto;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  background: color-mix(in oklch, var(--color-paper) 76%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: var(--rule-hair) solid color-mix(in oklch, var(--color-rule-strong) 100%, transparent);
+  border-radius: var(--radius-pill);
+  transition:
+    max-width var(--dur-slow) var(--ease-out),
+    padding var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-slow) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+  will-change: max-width, transform;
+}
+
+.nav[data-state="scrolled"] .nav__inner {
+  max-width: 56rem;
+  padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-md);
+  background: color-mix(in oklch, var(--color-paper) 94%, transparent);
+  border-color: color-mix(in oklch, var(--color-accent) 32%, var(--color-rule-strong));
+  box-shadow:
+    0 12px 32px -10px color-mix(in oklch, var(--color-paper) 100%, transparent),
+    0 0 0 1px color-mix(in oklch, var(--color-accent) 12%, transparent),
+    0 0 60px -8px color-mix(in oklch, var(--color-accent) 28%, transparent);
+  transform: scale(0.965);
+}
+
+/* nav details that respond to the scroll-state transformation */
+.nav__brand-num,
+.nav__links a {
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.nav__links {
+  transition:
+    gap var(--dur-base) var(--ease-out),
+    font-size var(--dur-base) var(--ease-out);
+}
+
+.nav[data-state="scrolled"] .nav__links {
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+}
+
+.nav[data-state="scrolled"] .nav__brand-num {
+  opacity: 0.55;
+  transform: translateX(-1px);
+}
+
+.nav[data-state="scrolled"] .nav__brand-dot {
+  box-shadow: 0 0 18px color-mix(in oklch, var(--color-accent) 90%, transparent);
+}
+
+.nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.nav__brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 14px color-mix(in oklch, var(--color-accent) 70%, transparent);
+  animation: pulse 2.4s var(--ease-in-out) infinite;
+}
+
+.nav__brand-num {
+  color: var(--color-ink-3);
+  font-weight: 500;
+  margin-left: 1px;
+}
+
+.nav__links {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+}
+
+.nav__links a {
+  padding: var(--space-2xs) var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.nav__links a:hover { color: var(--color-ink); }
+.nav__links a:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.nav__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.nav__cta:hover {
+  transform: translateY(-1px);
+  background: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink));
+}
+.nav__cta:active { transform: translateY(0); }
+.nav__cta:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+/* ── hero · Marquee Hero + HP3 cursor spotlight ──────────── */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: clamp(34rem, 84dvh, 52rem);
+  padding: var(--space-3xl) var(--page-gutter) var(--space-4xl);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-xl);
+  overflow: hidden;
+  text-align: center;
+  place-items: center;
+}
+
+.hero__spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    520px circle at var(--mx, 50%) var(--my, 35%),
+    color-mix(in oklch, var(--color-accent) 22%, transparent),
+    transparent 60%
+  );
+  transition: background var(--dur-base) var(--ease-out);
+}
+
+.hero__rail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-sm) var(--space-2xs) var(--space-xs);
+  background: color-mix(in oklch, var(--color-paper-2) 90%, transparent);
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  margin: 0 auto;
+  width: max-content;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero__rail-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent);
+  flex: 0 0 auto;
+  animation: pulse 2.4s var(--ease-in-out) infinite;
+}
+
+.hero__display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  letter-spacing: -0.045em;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 18ch;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.hero__line {
+  display: block;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: rise var(--dur-slow) var(--ease-out) forwards;
+}
+
+.hero__line:nth-child(1) { animation-delay: 60ms; }
+.hero__line:nth-child(2) { animation-delay: 160ms; }
+.hero__line:nth-child(3) { animation-delay: 260ms; }
+
+.hero__line em {
+  font-family: var(--font-accent);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.18em;
+  letter-spacing: -0.02em;
+  color: var(--color-accent);
+  font-feature-settings: normal;
+  padding-right: 0.06em;
+}
+
+@keyframes rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: var(--space-lg) var(--space-2xl);
+  padding-top: var(--space-lg);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  width: 100%;
+  max-width: 56rem;
+}
+
+.hero__meta-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hero__label {
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+.hero__value {
+  color: var(--color-ink);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── shared · section heads ──────────────────────────────── */
+
+.section-head {
+  max-width: var(--max-width);
+  margin: 0 auto var(--space-2xl);
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xs);
+}
+
+.section-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.section-eyebrow .num {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.section-h {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.025em;
+  color: var(--color-ink);
+  margin: 0;
+  max-width: 22ch;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.section-note {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-ink-3);
+  font-size: var(--text-sm);
+  max-width: var(--measure);
+}
+
+/* ── format band ─────────────────────────────────────────── */
+
+.format {
+  position: relative;
+  padding: var(--space-3xl) var(--page-gutter) var(--space-3xl);
+  border-block: var(--rule-hair) solid var(--color-rule);
+  background: color-mix(in oklch, var(--color-paper-2) 85%, transparent);
+}
+
+.format .section-head {
+  margin-bottom: var(--space-2xl);
+}
+
+.format__schedule {
+  list-style: none;
+  margin: 0 auto var(--space-2xl);
+  padding: 0;
+  max-width: var(--max-width);
+  display: flex;
+  flex-direction: column;
+}
+
+.format__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 12rem) minmax(8rem, 16rem) 1fr;
+  gap: var(--space-lg);
+  padding: var(--space-lg) 0;
+  border-top: var(--rule-hair) solid var(--color-rule);
+  align-items: baseline;
+}
+
+.format__row:last-child { border-bottom: var(--rule-hair) solid var(--color-rule); }
+
+.format__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.format__time small {
+  font-size: 0.55em;
+  color: var(--color-ink-3);
+  margin-left: 4px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.format__label {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.015em;
+}
+
+.format__note {
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.format__row--reveal .format__time,
+.format__row--reveal .format__label {
+  color: var(--color-ink-3);
+}
+.format__row--reveal .format__label::after {
+  content: " ◔";
+  color: var(--color-accent);
+  margin-left: 6px;
+  font-size: 0.85em;
+}
+
+.format__cta {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.format__cta-note {
+  color: var(--color-ink-3);
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  margin: 0;
+}
+
+/* ── shared cta ──────────────────────────────────────────── */
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-md);
+  white-space: nowrap;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+  cursor: pointer;
+  border: var(--rule-hair) solid transparent;
+  letter-spacing: -0.01em;
+}
+
+.cta--primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  box-shadow:
+    0 0 0 0 color-mix(in oklch, var(--color-accent) 0%, transparent),
+    0 6px 28px -8px color-mix(in oklch, var(--color-accent) 50%, transparent);
+}
+.cta--primary:hover {
+  transform: translateY(-1px);
+  background: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink));
+  box-shadow:
+    0 0 0 4px color-mix(in oklch, var(--color-accent) 18%, transparent),
+    0 10px 36px -8px color-mix(in oklch, var(--color-accent) 65%, transparent);
+}
+.cta--primary:active { transform: translateY(0); }
+.cta--primary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+.cta--primary[disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.cta--primary[data-state="loading"] { background: var(--color-paper-3); color: var(--color-ink-2); }
+.cta--primary[data-state="success"] {
+  background: color-mix(in oklch, var(--color-success) 80%, var(--color-ink));
+  color: var(--color-paper);
+}
+
+.cta--lg { padding: var(--space-md) var(--space-xl); font-size: var(--text-md); }
+
+.cta__arrow,
+.nav__cta-arrow {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.cta:hover .cta__arrow,
+.nav__cta:hover .nav__cta-arrow {
+  transform: translateX(3px);
+}
+
+/* ── why · pitch ─────────────────────────────────────────── */
+
+.why {
+  position: relative;
+  padding: var(--space-4xl) var(--page-gutter);
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.why__body {
+  max-width: 60ch;
+  font-size: var(--text-lg);
+  line-height: 1.65;
+  color: var(--color-ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.why__lead {
+  font-size: var(--text-xl);
+  color: var(--color-ink);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.015em;
+}
+
+.why__body em {
+  font-style: italic;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.why__signoff {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-ink-3);
+  letter-spacing: 0;
+  text-transform: none;
+  margin-top: var(--space-md);
+}
+
+/* ── programme grid ──────────────────────────────────────── */
+
+.program {
+  padding: var(--space-3xl) var(--page-gutter) var(--space-4xl);
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+.program__grid {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: var(--max-width);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: var(--space-md);
+}
+
+.card {
+  position: relative;
+  padding: var(--space-lg);
+  border: var(--rule-hair) solid var(--color-rule);
+  background: color-mix(in oklch, var(--color-paper-2) 92%, transparent);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out);
+  min-height: 14rem;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-rule-strong);
+  background: var(--color-paper-3);
+}
+
+.card__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+  letter-spacing: -0.01em;
+  margin: 0;
+  font-weight: 500;
+}
+
+.card__type {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.card__h {
+  margin: var(--space-xs) 0 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.card__sub {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  flex: 1;
+}
+
+.card__name {
+  margin: 0;
+  padding-top: var(--space-sm);
+  margin-top: auto;
+  border-top: var(--rule-hair) dashed var(--color-rule);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-3);
+  letter-spacing: 0.02em;
+}
+
+.card--launch {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-accent) 12%, var(--color-paper-2)) 0%,
+    var(--color-paper-2) 90%
+  );
+  border-color: color-mix(in oklch, var(--color-accent) 35%, var(--color-rule));
+}
+.card--launch .card__time { color: var(--color-accent); }
+.card--launch::before {
+  content: "LIVE";
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  padding: 2px 8px;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  border-radius: var(--radius-xs);
+  font-weight: 600;
+}
+
+.card--keynote { border-color: color-mix(in oklch, var(--color-accent-2) 30%, var(--color-rule)); }
+.card--keynote .card__time { color: var(--color-accent-2); }
+
+.card--tba {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--color-rule);
+}
+.card--tba .card__h { color: var(--color-ink-2); }
+.card--tba:hover { border-color: var(--color-rule-strong); }
+
+/* ── rsvp ────────────────────────────────────────────────── */
+
+.rsvp {
+  padding: var(--space-3xl) var(--page-gutter);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in oklch, var(--color-paper-2) 70%, transparent) 100%
+  );
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+.rsvp__inner {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.rsvp__h {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.035em;
+  margin: var(--space-xs) 0 var(--space-md);
+  max-width: 18ch;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.rsvp__lead {
+  max-width: var(--measure);
+  color: var(--color-ink-2);
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-2xl);
+  line-height: var(--leading-body);
+}
+
+.rsvp__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.rsvp__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-sm);
+  align-items: stretch;
+}
+
+.rsvp__field {
+  display: block;
+  position: relative;
+}
+
+.rsvp__field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.rsvp__field input {
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-paper);
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  font-size: var(--text-md);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.rsvp__field input::placeholder { color: var(--color-ink-3); }
+
+.rsvp__field input:hover { border-color: var(--color-paper-4); }
+.rsvp__field input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-color: var(--color-accent);
+}
+
+.rsvp__field input:user-invalid {
+  border-color: var(--color-error);
+}
+
+.rsvp__help {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-3);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.rsvp__success {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-success);
+  letter-spacing: 0;
+  padding: var(--space-sm) var(--space-md);
+  background: color-mix(in oklch, var(--color-success) 12%, transparent);
+  border: var(--rule-hair) solid color-mix(in oklch, var(--color-success) 40%, transparent);
+  border-radius: var(--radius-md);
+}
+.rsvp__success[data-state="ok"] { display: block; }
+
+/* ── faq ─────────────────────────────────────────────────── */
+
+.faq {
+  padding: var(--space-3xl) var(--page-gutter) var(--space-4xl);
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+.faq__list {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.faq__item {
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+.faq__item:last-child { border-bottom: var(--rule-hair) solid var(--color-rule); }
+
+.faq__item summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--space-lg) 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--color-ink);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.faq__item summary::-webkit-details-marker { display: none; }
+
+.faq__item summary > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.faq__item summary:hover { color: var(--color-accent); }
+.faq__item summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 4px;
+  border-radius: var(--radius-xs);
+}
+
+.faq__chev {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--color-ink-3);
+  transition: transform var(--dur-base) var(--ease-out);
+  font-weight: 400;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.faq__item[open] .faq__chev {
+  transform: rotate(45deg);
+  color: var(--color-accent);
+}
+
+.faq__a {
+  padding: 0 0 var(--space-lg);
+  max-width: 60ch;
+  color: var(--color-ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+}
+
+.faq__a p { margin: 0; }
+.faq__a a { color: var(--color-accent); border-bottom: 1px dotted currentColor; }
+.faq__a a:hover { color: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink)); }
+
+/* ── footer · Ft5 statement ──────────────────────────────── */
+
+.footer {
+  padding: var(--space-3xl) var(--page-gutter) var(--space-2xl);
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+.footer__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.footer__statement {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-3xl);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-3xl);
+  max-width: 24ch;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.footer__statement em {
+  font-style: italic;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-2xl);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: var(--space-lg);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-3);
+  letter-spacing: 0.03em;
+}
+
+.footer__line { margin: 0; }
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.footer__links a {
+  color: var(--color-ink-3);
+  transition: color var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.footer__links a:hover { color: var(--color-ink); }
+.footer__links a:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-xs);
+}
+
+/* ── responsive ──────────────────────────────────────────── */
+
+@media (max-width: 60rem) {
+  .nav__inner {
+    grid-template-columns: auto 1fr auto;
+    padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-md);
+  }
+  .nav__links { display: none; }
+  .nav__cta { font-size: var(--text-xs); padding: var(--space-2xs) var(--space-md); }
+
+  .hero {
+    min-height: clamp(30rem, 76dvh, 44rem);
+    padding: var(--space-2xl) var(--page-gutter);
+    gap: var(--space-lg);
+  }
+
+  .hero__display { letter-spacing: -0.035em; }
+
+  .hero__meta {
+    flex-direction: column;
+    gap: var(--space-md);
+    padding-top: var(--space-md);
+  }
+
+  .section-h { font-size: var(--text-3xl); }
+
+  .format__row {
+    grid-template-columns: minmax(5rem, 7rem) 1fr;
+    grid-template-areas: "time label" "time note";
+    gap: var(--space-xs) var(--space-md);
+    padding: var(--space-md) 0;
+  }
+  .format__time { grid-area: time; font-size: var(--text-xl); align-self: start; padding-top: 4px; }
+  .format__label { grid-area: label; }
+  .format__note { grid-area: note; }
+
+  .rsvp__row { grid-template-columns: 1fr; }
+  .rsvp__row .cta { justify-content: center; }
+  .rsvp__h { font-size: var(--text-3xl); }
+
+  .faq__item summary { font-size: var(--text-lg); padding: var(--space-md) 0; }
+
+  .footer__statement { font-size: var(--text-2xl); }
+  .footer__meta { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
+}
+
+@media (max-width: 26rem) {
+  .nav__brand-num { display: none; }
+  .nav__cta span:first-child { display: none; }
+  .nav__cta { padding: var(--space-2xs) var(--space-sm); }
+
+  .format__row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "time" "label" "note";
+  }
+  .format__time { padding-top: 0; }
+}
+
+/* ── reduced motion ──────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hero__line { opacity: 1; transform: none; animation: none; }
+  .nav__brand-dot,
+  .hero__rail-dot { animation: none; opacity: 1; }
+  .hero__spotlight { transition: none; --mx: 50%; --my: 35%; }
+  .bloom { opacity: 0.45; }
+}
+
+</style>
+</head>
+<body>
+
+  <!-- ambient blooms (atmospheric backdrop) -->
+  <div class="ambient" aria-hidden="true">
+    <div class="bloom bloom--1"></div>
+    <div class="bloom bloom--2"></div>
+    <div class="grain"></div>
+  </div>
+
+  <!-- skip link for keyboard users -->
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- ─── nav · N5 floating pill ────────────────────────────── -->
+  <header class="nav" data-state="rest">
+    <div class="nav__inner">
+      <a class="nav__brand" href="#top" aria-label="Hyperlane 2026 · home">
+        <span class="nav__brand-dot" aria-hidden="true"></span>
+        <span class="nav__brand-text">Hyperlane<span class="nav__brand-num">/26</span></span>
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#format">Format</a>
+        <a href="#why">Why</a>
+        <a href="#program">Programme</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="nav__cta" href="#rsvp">
+        <span>Join the list</span>
+        <span class="nav__cta-arrow" aria-hidden="true">→</span>
+      </a>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ─── hero · Marquee Hero + HP3 cursor-spotlight ──────── -->
+    <section class="hero" id="top" aria-labelledby="hero-h">
+      <div class="hero__spotlight" aria-hidden="true"></div>
+
+      <div class="hero__rail">
+        <span class="hero__rail-dot" aria-hidden="true"></span>
+        <span>HYPERLANE / 26 — a developer summit · public list opens 09 Sep</span>
+      </div>
+
+      <h1 class="hero__display" id="hero-h">
+        <span class="hero__line">For engineers</span>
+        <span class="hero__line">who ship</span>
+        <span class="hero__line"><em>after dark.</em></span>
+      </h1>
+
+      <div class="hero__meta">
+        <div class="hero__meta-cell">
+          <span class="hero__label">When</span>
+          <span class="hero__value">Sat 17 Oct 2026 · 7 PM</span>
+        </div>
+        <div class="hero__meta-cell hero__meta-cell--mid">
+          <span class="hero__label">To liftoff</span>
+          <span class="hero__value tnum" id="countdown" data-target="2026-10-17T19:00:00-04:00">— —</span>
+        </div>
+        <div class="hero__meta-cell hero__meta-cell--end">
+          <span class="hero__label">Where</span>
+          <span class="hero__value">Brooklyn · 480 cap</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── format band · spec sheet ────────────────────────── -->
+    <section class="format" id="format" aria-labelledby="format-h">
+      <header class="section-head">
+        <p class="section-eyebrow"><span class="num tnum">01</span> · Format</p>
+        <h2 class="section-h" id="format-h">A single night, end to end.</h2>
+      </header>
+
+      <ol class="format__schedule" aria-label="Schedule">
+        <li class="format__row">
+          <span class="format__time tnum">7:00 <small>PM</small></span>
+          <span class="format__label">Doors</span>
+          <span class="format__note">soft open · drinks · introductions in the foyer</span>
+        </li>
+        <li class="format__row">
+          <span class="format__time tnum">8:30 <small>PM</small></span>
+          <span class="format__label">Programme</span>
+          <span class="format__note">eight talks · four live launches · running until 1 AM</span>
+        </li>
+        <li class="format__row">
+          <span class="format__time tnum">11:00 <small>PM</small></span>
+          <span class="format__label">Workshop</span>
+          <span class="format__note">a hands-on session in the side room · 40 seats only</span>
+        </li>
+        <li class="format__row">
+          <span class="format__time tnum">1:00 <small>AM</small></span>
+          <span class="format__label">Late</span>
+          <span class="format__note">closing DJ · open until four · room is yours</span>
+        </li>
+        <li class="format__row format__row--reveal">
+          <span class="format__time tnum">— —</span>
+          <span class="format__label">Address</span>
+          <span class="format__note">released 48 hours before to ticketed guests · Williamsburg waterfront</span>
+        </li>
+      </ol>
+
+      <div class="format__cta">
+        <a class="cta cta--primary cta--lg" href="#rsvp">
+          <span>Save your spot</span>
+          <span aria-hidden="true">→</span>
+        </a>
+        <p class="format__cta-note tnum">— Wave 01 of 3 · 480 cap · public list opens 09 Sep 2026</p>
+      </div>
+    </section>
+
+    <!-- ─── why · pitch ────────────────────────────────────── -->
+    <section class="why" id="why" aria-labelledby="why-h">
+      <header class="section-head">
+        <p class="section-eyebrow"><span class="num tnum">02</span> · Why</p>
+        <h2 class="section-h" id="why-h">A room for the people still building things at 2 AM.</h2>
+      </header>
+
+      <div class="why__body">
+        <p class="why__lead">
+          Twelve hours. Eight talks. Four live launches. Four hundred and eighty engineers, designers, founders, infra people, ML people, the frontend people who keep telling you the framework isn't done yet. Show up at seven. Leave when the sun does.
+        </p>
+        <p>
+          The conference circuit is fine. But the launches that matter — the new database, the new compiler, the next thing you'll be writing against in March — those don't happen on big stages. They happen in small rooms, late, when the ten people who actually shipped the thing are still around to answer questions.
+        </p>
+        <p>
+          Hyperlane is a room for that. <em>No badges. No pitches. No panels.</em> Talks short enough to remember (twelve to eighteen minutes). Live demos you can interrupt. Closing DJ.
+        </p>
+        <p class="why__signoff">— Brooklyn. October. The list opens in September.</p>
+      </div>
+    </section>
+
+    <!-- ─── programme grid · Wave 01 ───────────────────────── -->
+    <section class="program" id="program" aria-labelledby="program-h">
+      <header class="section-head">
+        <p class="section-eyebrow"><span class="num tnum">03</span> · Programme · Wave 01</p>
+        <h2 class="section-h" id="program-h">Six of twelve slots announced.</h2>
+        <p class="section-note">Wave 02 reveals 09 Sep · final programme 30 Sep · launches stay sealed until the night.</p>
+      </header>
+
+      <ul class="program__grid">
+        <li class="card card--keynote">
+          <p class="card__time tnum">8:30 PM</p>
+          <p class="card__type">Opening keynote</p>
+          <h3 class="card__h">A short talk on shipping under constraint.</h3>
+          <p class="card__sub">Twelve minutes. From an engineer who's released compilers to production for the last decade.</p>
+          <p class="card__name">— announced soon</p>
+        </li>
+
+        <li class="card card--launch">
+          <p class="card__time tnum">9:00 PM</p>
+          <p class="card__type">Live launch · 01</p>
+          <h3 class="card__h">A new way to ship developer tools.</h3>
+          <p class="card__sub">First public demo. Press embargo lifts at the door.</p>
+          <p class="card__name">— sealed until the night</p>
+        </li>
+
+        <li class="card card--talk">
+          <p class="card__time tnum">9:45 PM</p>
+          <p class="card__type">Talk</p>
+          <h3 class="card__h">Live coding · forty-five minutes · no slides.</h3>
+          <p class="card__sub">A working session, in front of the room, on a real production codebase.</p>
+          <p class="card__name">— announced soon</p>
+        </li>
+
+        <li class="card card--tba">
+          <p class="card__time tnum">10:30 PM</p>
+          <p class="card__type">Wave 02</p>
+          <h3 class="card__h">Reveal · 09 Sep 2026.</h3>
+          <p class="card__sub">A speaker we're glad to have. The third name we're announcing first.</p>
+          <p class="card__name">TBA</p>
+        </li>
+
+        <li class="card card--launch">
+          <p class="card__time tnum">11:30 PM</p>
+          <p class="card__type">Live launch · 02</p>
+          <h3 class="card__h">Open-source. Day one. The repo opens during the demo.</h3>
+          <p class="card__sub">Bring a laptop if you'd like to follow along.</p>
+          <p class="card__name">— sealed until the night</p>
+        </li>
+
+        <li class="card card--closing">
+          <p class="card__time tnum">12:30 AM</p>
+          <p class="card__type">Closing</p>
+          <h3 class="card__h">Eight engineers · one sentence each.</h3>
+          <p class="card__sub">Then dancing. The DJ takes over at one.</p>
+          <p class="card__name">— announced soon</p>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ─── rsvp · join the list ───────────────────────────── -->
+    <section class="rsvp" id="rsvp" aria-labelledby="rsvp-h">
+      <div class="rsvp__inner">
+        <p class="section-eyebrow"><span class="num tnum">04</span> · Tickets</p>
+        <h2 class="rsvp__h" id="rsvp-h">Two emails. One night.</h2>
+        <p class="rsvp__lead">
+          Join the public list and get early access to Wave 01 tickets when they open on 09 Sep. We send the address two days before doors and a final note 24 hours out — that's it.
+        </p>
+
+        <form class="rsvp__form" id="rsvp-form" novalidate>
+          <div class="rsvp__row">
+            <label class="rsvp__field">
+              <span class="rsvp__field-label">Email</span>
+              <input
+                type="email"
+                name="email"
+                id="rsvp-email"
+                autocomplete="email"
+                placeholder="you@studio.work"
+                required
+                aria-describedby="rsvp-help"
+              />
+            </label>
+            <button class="cta cta--primary cta--lg" type="submit" data-state="default">
+              <span class="cta__label">Get on the list</span>
+              <span class="cta__arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+          <p class="rsvp__help" id="rsvp-help">
+            <span class="tnum">Wave 01 · $140</span> · <span class="tnum">Wave 02 · $180</span> · <span class="tnum">Wave 03 · $220</span> at the door, capacity permitting.
+          </p>
+          <output class="rsvp__success" for="rsvp-email" aria-live="polite"></output>
+        </form>
+      </div>
+    </section>
+
+    <!-- ─── FAQ · conversational ───────────────────────────── -->
+    <section class="faq" id="faq" aria-labelledby="faq-h">
+      <header class="section-head">
+        <p class="section-eyebrow"><span class="num tnum">05</span> · Questions</p>
+        <h2 class="section-h" id="faq-h">A few honest answers.</h2>
+      </header>
+
+      <div class="faq__list">
+        <details class="faq__item">
+          <summary>
+            <span>What exactly is Hyperlane?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>One night, twelve hours, eight programmed slots. Four of those slots are live product launches — first public demos, with the team that built it taking questions afterward. Talks are short (twelve to eighteen minutes). No panels. No badges. The room itself is the after-show.</p>
+          </div>
+        </details>
+
+        <details class="faq__item">
+          <summary>
+            <span>Who comes?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>Roughly: half engineers, a quarter designers, a quarter everything adjacent — founders, ML researchers, devrel, technical writers. The list is public; the seats are not. Tickets are not transferable.</p>
+          </div>
+        </details>
+
+        <details class="faq__item">
+          <summary>
+            <span>Where is it, exactly?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>A warehouse on the Williamsburg waterfront. We release the address forty-eight hours before doors, to ticketed guests only. There are real reasons.</p>
+          </div>
+        </details>
+
+        <details class="faq__item">
+          <summary>
+            <span>How much?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>Three waves. Wave 01 (early list, you're reading this) opens at <span class="tnum">$140</span>. Wave 02 at <span class="tnum">$180</span>. Wave 03 at the door, capacity permitting, <span class="tnum">$220</span>. We don't do tiers, comp lists, or sponsorship seats.</p>
+          </div>
+        </details>
+
+        <details class="faq__item">
+          <summary>
+            <span>Is it recorded?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>Talks are recorded and released thirty days after the event. The launches and live demos are not streamed and not recorded — you have to be in the room.</p>
+          </div>
+        </details>
+
+        <details class="faq__item">
+          <summary>
+            <span>Refunds?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>Up to seven days before doors. After that we'll move your seat to the waitlist and credit you toward the next room.</p>
+          </div>
+        </details>
+
+        <details class="faq__item">
+          <summary>
+            <span>I'd like to launch something. Can I?</span>
+            <span class="faq__chev" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq__a">
+            <p>Maybe. Two of the four launch slots are still open. Email <a href="mailto:launches@hyperlane.events">launches@hyperlane.events</a> with what you're shipping and we'll write back. We are not a sponsorship channel; the slot has to be a real launch.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── footer · Ft5 statement ──────────────────────────── -->
+  <footer class="footer">
+    <div class="footer__inner">
+      <p class="footer__statement">
+        <em>Built late. Shipped live.</em> One room a year — for the people who'd be coding tonight anyway.
+      </p>
+      <div class="footer__meta">
+        <p class="footer__line tnum">Hyperlane / 26 · 17 Oct 2026 · Brooklyn · 7 PM</p>
+        <ul class="footer__links">
+          <li><a href="#main">Top</a></li>
+          <li><a href="#program">Programme</a></li>
+          <li><a href="#rsvp">List</a></li>
+          <li><a href="mailto:hello@hyperlane.events">hello@hyperlane.events</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+/* inlined from script.js */
+/* Atom · script.js
+ * scoped behaviours: HP3 cursor-spotlight (hero only) · countdown · form silent-success
+ */
+
+(() => {
+  "use strict";
+
+  const reduced =
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── HP3 cursor spotlight · scoped to hero only ────────── */
+  const hero = document.querySelector(".hero");
+  if (hero && !reduced) {
+    let raf = 0;
+    let pendingX = 0;
+    let pendingY = 0;
+    const apply = () => {
+      raf = 0;
+      hero.style.setProperty("--mx", `${pendingX}px`);
+      hero.style.setProperty("--my", `${pendingY}px`);
+    };
+    hero.addEventListener("pointermove", (e) => {
+      const r = hero.getBoundingClientRect();
+      pendingX = e.clientX - r.left;
+      pendingY = e.clientY - r.top;
+      if (!raf) raf = requestAnimationFrame(apply);
+    });
+  }
+
+  /* ── live countdown to event start ─────────────────────── */
+  const cd = document.getElementById("countdown");
+  if (cd && cd.dataset.target) {
+    const target = new Date(cd.dataset.target).getTime();
+    if (!Number.isNaN(target)) {
+      const tick = () => {
+        let diff = target - Date.now();
+        if (diff <= 0) {
+          cd.textContent = "live";
+          return false;
+        }
+        const d = Math.floor(diff / 86_400_000); diff -= d * 86_400_000;
+        const h = Math.floor(diff / 3_600_000);  diff -= h * 3_600_000;
+        const m = Math.floor(diff / 60_000);     diff -= m * 60_000;
+        const s = Math.floor(diff / 1000);
+        cd.textContent =
+          `${d}d ${String(h).padStart(2, "0")}h ` +
+          `${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+        return true;
+      };
+      tick();
+      setInterval(() => { tick(); }, 1000);
+    }
+  }
+
+  /* ── nav state on scroll (sticky pill polish) ──────────── */
+  const nav = document.querySelector(".nav");
+  if (nav) {
+    let lastState = "rest";
+    const onScroll = () => {
+      const next = window.scrollY > 24 ? "scrolled" : "rest";
+      if (next !== lastState) {
+        nav.dataset.state = next;
+        lastState = next;
+      }
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
+
+  /* ── form silent-success (optimistic, no toast) ────────── */
+  const form = document.getElementById("rsvp-form");
+  if (form) {
+    const button = form.querySelector("button[type='submit']");
+    const success = form.querySelector(".rsvp__success");
+    const input = form.querySelector("input[type='email']");
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!input || !input.value || !input.checkValidity()) {
+        input?.focus();
+        return;
+      }
+      if (button) {
+        button.dataset.state = "loading";
+        button.querySelector(".cta__label").textContent = "Joining…";
+      }
+      // simulated; wire to real endpoint when available
+      setTimeout(() => {
+        if (button) {
+          button.dataset.state = "success";
+          button.querySelector(".cta__label").textContent = "On the list";
+          button.querySelector(".cta__arrow").textContent = "✓";
+        }
+        if (success) {
+          success.dataset.state = "ok";
+          success.textContent = `You're on the list, ${input.value}. Wave 01 opens 09 Sep — we'll write first.`;
+        }
+        input.disabled = true;
+      }, 480);
+    });
+  }
+})();
+
+</script>
+</body>
+</html>

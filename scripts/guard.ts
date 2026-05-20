@@ -127,6 +127,14 @@ const residualAllowedPathPatterns: RegExp[] = [
   // assets are vendored runtime, never project-owned code, and must
   // not be retypecasted to TypeScript.
   /^plugins\/_official\/examples\/[^/]+\/(assets|references)\/.+$/,
+  // Vendored upstream Hallmark JS (Nutlope/hallmark, MIT). The site theme
+  // switcher and per-example interaction scripts are kept verbatim inside
+  // skills/atom-design/site/* so the catalog showcase renders the same way
+  // the upstream site does. They are not project-owned code.
+  /^skills\/atom-design\/site\/(js|examples|_tests)\/.*\.js$/,
+  // Mirror copies of the Hallmark example interaction scripts that ship as
+  // standalone landing-* plugins. Same vendoring reason as above.
+  /^skills\/landing-[a-z]+\/.*\.js$/,
 ];
 
 function isResidualAllowedPath(repositoryPath: string): boolean {

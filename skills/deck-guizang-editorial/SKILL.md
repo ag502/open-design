@@ -60,3 +60,9 @@ od:
 - **杂志感细节**: kicker 用 11px uppercase letterspacing 0.12em; folio 右下角 `01 / 12`; 顶部细 hairline rule + 期刊 logo / topic。
 - **不许**: 数据捏造、Lorem ipsum、占位图片 URL。所有图请用纯 CSS / SVG 内联描绘 (色块 + 简笔)。
 - 键盘 ← / → 切换; hash 同步; 单文件 HTML。
+
+【视觉纪律 — 交叉引用 atom-design】
+- 这套模板的 5 套调色板锁死, 同一 deck 不要再去 atom-design tokens 拿色; 但**版式选择**可参考 [`../atom-design/references/macrostructures.md`](../atom-design/references/macrostructures.md) — L01 Hero Cover ≈ Marquee Hero, L02 Act Divider ≈ Manifesto, L07 Hero Question ≈ Statement, L08 Big Quote ≈ Quote-Led; 选 macrostructure 名字写进 stamp 注释 `/* Atom · macrostructure: <name> · genre: editorial · accent: <hue> */`。
+- editorial genre 适用的 slop-test gates ([`../atom-design/references/slop-test.md`](../atom-design/references/slop-test.md) § editorial overrides) 是这套 deck 的硬性出货检查 — 字号 / 对比 / hairline rule / kicker letterspacing 都要过。
+- 跨 deck diversification: 上一份归藏 deck 用了 Monocle, 这次默认换一套 (Indigo / Forest / Kraft / Dune); 详见 atom-design SKILL.md § 2.5 项目记忆。
+

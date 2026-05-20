@@ -1,0 +1,1623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tally · Bill what your customers actually use</title>
+<meta name="description" content="Tally meters every API call, every minute, every byte — and turns it into invoices your finance team trusts." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+/* inlined from styles.css */
+@import url("./tokens.css");
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+html {
+  font-family: var(--font-body);
+  color: var(--color-ink-0);
+  background: var(--color-paper-0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-size: var(--text-base);
+  line-height: 1.55;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, color-mix(in oklch, var(--color-accent-tint) 70%, transparent), transparent 60%),
+    radial-gradient(900px 500px at 88% 8%, color-mix(in oklch, var(--color-companion) 35%, transparent), transparent 55%),
+    var(--color-paper-0);
+  background-attachment: fixed;
+}
+
+::selection { background: var(--color-accent); color: var(--color-paper-0); }
+
+a { color: inherit; text-decoration: none; }
+
+button, input, select { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* ───────── shared layout ───────── */
+.container {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-inline: var(--space-xl);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.italic-accent {
+  font-family: var(--font-italic);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ───────── nav · N5 Floating pill ───────── */
+.nav {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 6px 8px 6px 18px;
+  background: color-mix(in oklch, var(--color-paper-0) 78%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: var(--rule-soft);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 8px 30px -12px rgba(20, 30, 80, 0.18);
+  font-size: var(--text-sm);
+}
+
+.nav__brand {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: var(--space-xs);
+}
+
+.nav__brand svg { display: block; }
+
+.nav__links {
+  display: flex;
+  gap: 4px;
+}
+
+.nav__link {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-1);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.nav__link:hover { background: var(--color-paper-2); color: var(--color-ink-0); }
+.nav__link.is-hover { background: var(--color-paper-2); color: var(--color-ink-0); }
+
+.nav__cta {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-ink-0);
+  color: var(--color-paper-0);
+  font-weight: 500;
+  border: 1px solid var(--color-ink-0);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+.nav__cta:hover { background: var(--color-accent); border-color: var(--color-accent); transform: translateY(-1px); }
+.nav__cta:active { transform: translateY(0); }
+
+@media (max-width: 760px) {
+  .nav__links { display: none; }
+  .nav { padding: 6px 8px 6px 14px; }
+}
+
+/* ───────── hero · Marquee Hero ───────── */
+.hero {
+  padding-top: 140px;
+  padding-bottom: var(--space-3xl);
+  position: relative;
+  overflow: clip;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--color-ink-0) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--color-ink-0) 6%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 35%, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 35%, black 30%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 12px;
+  border: var(--rule-soft);
+  background: var(--color-paper-0);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-1);
+}
+
+.hero__live .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-success);
+  box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success) 60%, transparent);
+  animation: pulse 1800ms var(--ease-in-out) infinite;
+}
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success) 60%, transparent); }
+  70%  { box-shadow: 0 0 0 10px color-mix(in oklch, var(--color-success) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success) 0%, transparent); }
+}
+
+.hero__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: var(--space-3xl);
+  align-items: center;
+  margin-top: var(--space-xl);
+}
+
+@media (max-width: 980px) {
+  .hero__layout { grid-template-columns: 1fr; gap: var(--space-2xl); }
+}
+
+.hero__h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-5xl);
+  line-height: 0.96;
+  letter-spacing: -0.03em;
+  margin: 0.4em 0 0.2em;
+  max-width: 13ch;
+}
+
+.hero__h1 .italic-accent {
+  color: var(--color-accent);
+  font-weight: 400;
+}
+
+.hero__sub {
+  font-size: var(--text-md);
+  color: var(--color-ink-1);
+  max-width: 46ch;
+  margin: 0 0 var(--space-xl);
+  line-height: 1.5;
+}
+
+.hero__ctas {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  font-size: var(--text-base);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+  position: relative;
+  isolation: isolate;
+}
+
+.btn--primary {
+  background: var(--color-ink-0);
+  color: var(--color-paper-0);
+  border-color: var(--color-ink-0);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset, 0 8px 24px -10px rgba(0, 10, 60, 0.4);
+}
+
+.btn--primary:hover { background: var(--color-accent); border-color: var(--color-accent); transform: translateY(-1px); }
+.btn--primary:active { transform: translateY(0); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-ink-0);
+  border-color: color-mix(in oklch, var(--color-ink-0) 16%, transparent);
+}
+
+.btn--ghost:hover { background: var(--color-paper-2); border-color: color-mix(in oklch, var(--color-ink-0) 22%, transparent); }
+
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.hero__fineprint {
+  margin-top: var(--space-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.hero__fineprint span::before { content: "·"; margin-right: var(--space-md); color: var(--color-ink-3); }
+.hero__fineprint span:first-child::before { content: ""; margin: 0; }
+
+/* live invoice card · Tier-A pure-CSS art */
+.invoice {
+  background: var(--color-paper-0);
+  border: var(--rule-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 24px 60px -28px rgba(20, 30, 80, 0.25),
+    0 4px 12px -4px rgba(20, 30, 80, 0.08);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  position: relative;
+  transform: rotate(0.5deg);
+  max-width: 420px;
+  margin-left: auto;
+}
+
+.invoice::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 1px dashed color-mix(in oklch, var(--color-ink-0) 8%, transparent);
+  border-radius: calc(var(--radius-lg) + 8px);
+  pointer-events: none;
+}
+
+.invoice__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-sm);
+  border-bottom: var(--rule-hair);
+}
+
+.invoice__title { font-weight: 600; color: var(--color-ink-0); }
+
+.invoice__tag {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-success);
+  background: color-mix(in oklch, var(--color-success) 18%, transparent);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.invoice__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-sm) 0;
+}
+
+.invoice__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--color-ink-1);
+}
+
+.invoice__row strong { color: var(--color-ink-0); font-weight: 500; }
+
+.invoice__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: var(--space-sm);
+  border-top: var(--rule-hair);
+  font-size: var(--text-sm);
+}
+
+.invoice__total .num {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--color-ink-0);
+  letter-spacing: -0.01em;
+}
+
+.invoice__bar {
+  height: 6px;
+  background: var(--color-paper-3);
+  border-radius: var(--radius-pill);
+  margin-top: var(--space-md);
+  overflow: hidden;
+}
+
+.invoice__bar > i {
+  display: block;
+  height: 100%;
+  width: 64%;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-companion));
+  border-radius: inherit;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* hero marquee strip */
+.hero__marquee {
+  margin-top: var(--space-3xl);
+  border-top: var(--rule-hair);
+  border-bottom: var(--rule-hair);
+  padding: var(--space-md) 0;
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+.hero__marquee__track {
+  display: flex;
+  gap: var(--space-3xl);
+  animation: marquee 38s linear infinite;
+  width: max-content;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.hero__marquee__track span { display: inline-flex; align-items: center; gap: var(--space-md); }
+.hero__marquee__track span::after { content: "✦"; color: var(--color-accent); }
+
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__marquee__track { animation: none; }
+}
+
+/* ───────── logos strip ───────── */
+.logos {
+  padding: var(--space-2xl) 0;
+}
+
+.logos__label {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-ink-2);
+  margin-bottom: var(--space-lg);
+}
+
+.logos__row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-xl);
+  align-items: center;
+  opacity: 0.62;
+}
+
+.logos__row > div {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-md);
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--color-ink-1);
+}
+
+.logos__row .l-1 { font-family: var(--font-italic); font-style: italic; font-weight: 400; }
+.logos__row .l-2 { font-family: var(--font-mono); font-weight: 500; text-transform: lowercase; letter-spacing: -0.02em; }
+.logos__row .l-3 { font-weight: 700; letter-spacing: -0.05em; }
+.logos__row .l-4 { font-weight: 300; letter-spacing: 0.3em; text-transform: uppercase; font-size: var(--text-sm); }
+.logos__row .l-5 { font-weight: 800; }
+.logos__row .l-6 { font-weight: 500; font-style: italic; }
+
+@media (max-width: 760px) {
+  .logos__row { grid-template-columns: repeat(3, 1fr); row-gap: var(--space-lg); }
+}
+
+/* ───────── workbench / live demo ───────── */
+.workbench {
+  padding: var(--space-4xl) 0 var(--space-3xl);
+}
+
+.section-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2xl);
+  align-items: end;
+  margin-bottom: var(--space-2xl);
+}
+
+@media (max-width: 760px) {
+  .section-head { grid-template-columns: 1fr; gap: var(--space-md); }
+}
+
+.section-head__title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  margin: var(--space-sm) 0 0;
+}
+
+.section-head__title em { font-family: var(--font-italic); font-weight: 400; color: var(--color-accent); font-style: italic; }
+
+.section-head__desc {
+  font-size: var(--text-md);
+  color: var(--color-ink-1);
+  max-width: 50ch;
+}
+
+.bench {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  background: var(--color-paper-0);
+  border: var(--rule-soft);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: 0 30px 80px -40px rgba(20, 30, 80, 0.2);
+}
+
+@media (max-width: 880px) {
+  .bench { grid-template-columns: 1fr; }
+}
+
+.bench__rail {
+  padding: var(--space-lg);
+  border-right: var(--rule-hair);
+  background: var(--color-paper-1);
+}
+
+@media (max-width: 880px) {
+  .bench__rail { border-right: 0; border-bottom: var(--rule-hair); }
+}
+
+.bench__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+}
+
+.bench__nav { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
+
+.bench__navitem {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  color: var(--color-ink-1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.bench__navitem:hover { background: var(--color-paper-2); }
+.bench__navitem[aria-current="page"] { background: var(--color-paper-2); color: var(--color-ink-0); font-weight: 500; }
+
+.bench__navitem .glyph { width: 14px; height: 14px; flex: none; opacity: 0.8; }
+
+.bench__main { padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-lg); }
+
+.bench__statrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); }
+
+@media (max-width: 580px) { .bench__statrow { grid-template-columns: 1fr; } }
+
+.bench__stat {
+  background: var(--color-paper-1);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: var(--rule-hair);
+}
+
+.bench__stat .label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.bench__stat .value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.bench__stat .delta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-success);
+  background: color-mix(in oklch, var(--color-success) 14%, transparent);
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.bench__chart {
+  background: var(--color-paper-1);
+  border-radius: var(--radius-md);
+  border: var(--rule-hair);
+  padding: var(--space-lg);
+  position: relative;
+  min-height: 240px;
+}
+
+.bench__chart h4 {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-ink-1);
+  display: flex;
+  justify-content: space-between;
+}
+
+.bench__chart h4 .live {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-success);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bench__chart h4 .live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-success);
+}
+
+.bench__chart svg { width: 100%; height: auto; display: block; }
+
+.bench__chart .grid line { stroke: color-mix(in oklch, var(--color-ink-0) 6%, transparent); stroke-width: 1; }
+.bench__chart .area { fill: url(#area-grad); }
+.bench__chart .line { fill: none; stroke: var(--color-accent); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.bench__chart .dot {
+  fill: var(--color-paper-0);
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  filter: drop-shadow(0 4px 10px rgba(60, 30, 220, 0.25));
+}
+
+/* ───────── stats triplet ───────── */
+.stats {
+  padding: var(--space-3xl) 0;
+}
+
+.stats__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+}
+
+@media (max-width: 760px) { .stats__grid { grid-template-columns: 1fr; } }
+
+.stats__card {
+  padding: var(--space-2xl) var(--space-xl);
+  background: var(--color-paper-0);
+  border: var(--rule-soft);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.stats__card:nth-child(1) { background: linear-gradient(160deg, var(--color-accent-tint), var(--color-paper-0) 60%); }
+.stats__card:nth-child(2) { background: linear-gradient(160deg, color-mix(in oklch, var(--color-companion) 35%, var(--color-paper-0)), var(--color-paper-0) 60%); }
+.stats__card:nth-child(3) { background: linear-gradient(160deg, color-mix(in oklch, var(--color-warning) 25%, var(--color-paper-0)), var(--color-paper-0) 60%); }
+
+.stats__num {
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 6vw, 4.5rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.stats__num small {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--color-ink-1);
+  margin-left: 4px;
+}
+
+.stats__label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: var(--text-xs);
+  color: var(--color-ink-1);
+  margin-top: var(--space-md);
+}
+
+.stats__note {
+  margin-top: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-ink-1);
+  max-width: 28ch;
+}
+
+/* ───────── three feature cards ───────── */
+.features {
+  padding: var(--space-4xl) 0 var(--space-3xl);
+}
+
+.features__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+}
+
+@media (max-width: 880px) { .features__grid { grid-template-columns: 1fr; } }
+
+.feature {
+  background: var(--color-paper-0);
+  border: var(--rule-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  transition: transform var(--dur-mid) var(--ease-out), box-shadow var(--dur-mid) var(--ease-out);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.feature:hover {
+  box-shadow: 0 20px 60px -30px rgba(40, 30, 120, 0.28);
+}
+
+.feature__art {
+  height: 180px;
+  border-radius: var(--radius-md);
+  background: var(--color-paper-1);
+  border: var(--rule-hair);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Feature 1 — meter / counter */
+.art-meter { background: linear-gradient(180deg, var(--color-paper-0), var(--color-paper-1)); }
+.art-meter::before {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  border: var(--rule-soft);
+  border-radius: var(--radius-md);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 22px, color-mix(in oklch, var(--color-ink-0) 6%, transparent) 22px 23px);
+}
+.art-meter::after {
+  content: "1,247 / sec";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-accent);
+  background: var(--color-paper-0);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  border: var(--rule-soft);
+}
+
+/* Feature 2 — pricing tiers visualisation */
+.art-tiers { padding: 22px; display: flex; align-items: end; gap: 10px; height: 180px; }
+.art-tiers > i {
+  flex: 1;
+  background: linear-gradient(180deg, var(--color-companion), color-mix(in oklch, var(--color-companion) 50%, var(--color-paper-1)));
+  border-radius: var(--radius-sm);
+  border: var(--rule-hair);
+}
+.art-tiers > i:nth-child(1) { height: 35%; }
+.art-tiers > i:nth-child(2) { height: 50%; }
+.art-tiers > i:nth-child(3) { height: 70%; background: linear-gradient(180deg, var(--color-accent), var(--color-accent-soft)); }
+.art-tiers > i:nth-child(4) { height: 90%; }
+.art-tiers > i:nth-child(5) { height: 60%; }
+
+/* Feature 3 — invoice stack */
+.art-invoice {
+  padding: 22px;
+}
+.art-invoice .sheet {
+  position: absolute;
+  width: 70%;
+  height: 60%;
+  background: var(--color-paper-0);
+  border: var(--rule-soft);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-ink-2);
+  box-shadow: 0 6px 16px -8px rgba(20, 30, 80, 0.2);
+}
+.art-invoice .sheet:nth-child(1) { top: 20%; left: 14%; transform: rotate(-4deg); z-index: 1; }
+.art-invoice .sheet:nth-child(2) { top: 16%; left: 22%; transform: rotate(2deg); z-index: 2; }
+.art-invoice .sheet:nth-child(3) { top: 12%; left: 30%; transform: rotate(-1deg); z-index: 3; background: var(--color-accent-tint); }
+.art-invoice .sheet b { display: block; color: var(--color-ink-0); font-size: 12px; margin-bottom: 6px; font-family: var(--font-display); font-weight: 600; }
+.art-invoice .sheet em { font-style: normal; color: var(--color-accent); font-weight: 600; font-size: 14px; }
+
+.feature__title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.feature__desc {
+  font-size: var(--text-sm);
+  color: var(--color-ink-1);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.feature__link {
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feature__link::after {
+  content: "→";
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.feature:hover .feature__link::after { transform: translateX(3px); }
+
+/* ───────── pricing ───────── */
+.pricing {
+  padding: var(--space-4xl) 0 var(--space-3xl);
+}
+
+.pricing__head { text-align: center; margin-bottom: var(--space-xl); }
+
+.pricing__toggle {
+  margin: var(--space-md) auto 0;
+  display: inline-flex;
+  padding: 4px;
+  background: var(--color-paper-2);
+  border: var(--rule-soft);
+  border-radius: var(--radius-pill);
+}
+
+.pricing__toggle button {
+  border: 0;
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--color-ink-1);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.pricing__toggle button[aria-pressed="true"] { background: var(--color-paper-0); color: var(--color-ink-0); font-weight: 500; box-shadow: 0 2px 6px -2px rgba(20, 30, 80, 0.14); }
+
+.pricing__toggle .save {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-success);
+  margin-left: 6px;
+}
+
+.pricing__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+}
+
+@media (max-width: 980px) { .pricing__grid { grid-template-columns: 1fr; } }
+
+.tier {
+  background: var(--color-paper-0);
+  border: var(--rule-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  position: relative;
+}
+
+.tier--featured {
+  background: var(--color-ink-0);
+  color: var(--color-paper-0);
+  border-color: var(--color-ink-0);
+  transform: scale(1.02);
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 60, 0.5);
+}
+
+.tier--featured .tier__price { color: var(--color-paper-0); }
+.tier--featured .tier__features li { color: color-mix(in oklch, var(--color-paper-0) 75%, transparent); }
+.tier--featured .tier__features li::before { color: var(--color-companion); }
+.tier--featured .btn--primary { background: var(--color-companion); color: var(--color-ink-0); border-color: var(--color-companion); }
+.tier--featured .btn--primary:hover { background: var(--color-paper-0); border-color: var(--color-paper-0); }
+
+.tier__badge {
+  position: absolute;
+  top: -12px;
+  left: var(--space-xl);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--color-companion);
+  color: var(--color-ink-0);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.tier__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.tier__price {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.tier__price small {
+  font-size: 0.4em;
+  font-weight: 400;
+  color: var(--color-ink-2);
+}
+
+.tier--featured .tier__price small { color: color-mix(in oklch, var(--color-paper-0) 70%, transparent); }
+
+.tier__desc { font-size: var(--text-sm); color: var(--color-ink-1); margin-top: -4px; }
+.tier--featured .tier__desc { color: color-mix(in oklch, var(--color-paper-0) 75%, transparent); }
+
+.tier__features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); }
+
+.tier__features li { padding-left: 22px; position: relative; color: var(--color-ink-1); }
+.tier__features li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+/* ───────── testimonial ───────── */
+.testimonial { padding: var(--space-3xl) 0; }
+
+.testimonial__quote {
+  font-family: var(--font-italic);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  max-width: 22ch;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.testimonial__quote::before { content: "\201C"; color: var(--color-accent); margin-right: 4px; }
+.testimonial__quote::after  { content: "\201D"; color: var(--color-accent); }
+
+.testimonial__byline {
+  margin-top: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-ink-1);
+}
+
+.testimonial__byline strong { color: var(--color-ink-0); font-weight: 500; }
+.testimonial__byline span { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-ink-2); text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* ───────── CTA ───────── */
+.cta {
+  padding: var(--space-3xl) 0 var(--space-4xl);
+}
+
+.cta__panel {
+  position: relative;
+  background: var(--color-ink-0);
+  color: var(--color-paper-0);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4xl) var(--space-2xl);
+  text-align: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.cta__panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(600px 200px at 20% 110%, color-mix(in oklch, var(--color-accent) 60%, transparent), transparent 70%),
+    radial-gradient(500px 220px at 90% -10%, color-mix(in oklch, var(--color-companion) 50%, transparent), transparent 70%);
+  z-index: -1;
+}
+
+.cta__panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  z-index: -1;
+}
+
+.cta__title {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 6vw, 5rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  margin: 0 0 var(--space-md);
+  max-width: 16ch;
+  margin-inline: auto;
+}
+
+.cta__title em { font-family: var(--font-italic); font-weight: 400; font-style: italic; color: var(--color-companion); }
+
+.cta__sub {
+  color: color-mix(in oklch, var(--color-paper-0) 75%, transparent);
+  max-width: 50ch;
+  margin: 0 auto var(--space-xl);
+  font-size: var(--text-md);
+}
+
+.cta__panel .btn--primary { background: var(--color-paper-0); color: var(--color-ink-0); border-color: var(--color-paper-0); }
+.cta__panel .btn--primary:hover { background: var(--color-companion); border-color: var(--color-companion); }
+.cta__panel .btn--ghost { color: var(--color-paper-0); border-color: rgba(255, 255, 255, 0.18); }
+.cta__panel .btn--ghost:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.3); }
+
+/* ───────── footer · Ft5 Statement ───────── */
+.footer { padding: var(--space-3xl) 0 var(--space-2xl); border-top: var(--rule-hair); }
+
+.footer__statement {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4.5vw, 3.2rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  max-width: 22ch;
+  margin: 0 0 var(--space-2xl);
+}
+
+.footer__statement em { font-family: var(--font-italic); font-weight: 400; font-style: italic; color: var(--color-accent); }
+
+.footer__row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr;
+  gap: var(--space-xl);
+  border-top: var(--rule-hair);
+  padding-top: var(--space-xl);
+}
+
+@media (max-width: 760px) { .footer__row { grid-template-columns: 1fr 1fr; } }
+
+.footer__col h5 {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-ink-2);
+  margin: 0 0 var(--space-sm);
+}
+
+.footer__col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); }
+.footer__col a { color: var(--color-ink-1); transition: color var(--dur-fast) var(--ease-out); }
+.footer__col a:hover { color: var(--color-ink-0); }
+
+.footer__legal {
+  margin-top: var(--space-2xl);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  border-top: var(--rule-hair);
+  padding-top: var(--space-md);
+}
+
+.footer__legal .wordmark { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; font-size: var(--text-base); color: var(--color-ink-0); }
+
+@media (max-width: 760px) { .footer__legal { flex-direction: column; gap: var(--space-sm); align-items: flex-start; } }
+
+</style>
+</head>
+<body>
+
+<!-- ───────── nav · N5 Floating pill ───────── -->
+<nav class="nav" aria-label="Primary">
+  <a href="#" class="nav__brand" aria-label="Tally home">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="6" height="18" rx="1.5" fill="currentColor"/>
+      <rect x="11" y="9" width="6" height="12" rx="1.5" fill="currentColor" opacity="0.55"/>
+      <rect x="19" y="14" width="3" height="7" rx="1" fill="currentColor" opacity="0.3"/>
+    </svg>
+    Tally
+  </a>
+  <div class="nav__links">
+    <a class="nav__link" href="#workbench">Product</a>
+    <a class="nav__link" href="#pricing">Pricing</a>
+    <a class="nav__link" href="#">Docs</a>
+    <a class="nav__link" href="#">Changelog</a>
+  </div>
+  <a class="nav__link" href="#">Sign in</a>
+  <button class="nav__cta" type="button">Start free</button>
+</nav>
+
+<!-- ───────── hero · Marquee Hero ───────── -->
+<section class="hero">
+  <div class="container">
+    <div class="hero__live" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span>LIVE · METERING <strong id="live-events">12,847</strong> EVENTS / SEC</span>
+    </div>
+
+    <div class="hero__layout">
+      <div>
+        <h1 class="hero__h1">
+          Bill what your customers <span class="italic-accent">actually</span> use.
+        </h1>
+        <p class="hero__sub">
+          Tally meters every API call, every minute, every byte — and turns it
+          into invoices your finance team trusts. No usage spreadsheets,
+          no end-of-month dread, no creative accounting.
+        </p>
+        <div class="hero__ctas">
+          <button class="btn btn--primary" type="button">Start free <span aria-hidden="true">→</span></button>
+          <button class="btn btn--ghost" type="button">Book a demo</button>
+        </div>
+        <div class="hero__fineprint">
+          <span>no credit card</span>
+          <span>5-min setup</span>
+          <span>first 100k events free / mo</span>
+        </div>
+      </div>
+
+      <!-- live invoice card (Tier-A pure-CSS art) -->
+      <aside class="invoice" aria-label="Live invoice preview">
+        <div class="invoice__head">
+          <div>
+            <div class="invoice__title">INV-04212</div>
+            <div style="font-size: var(--text-xs); color: var(--color-ink-2); margin-top: 2px;">Acme Robotics · May 2026</div>
+          </div>
+          <span class="invoice__tag">draft · live</span>
+        </div>
+        <div class="invoice__rows">
+          <div class="invoice__row"><span>API calls</span><strong id="inv-calls">1,284,512</strong></div>
+          <div class="invoice__row"><span>Compute (vCPU·hr)</span><strong>3,847.2</strong></div>
+          <div class="invoice__row"><span>Storage (GB)</span><strong>912.8</strong></div>
+          <div class="invoice__row" style="color: var(--color-success);"><span>Volume discount</span><strong>−$214.20</strong></div>
+        </div>
+        <div class="invoice__total">
+          <span>Total this month</span>
+          <span class="num">$<span id="inv-total">5,142.86</span></span>
+        </div>
+        <div class="invoice__bar" aria-hidden="true"><i></i></div>
+        <div style="font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-ink-2); margin-top: 8px;">
+          64 % of $8,000 budget · 12 days remaining
+        </div>
+      </aside>
+    </div>
+
+    <!-- marquee strip -->
+    <div class="hero__marquee" aria-hidden="true">
+      <div class="hero__marquee__track">
+        <span>METER · EVERY · CALL</span>
+        <span>PRICE · WITHOUT · GUESSING</span>
+        <span>INVOICE · ON · AUTOPILOT</span>
+        <span>SYNC · TO · STRIPE</span>
+        <span>AUDIT · WITHOUT · PANIC</span>
+        <span>METER · EVERY · CALL</span>
+        <span>PRICE · WITHOUT · GUESSING</span>
+        <span>INVOICE · ON · AUTOPILOT</span>
+        <span>SYNC · TO · STRIPE</span>
+        <span>AUDIT · WITHOUT · PANIC</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── logos ───────── -->
+<section class="logos">
+  <div class="container">
+    <div class="logos__label">Metering revenue for fast-moving teams</div>
+    <div class="logos__row">
+      <div class="l-1">Bramble</div>
+      <div class="l-2">orbit/labs</div>
+      <div class="l-3">FORGE</div>
+      <div class="l-4">Quietly</div>
+      <div class="l-5">Northsky</div>
+      <div class="l-6">Mercer &amp; Co.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── workbench ───────── -->
+<section class="workbench" id="workbench">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">◇ workbench</span>
+        <h2 class="section-head__title">A pricing console that <em>knows</em> your model.</h2>
+      </div>
+      <p class="section-head__desc">
+        Drop in a meter. Tally watches the events flow in, suggests a
+        price model that fits, and shows you what next month's invoice
+        looks like — before you ship a line of pricing code.
+      </p>
+    </div>
+
+    <div class="bench" role="img" aria-label="Tally console preview">
+      <div class="bench__rail">
+        <div class="bench__brand">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="3" y="3" width="6" height="18" rx="1.5"/>
+            <rect x="11" y="9" width="6" height="12" rx="1.5" opacity="0.55"/>
+            <rect x="19" y="14" width="3" height="7" rx="1" opacity="0.3"/>
+          </svg>
+          Tally
+        </div>
+        <div class="bench__nav">
+          <div class="bench__navitem" aria-current="page">
+            <svg class="glyph" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor"/></svg>
+            Live meters
+          </div>
+          <div class="bench__navitem">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 6h12M6 2v12"/></svg>
+            Price models
+          </div>
+          <div class="bench__navitem">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
+            Invoices
+          </div>
+          <div class="bench__navitem">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>
+            Forecasts
+          </div>
+          <div class="bench__navitem">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13l4-4 3 3 4-6"/><circle cx="13" cy="6" r="0.8" fill="currentColor"/></svg>
+            Audit log
+          </div>
+        </div>
+      </div>
+
+      <div class="bench__main">
+        <div class="bench__statrow">
+          <div class="bench__stat">
+            <div class="label">Events / sec</div>
+            <div class="value"><span id="bench-eps">12,847</span><span class="delta">+8.4%</span></div>
+          </div>
+          <div class="bench__stat">
+            <div class="label">MRR (live)</div>
+            <div class="value">$<span id="bench-mrr">412.6</span><small>K</small><span class="delta">+12.1%</span></div>
+          </div>
+          <div class="bench__stat">
+            <div class="label">Active meters</div>
+            <div class="value">237<span class="delta">+6</span></div>
+          </div>
+        </div>
+
+        <div class="bench__chart">
+          <h4>Revenue · last 30 days <span class="live">live</span></h4>
+          <svg viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="area-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="oklch(54% 0.220 268)" stop-opacity="0.34"/>
+                <stop offset="100%" stop-color="oklch(54% 0.220 268)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <g class="grid">
+              <line x1="0" y1="40"  x2="600" y2="40"/>
+              <line x1="0" y1="80"  x2="600" y2="80"/>
+              <line x1="0" y1="120" x2="600" y2="120"/>
+              <line x1="0" y1="160" x2="600" y2="160"/>
+            </g>
+            <path class="area"
+              d="M0,160 L40,150 L80,140 L120,148 L160,128 L200,134 L240,110 L280,118 L320,96 L360,82 L400,90 L440,68 L480,76 L520,52 L560,44 L600,30 L600,200 L0,200 Z"/>
+            <path class="line"
+              d="M0,160 L40,150 L80,140 L120,148 L160,128 L200,134 L240,110 L280,118 L320,96 L360,82 L400,90 L440,68 L480,76 L520,52 L560,44 L600,30"/>
+            <circle class="dot" cx="600" cy="30" r="6"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── stats triplet ───────── -->
+<section class="stats">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">◇ proof</span>
+        <h2 class="section-head__title">Numbers that <em>don't</em> need a footnote.</h2>
+      </div>
+      <p class="section-head__desc">
+        Tally has metered north of forty billion events for teams shipping
+        to seven-figure customers. The math holds.
+      </p>
+    </div>
+
+    <div class="stats__grid">
+      <div class="stats__card">
+        <div class="stats__num">42<small>B+</small></div>
+        <div class="stats__label">events metered</div>
+        <div class="stats__note">Across 14,000+ meters since 2024 — every one of them auditable.</div>
+      </div>
+      <div class="stats__card">
+        <div class="stats__num">9.2<small>×</small></div>
+        <div class="stats__label">faster month-end close</div>
+        <div class="stats__note">From 4-day spreadsheet hell to 11 minutes of "looks good — send."</div>
+      </div>
+      <div class="stats__card">
+        <div class="stats__num">$0.00</div>
+        <div class="stats__label">in invoice disputes</div>
+        <div class="stats__note">Per-call audit trails. Customers see the same numbers you do.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── three feature cards ───────── -->
+<section class="features">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">◇ how it works</span>
+        <h2 class="section-head__title">Meter, price, invoice — <em>then</em> sleep.</h2>
+      </div>
+      <p class="section-head__desc">
+        Three primitives, one console. Wire one event, configure one model,
+        ship invoices that don't need anyone to "check the math."
+      </p>
+    </div>
+
+    <div class="features__grid">
+      <article class="feature" data-tilt>
+        <div class="feature__art art-meter" aria-hidden="true"></div>
+        <h3 class="feature__title">Meter anything in one line</h3>
+        <p class="feature__desc">
+          Drop a single SDK call wherever the value happens. We handle
+          dedup, ordering, and replay so your meters never lie.
+        </p>
+        <a class="feature__link" href="#">Read the SDK docs</a>
+      </article>
+
+      <article class="feature" data-tilt>
+        <div class="feature__art art-tiers" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <h3 class="feature__title">Price without rebuilding</h3>
+        <p class="feature__desc">
+          Tiered, volume, package, hybrid — pick a model in the console
+          and Tally retro-prices the meter. No deploy required.
+        </p>
+        <a class="feature__link" href="#">See price models</a>
+      </article>
+
+      <article class="feature" data-tilt>
+        <div class="feature__art art-invoice" aria-hidden="true">
+          <div class="sheet"><b>INV-04210</b>Bramble · Apr<br/><em>$3,118.40</em></div>
+          <div class="sheet"><b>INV-04211</b>Forge · Apr<br/><em>$8,940.20</em></div>
+          <div class="sheet"><b>INV-04212</b>Acme · May<br/><em>$5,142.86</em></div>
+        </div>
+        <h3 class="feature__title">Invoices customers don't argue with</h3>
+        <p class="feature__desc">
+          Every line ties back to a metered event. When a customer asks
+          "what's this?", you point at a clickable trail.
+        </p>
+        <a class="feature__link" href="#">Browse invoice templates</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── pricing ───────── -->
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="pricing__head">
+      <span class="eyebrow">◇ pricing</span>
+      <h2 class="section-head__title" style="text-align:center; margin-inline:auto;">Plans that scale with you, <em>not</em> against you.</h2>
+      <div class="pricing__toggle" role="group" aria-label="Billing period">
+        <button type="button" data-period="monthly" aria-pressed="true">Monthly</button>
+        <button type="button" data-period="annual"  aria-pressed="false">Annual <span class="save">save 20%</span></button>
+      </div>
+    </div>
+
+    <div class="pricing__grid">
+      <article class="tier">
+        <div class="tier__name">Starter</div>
+        <div class="tier__price"><span data-price-monthly="$0" data-price-annual="$0">$0</span></div>
+        <p class="tier__desc">Up to 100k events / month. For weekend builds and side projects.</p>
+        <ul class="tier__features">
+          <li>1 meter, 1 product</li>
+          <li>Stripe sync</li>
+          <li>Basic invoice PDF</li>
+          <li>Community support</li>
+        </ul>
+        <button class="btn btn--ghost" type="button" style="margin-top: auto;">Start free</button>
+      </article>
+
+      <article class="tier tier--featured">
+        <span class="tier__badge">Most teams pick this</span>
+        <div class="tier__name">Scale</div>
+        <div class="tier__price">
+          <span data-price-monthly="$249" data-price-annual="$199">$249</span>
+          <small>/ mo</small>
+        </div>
+        <p class="tier__desc">For teams shipping to real customers with real revenue. No event ceiling.</p>
+        <ul class="tier__features">
+          <li>Unlimited meters &amp; products</li>
+          <li>Hybrid &amp; tiered pricing</li>
+          <li>Net-terms &amp; multi-currency invoicing</li>
+          <li>Audit log &amp; SSO</li>
+          <li>Dedicated solutions engineer</li>
+        </ul>
+        <button class="btn btn--primary" type="button" style="margin-top: auto;">Start 14-day trial</button>
+      </article>
+
+      <article class="tier">
+        <div class="tier__name">Enterprise</div>
+        <div class="tier__price"><span>Custom</span></div>
+        <p class="tier__desc">Self-hosted option, custom SLAs, procurement-friendly contracts.</p>
+        <ul class="tier__features">
+          <li>Self-host or VPC peering</li>
+          <li>SOC 2 Type II + HIPAA</li>
+          <li>Custom data residency</li>
+          <li>White-glove onboarding</li>
+        </ul>
+        <button class="btn btn--ghost" type="button" style="margin-top: auto;">Talk to sales</button>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── testimonial ───────── -->
+<section class="testimonial">
+  <div class="container">
+    <p class="testimonial__quote">
+      We went from a four-day month-end to closing the books before lunch.
+    </p>
+    <div class="testimonial__byline">
+      <strong>Imani Okafor</strong>
+      <span>VP Finance · Northsky · 1.4M API calls/day</span>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── CTA ───────── -->
+<section class="cta">
+  <div class="container">
+    <div class="cta__panel">
+      <h2 class="cta__title">Ship usage billing this <em>afternoon</em>.</h2>
+      <p class="cta__sub">
+        Wire a meter, pick a model, send your first invoice — all before
+        your standup runs long. We'll be your finance team's favourite tool by Friday.
+      </p>
+      <div style="display:flex; gap: var(--space-sm); justify-content: center; flex-wrap: wrap;">
+        <button class="btn btn--primary" type="button">Start free <span aria-hidden="true">→</span></button>
+        <button class="btn btn--ghost" type="button">Book a 20-minute demo</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── footer · Ft5 Statement ───────── -->
+<footer class="footer">
+  <div class="container">
+    <p class="footer__statement">
+      Tally is a pricing engine for teams who'd rather <em>build</em> than reconcile.
+    </p>
+    <div class="footer__row">
+      <div class="footer__col">
+        <h5>Product</h5>
+        <ul>
+          <li><a href="#">Metering</a></li>
+          <li><a href="#">Pricing models</a></li>
+          <li><a href="#">Invoicing</a></li>
+          <li><a href="#">Audit log</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h5>Developers</h5>
+        <ul>
+          <li><a href="#">API reference</a></li>
+          <li><a href="#">SDKs</a></li>
+          <li><a href="#">Quickstarts</a></li>
+          <li><a href="#">Status</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Customers</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Press</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h5>Resources</h5>
+        <ul>
+          <li><a href="#">Pricing playbook</a></li>
+          <li><a href="#">Changelog</a></li>
+          <li><a href="#">Security</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer__legal">
+      <span class="wordmark">Tally</span>
+      <span>© 2026 Tally Labs · Made in Brooklyn &amp; Lisbon · v0.8.0</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* inlined from app.js */
+/* Atom · motion primitives: counter · marquee (CSS) · hover-tilt
+ * respects prefers-reduced-motion
+ */
+
+(function () {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── counter · live ticker for hero status + invoice + bench stats ── */
+  const liveEvents = document.getElementById("live-events");
+  const benchEps   = document.getElementById("bench-eps");
+  const invCalls   = document.getElementById("inv-calls");
+  const invTotal   = document.getElementById("inv-total");
+  const benchMrr   = document.getElementById("bench-mrr");
+
+  let eps   = 12847;
+  let calls = 1284512;
+  let total = 5142.86;
+  let mrr   = 412.6;
+
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  function tick() {
+    // small jitter, bounded
+    eps   += Math.round((Math.random() - 0.4) * 80);
+    if (eps < 11000) eps = 11200;
+    if (eps > 14500) eps = 14200;
+
+    calls += Math.round(Math.random() * 24 + 4);
+    total += Math.random() * 0.18;
+    mrr   += (Math.random() - 0.5) * 0.4;
+    if (mrr < 410) mrr = 410.3;
+    if (mrr > 416) mrr = 415.8;
+
+    if (liveEvents) liveEvents.textContent = fmt(eps);
+    if (benchEps)   benchEps.textContent   = fmt(eps);
+    if (invCalls)   invCalls.textContent   = fmt(calls);
+    if (invTotal)   invTotal.textContent   = total.toFixed(2);
+    if (benchMrr)   benchMrr.textContent   = mrr.toFixed(1);
+  }
+
+  if (!reduceMotion) {
+    tick();
+    setInterval(tick, 1100);
+  }
+
+  /* ── pricing toggle ── */
+  const pricingButtons = document.querySelectorAll(".pricing__toggle button");
+  const pricedSpans    = document.querySelectorAll("[data-price-monthly]");
+
+  pricingButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const period = btn.dataset.period;
+      pricingButtons.forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+      pricedSpans.forEach((span) => {
+        span.textContent = period === "annual" ? span.dataset.priceAnnual : span.dataset.priceMonthly;
+      });
+    });
+  });
+
+  /* ── hover-tilt on feature cards ── */
+  const tiltCards = document.querySelectorAll("[data-tilt]");
+
+  if (!reduceMotion) {
+    tiltCards.forEach((card) => {
+      let raf = null;
+
+      card.addEventListener("mousemove", (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width  - 0.5;
+        const y = (e.clientY - rect.top)  / rect.height - 0.5;
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          card.style.transform =
+            `perspective(900px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 5).toFixed(2)}deg) translateY(-2px)`;
+        });
+      });
+
+      card.addEventListener("mouseleave", () => {
+        if (raf) cancelAnimationFrame(raf);
+        card.style.transform = "";
+      });
+    });
+  }
+})();
+
+</script>
+</body>
+</html>

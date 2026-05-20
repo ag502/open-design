@@ -40,3 +40,22 @@ open https://github.com/anthropics/skills/tree/main/web-artifacts-builder
 
 Then ask the agent to invoke this skill by name (`web-artifacts-builder`) or with
 one of the trigger phrases listed in this skill's frontmatter.
+
+## Design discipline (atom-design cross-reference)
+
+Anthropic's web-artifacts workflow handles wiring, embedding, and React/Tailwind
+mechanics. The *visual layer* — type, color, layout rhythm, accent restraint,
+microinteraction scope, anti-AI-slop guards — is delegated to
+[`skills/atom-design`](../atom-design/SKILL.md). Before emitting an artifact:
+
+- Read [`atom-design/SKILL.md`](../atom-design/SKILL.md) for the design flow
+  (pre-flight scan → genre detection → macrostructure pick → theme pick →
+  preview → build → slop-test).
+- Use the 22-theme catalog in
+  [`atom-design/site/css/tokens.css`](../atom-design/site/css/tokens.css) as
+  the token source; do not invent OKLCH values mid-render.
+- Run the 65 slop-test gates in
+  [`atom-design/references/slop-test.md`](../atom-design/references/slop-test.md)
+  before handoff.
+- Treat web-artifacts as **page-scope** when there are 3+ sections, **component-scope**
+  when it is a single element — atom-design routes both.

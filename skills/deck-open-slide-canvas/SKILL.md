@@ -64,3 +64,10 @@ od:
 - 加键盘 ← / → 切换 + hash 同步; 角标固定: 右下 `№N/M`, 左下 deck title。
 - 必须用用户的真实内容; 严禁 lorem ipsum。
 - 单文件 HTML; Tailwind CDN; 不要外链图片。
+
+【视觉纪律 — 交叉引用 atom-design】
+- 4 套 deck 调色板之外, 如果用户要求 "custom" 或给出品牌色, 改读 [`../atom-design/site/css/tokens.css`](../atom-design/site/css/tokens.css) 的 22 主题做候选; 选 1 个最近的, 在 deck 内沿用全程。
+- 第一页 CSS 顶部加 stamp 注释 `/* Atom · macrostructure: <name> · tone: <tone> · accent: <hue> */`, 让 diversification 规则识别本次输出。
+- 输出前过一遍 [`../atom-design/references/slop-test.md`](../atom-design/references/slop-test.md) 中适用于 deck 的 gate (typography / contrast / accent restraint / motion); 不及格回修。
+- Motion 遵守 [`../atom-design/references/motion.md`](../atom-design/references/motion.md) — 只 animate transform/opacity, 命名 easing, 支持 `prefers-reduced-motion`。
+

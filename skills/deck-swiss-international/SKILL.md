@@ -74,3 +74,9 @@ od:
 - **键盘 ← / → 切换 + hash 同步**; 角标固定: `№N/N` 右下, topic 标签左下。
 - **不许编造**: 数字必须来自用户输入, 图表柱高 = 真实数据按比例。
 - 输出单文件 HTML, 不用任何外部图片 URL; 装饰几何 (ASCII 矩阵 / 同心圆) 用纯 CSS 或内联 SVG。
+
+【视觉纪律 — 交叉引用 atom-design】
+- 4 套主题色锁死, 不要去 atom-design tokens 拿色; 但**版式语义**对应 atom 的 macrostructure: S01/S03/S09/S12 ≈ Manifesto, S02/S11 ≈ Narrative Workflow, S06 ≈ Stat-Led, S22 ≈ Photographic, S15 ≈ Catalogue。在 stamp 注释里写映射后的 macrostructure 名字, 让跨 deck rotation 能识别: `/* Atom · macrostructure: <name> · genre: modern-minimal · theme: swiss-<color> */`。
+- modern-minimal genre 的 slop-test gates 是这套 deck 的硬性出货检查; 锐角 + 1px hairline + Inter Tight 都是 modern-minimal 的标志, 任何衬线 / 渐变 / 圆角直接 fail。
+- 跨 deck diversification: 这套和 deck-guizang-editorial (editorial genre) 天然差一个 genre, 排在一起出货是合理的; 但同一 session 内两份 Swiss deck 必须换 accent (IKB → Lemon → Neon → Orange 轮转)。
+
