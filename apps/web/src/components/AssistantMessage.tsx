@@ -78,6 +78,7 @@ interface Props {
   onContinueRemainingTasks?: (todos: TodoItem[]) => void;
   onFeedback?: (change: ChatMessageFeedbackChange) => void;
   suppressDirectionForms?: boolean;
+  hasDesignSystemContext?: boolean;
 }
 
 /**
@@ -105,6 +106,7 @@ export function AssistantMessage({
   onContinueRemainingTasks,
   onFeedback,
   suppressDirectionForms = false,
+  hasDesignSystemContext = false,
 }: Props) {
   const t = useT();
   const events = message.events ?? [];
@@ -121,12 +123,25 @@ export function AssistantMessage({
   );
   const fileOps = useMemo(() => deriveFileOps(events), [events]);
   const produced = message.producedFiles ?? [];
+  const displayedProduced = useMemo(
+    () =>
+      produced.length > 0
+        ? produced
+        : inferProducedFilesFromTurn({
+            message,
+            projectFiles,
+            blocks,
+            fileOps,
+            streaming,
+          }),
+    [blocks, fileOps, message, produced, projectFiles, streaming],
+  );
   const pluginActionFolders = useMemo(
     () =>
       !streaming && isLast && projectId
-        ? pluginFoldersTouchedThisTurn(projectFiles, fileOps, produced, message.content)
+        ? pluginFoldersTouchedThisTurn(projectFiles, fileOps, displayedProduced, message.content)
         : [],
-    [fileOps, isLast, message.content, produced, projectFiles, projectId, streaming],
+    [displayedProduced, fileOps, isLast, message.content, projectFiles, projectId, streaming],
   );
   const usage = events.find((e) => e.kind === "usage") as
     | Extract<AgentEvent, { kind: "usage" }>
@@ -246,9 +261,9 @@ export function AssistantMessage({
             return <StatusPill key={i} label={b.label} detail={b.detail} />;
           return null;
         })}
-        {!streaming && produced.length > 0 && projectId ? (
+        {!streaming && displayedProduced.length > 0 && projectId ? (
           <ProducedFiles
-            files={produced}
+            files={displayedProduced}
             projectId={projectId}
             onRequestOpenFile={onRequestOpenFile}
           />
@@ -278,7 +293,8 @@ export function AssistantMessage({
                 conversationId={conversationId}
                 runId={message.runId ?? null}
                 assistantMessageId={message.id}
-                producedFileCount={produced.length}
+                producedFileCount={displayedProduced.length}
+                hasDesignSystemContext={hasDesignSystemContext}
                 footerProps={{
                   streaming,
                   startedAt: message.startedAt,
@@ -304,6 +320,36 @@ export function AssistantMessage({
       </div>
     </div>
   );
+}
+
+function inferProducedFilesFromTurn({
+  message,
+  projectFiles,
+  blocks,
+  fileOps,
+  streaming,
+}: {
+  message: ChatMessage;
+  projectFiles: ProjectFile[];
+  blocks: Block[];
+  fileOps: FileOpEntry[];
+  streaming: boolean;
+}): ProjectFile[] {
+  if (streaming || message.role !== "assistant") return [];
+  if (message.runStatus !== "succeeded") return [];
+  if (!message.startedAt || !message.endedAt) return [];
+  if (blocks.some((block) => block.kind === "text" || block.kind === "tool-group")) return [];
+  if (fileOps.length > 0) return [];
+  const start = message.startedAt - 1_000;
+  const end = message.endedAt + 60_000;
+  return projectFiles
+    .filter((file) => {
+      if (file.type === "dir") return false;
+      if (!file.name || file.name.startsWith(".")) return false;
+      if (file.name.includes("/.")) return false;
+      return file.mtime >= start && file.mtime <= end;
+    })
+    .sort((a, b) => b.mtime - a.mtime);
 }
 
 function isFeedbackEligible({
@@ -480,6 +526,7 @@ function AssistantFooter({
 function AssistantFeedback({
   feedback,
   onFeedback,
+  hasDesignSystemContext,
   footerProps,
   projectId,
   projectKind,
@@ -490,6 +537,7 @@ function AssistantFeedback({
 }: {
   feedback: ChatMessage["feedback"];
   onFeedback: (change: ChatMessageFeedbackChange) => void;
+  hasDesignSystemContext: boolean;
   footerProps: AssistantFooterProps;
   projectId: string | null;
   projectKind: TrackingProjectKind | null;
@@ -649,7 +697,7 @@ function AssistantFeedback({
     setReasonRating(null);
   };
   const reasonOptions = reasonRating
-    ? feedbackReasonOptions(reasonRating, t)
+    ? feedbackReasonOptions(reasonRating, t, hasDesignSystemContext)
     : [];
   const reasonEmoji = reasonRating === "positive" ? "😊" : "😔";
   const showOtherInput = draftReasonCodes.has("other");
@@ -752,6 +800,7 @@ function AssistantFeedback({
 function feedbackReasonOptions(
   rating: ChatMessageFeedbackRating,
   t: TranslateFn,
+  hasDesignSystemContext: boolean,
 ): Array<{ code: ChatMessageFeedbackReasonCode; label: string }> {
   const codes: ChatMessageFeedbackReasonCode[] =
     rating === "positive"
@@ -760,6 +809,7 @@ function feedbackReasonOptions(
           "strong_visual",
           "useful_structure",
           "easy_to_continue",
+          ...(hasDesignSystemContext ? (["followed_design_system"] as const) : []),
           "other",
         ]
       : [
@@ -767,6 +817,7 @@ function feedbackReasonOptions(
           "weak_visual",
           "incomplete_output",
           "hard_to_use",
+          ...(hasDesignSystemContext ? (["missed_design_system"] as const) : []),
           "other",
         ];
   return codes.map((code) => ({ code, label: feedbackReasonLabel(code, t) }));
@@ -785,6 +836,8 @@ function feedbackReasonLabel(
       return t("assistant.feedbackReasonPositiveUseful");
     case "easy_to_continue":
       return t("assistant.feedbackReasonPositiveEasy");
+    case "followed_design_system":
+      return t("assistant.feedbackReasonPositiveDesignSystem");
     case "missed_request":
       return t("assistant.feedbackReasonNegativeMissed");
     case "weak_visual":
@@ -793,6 +846,8 @@ function feedbackReasonLabel(
       return t("assistant.feedbackReasonNegativeIncomplete");
     case "hard_to_use":
       return t("assistant.feedbackReasonNegativeHard");
+    case "missed_design_system":
+      return t("assistant.feedbackReasonNegativeDesignSystem");
     case "other":
       return t("assistant.feedbackReasonOther");
   }

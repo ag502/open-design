@@ -147,6 +147,16 @@ const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
   topic: 'packaging a reusable workflow as an Open Design plugin',
 };
 
+const REFLY_DESIGN_SYSTEM = {
+  id: 'ds-refly',
+  title: 'Refly Design System',
+  category: 'Productivity & SaaS',
+  summary: 'Refly defaults',
+  source: 'user' as const,
+  status: 'published' as const,
+  isEditable: true,
+};
+
 const AUTHORING_APPLY_RESULT = {
   query: 'Create a plugin.',
   contextItems: [],
@@ -444,11 +454,14 @@ describe('HomeView prompt handoff', () => {
       cb(0);
       return 0;
     });
+    const onSubmit = vi.fn();
 
     render(
       <HomeView
         projects={[]}
-        onSubmit={() => undefined}
+        designSystems={[REFLY_DESIGN_SYSTEM]}
+        defaultDesignSystemId="ds-refly"
+        onSubmit={onSubmit}
         onOpenProject={() => undefined}
         onViewAllProjects={() => undefined}
       />,
@@ -468,19 +481,34 @@ describe('HomeView prompt handoff', () => {
         artifactKind: 'web prototype',
         fidelity: 'high-fidelity',
         audience: 'product evaluators',
-        designSystem: 'the active project design system',
+        designSystem: 'Refly Design System',
         template: 'the bundled web prototype seed',
       },
     });
-    expect(screen.getByTestId('home-hero-prompt-slot-fidelity')).toBeTruthy();
+    expect(
+      screen.getByTestId('home-hero-footer-option-designSystem').textContent,
+    ).toContain('Refly Design System');
+    expect(screen.getByTestId('home-hero-footer-option-fidelity')).toBeTruthy();
+    expect(screen.getByTestId('home-hero-footer-option-designSystem')).toBeTruthy();
+    expect(screen.queryByTestId('home-hero-prompt-slot-fidelity')).toBeNull();
     expect(screen.getByTestId('home-hero-prompt-slot-artifactKind')).toBeTruthy();
-    expect(screen.getByTestId('home-hero-prompt-slot-designSystem')).toBeTruthy();
+    expect(screen.queryByTestId('home-hero-prompt-slot-designSystem')).toBeNull();
     expect(screen.getByTestId('home-hero-prompt-slot-template')).toBeTruthy();
     // Inline pills are read-only; the editable controls live in the
     // PluginInputsForm below so caret positions in the textarea no
     // longer drift away from where the user clicked in the overlay.
     expect(screen.getByTestId('plugin-inputs-form')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('home-hero-submit'));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      projectKind: 'prototype',
+      designSystemId: 'ds-refly',
+      projectMetadata: expect.objectContaining({
+        kind: 'prototype',
+        fidelity: 'high-fidelity',
+      }),
+    }));
   });
 
   it('confirms before an explicit plugin use replaces an existing prompt', async () => {
