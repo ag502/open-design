@@ -1,0 +1,83 @@
+---
+import { DEFAULT_LOCALE, LANDING_LOCALES, localePath } from '../i18n';
+
+const localeRoutes = LANDING_LOCALES.map((locale) => ({
+  code: locale.code,
+  htmlLang: locale.htmlLang,
+  href: localePath(locale.code),
+}));
+
+const script = `
+(() => {
+  const STORAGE_KEY = 'od.preferredLocale';
+  const DEFAULT_LOCALE = ${JSON.stringify(DEFAULT_LOCALE)};
+  const LOCALES = ${JSON.stringify(localeRoutes)};
+  const codes = new Set(LOCALES.map((locale) => locale.code));
+
+  const normalizeLocale = (value) => {
+    if (typeof value !== 'string' || value.trim() === '') return null;
+    const raw = value.toLowerCase().replace(/_/g, '-');
+    if (raw === 'zh-cn' || raw === 'zh-hans' || raw.startsWith('zh-hans-')) return 'zh';
+    if (
+      raw === 'zh-hk' ||
+      raw === 'zh-mo' ||
+      raw === 'zh-tw' ||
+      raw === 'zh-hant' ||
+      raw.startsWith('zh-hant-')
+    ) {
+      return 'zh-tw';
+    }
+    if (raw === 'pt' || raw.startsWith('pt-br')) return 'pt-br';
+    if (codes.has(raw)) return raw;
+    const base = raw.split('-')[0];
+    return codes.has(base) ? base : null;
+  };
+
+  const targetFor = (locale) =>
+    LOCALES.find((entry) => entry.code === locale)?.href ?? '/';
+
+  const currentFromPath = () => {
+    const first = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
+    return first && codes.has(first) ? first : DEFAULT_LOCALE;
+  };
+
+  const selectLocale = (locale, persist) => {
+    const next = normalizeLocale(locale) ?? DEFAULT_LOCALE;
+    if (persist) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, next);
+      } catch {}
+    }
+    const target = targetFor(next);
+    if (window.location.pathname !== target) window.location.assign(target);
+  };
+
+  const bindSwitchers = () => {
+    const current = currentFromPath();
+    for (const select of document.querySelectorAll('[data-locale-select]')) {
+      select.value = current;
+      select.addEventListener('change', () => selectLocale(select.value, true));
+    }
+  };
+
+  const autoAdapt = () => {
+    if (currentFromPath() !== DEFAULT_LOCALE || window.location.pathname !== '/') return;
+    let saved = null;
+    try {
+      saved = normalizeLocale(window.localStorage.getItem(STORAGE_KEY) ?? '');
+    } catch {}
+    const detected =
+      saved ??
+      (Array.isArray(navigator.languages)
+        ? navigator.languages.map(normalizeLocale).find(Boolean)
+        : normalizeLocale(navigator.language));
+    if (detected && detected !== DEFAULT_LOCALE) selectLocale(detected, false);
+  };
+
+  bindSwitchers();
+  autoAdapt();
+})();
+`;
+---
+
+<script is:inline set:html={script} />

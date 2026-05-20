@@ -167,6 +167,37 @@ body::before {
   transition: color 160ms ease, border-color 160ms ease;
 }
 .topbar-link:hover { color: var(--coral); border-bottom-color: var(--coral); }
+.locale-switch {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+.locale-select {
+  max-width: 168px;
+  min-width: 116px;
+  height: 28px;
+  border: 1px solid rgba(21, 20, 15, 0.18);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--paper), white 28%);
+  color: var(--ink);
+  font: inherit;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  padding: 0 28px 0 10px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.locale-select:hover,
+.locale-select:focus-visible {
+  border-color: var(--coral);
+  background: var(--paper);
+  color: var(--coral);
+}
+.locale-select option {
+  color: var(--ink);
+  background: var(--paper);
+}
 .topbar .pulse {
   width: 6px; height: 6px;
   border-radius: 50%;
@@ -2140,6 +2171,7 @@ footer {
 @media (max-width: 640px) {
   .topbar-inner { gap: 14px; }
   .topbar-inner .right { gap: 12px; }
+  .locale-select { max-width: 132px; min-width: 104px; }
   .hero-actions .btn { padding: 12px 18px; font-size: 13px; }
   .work-card h3 { font-size: clamp(24px, 6vw, 30px); }
   .foot-mega .word { font-size: clamp(54px, 18vw, 120px); }
@@ -2163,6 +2195,12 @@ footer {
   section { padding: 80px 0; }
   .topbar-inner { font-size: 9px; gap: 10px; }
   .topbar-inner .right { gap: 10px; }
+  .locale-select {
+    max-width: 112px;
+    min-width: 92px;
+    height: 26px;
+    padding-left: 8px;
+  }
   .partners { grid-template-columns: repeat(2, 1fr); gap: 14px; }
   .foot-grid { grid-template-columns: 1fr; gap: 24px; }
   .work { margin: 0 8px; padding: 48px 20px; border-radius: 20px; }
@@ -2179,8 +2217,13 @@ footer {
 }
 @media (max-width: 420px) {
   .container { padding: 0 14px; }
-  /* topbar — drop the locale switcher tail; keep version pill + brand */
-  .topbar-inner .right > a:nth-of-type(n + 3) { display: none; }
+  .topbar-inner { align-items: flex-start; }
+  .topbar-inner .right {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  .locale-select { max-width: 104px; min-width: 88px; }
   .hero-stats { gap: 10px 16px; }
   .hero-stats .stat { font-size: 11px; }
   .hero-foot { font-size: 9.5px; }

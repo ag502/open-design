@@ -12,6 +12,12 @@
 import { Header, type HeaderProps } from './_components/header';
 import { Wire } from './_components/wire';
 import {
+  DEFAULT_LOCALE,
+  LANDING_LOCALES,
+  getCommonCopy,
+  type LandingLocaleCode,
+} from './i18n';
+import {
   heroImage,
   heroImageSrcset,
   imageAsset,
@@ -149,6 +155,8 @@ interface PageProps {
    * verbatim — see `FAQ Rules` in `growth/seo-opendesigner-analysis.md`.
    */
   faq: ReadonlyArray<HomeFaqEntry>;
+  /** Locale for shared chrome, topbar language links, and localized FAQ text. */
+  locale?: LandingLocaleCode;
 }
 
 /**
@@ -167,12 +175,18 @@ function pad2(n: number | undefined): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-export default function Page({ counts, github, faq }: PageProps) {
+export default function Page({
+  counts,
+  github,
+  faq,
+  locale = DEFAULT_LOCALE,
+}: PageProps) {
   const skills = fmt(counts.skills);
   const systems = fmt(counts.systems);
   const deckCount = pad2(counts.byMode?.deck);
   const prototypeCount = pad2(counts.byMode?.prototype);
   const mobileCount = pad2(counts.byPlatform?.mobile);
+  const commonCopy = getCommonCopy(locale);
 
   return (
     <>
@@ -198,37 +212,41 @@ export default function Page({ counts, github, faq }: PageProps) {
             </span>
             <span className='mid'>
               <span>
-                Filed under <b className='coral'>Design · Intelligence</b>
+                {commonCopy.topbar.filedUnder}{' '}
+                <b className='coral'>{commonCopy.topbar.category}</b>
               </span>
-              <span>Apache-2.0 · Made on Earth</span>
+              <span>{commonCopy.topbar.madeOnEarth}</span>
             </span>
             <span className='right'>
               <a className='topbar-link' href={REPO_RELEASES} {...ext}>
                 <span className='pulse' />
-                Live · <span data-github-version>{github.versionLabel}</span>
+                {commonCopy.topbar.live} ·{' '}
+                <span data-github-version>{github.versionLabel}</span>
               </a>
-              <span className='locale-switch'>
-                <b>EN</b>
-                {' · '}
-                <a className='topbar-link' href={REPO} {...ext} title='Localization in progress — open the repo on GitHub'>
-                  DE
-                </a>
-                {' · '}
-                <a className='topbar-link' href={REPO} {...ext} title='Localization in progress — open the repo on GitHub'>
-                  中文
-                </a>
-                {' · '}
-                <a className='topbar-link' href={REPO} {...ext} title='Localization in progress — open the repo on GitHub'>
-                  日本語
-                </a>
-              </span>
+              <label className='locale-switch'>
+                <span className='sr-only'>
+                  {commonCopy.topbar.languageSwitcherLabel}
+                </span>
+                <select
+                  className='locale-select'
+                  data-locale-select
+                  aria-label={commonCopy.topbar.languageSwitcherLabel}
+                  defaultValue={locale}
+                >
+                  {LANDING_LOCALES.map((entry) => (
+                    <option value={entry.code} key={entry.code}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </span>
           </div>
         </div>
 
         {/* ====== NAV ====== */}
         {/* Headroom-style sticky header with live GitHub star count. */}
-        <Header counts={counts} github={github} />
+        <Header counts={counts} github={github} locale={locale} />
 
         {/* ====== HERO ====== */}
         <section className='hero' id='top' data-od-id='hero'>

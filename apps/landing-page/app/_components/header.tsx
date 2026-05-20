@@ -10,6 +10,13 @@
  * root and are kept in sync with `getCatalogCounts()` at build time.
  */
 
+import {
+  DEFAULT_LOCALE,
+  getCommonCopy,
+  type HeaderCopy,
+  type LandingLocaleCode,
+} from '../i18n';
+
 const REPO = 'https://github.com/nexu-io/open-design';
 const REPO_RELEASES = `${REPO}/releases`;
 
@@ -37,6 +44,10 @@ export interface HeaderProps {
   github?: {
     starsLabel: string;
   };
+  /** UI locale for nav labels and accessibility text. */
+  locale?: LandingLocaleCode;
+  /** Optional override for callers that already resolved localized chrome. */
+  copy?: HeaderCopy;
   /** Brand link target — `#top` on the homepage, `/` on sub-pages. */
   brandHref?: string;
 }
@@ -45,10 +56,13 @@ export function Header({
   active = 'home',
   counts,
   github,
+  locale = DEFAULT_LOCALE,
+  copy,
   brandHref = '#top',
 }: HeaderProps) {
   const linkClass = (key: NonNullable<HeaderProps['active']>) =>
     active === key ? 'is-active' : undefined;
+  const headerCopy = copy ?? getCommonCopy(locale).header;
 
   return (
     <header className='nav' data-od-id='nav' data-nav-headroom>
@@ -59,39 +73,44 @@ export function Header({
           </span>
           <span>Open Design</span>
           <span className='brand-meta'>
-            <b>Studio Nº 01</b>Berlin / Open / Earth
+            <b>{headerCopy.brandMetaTitle}</b>
+            {headerCopy.brandMetaBody}
           </span>
         </a>
         <nav>
           <ul className='nav-links'>
             <li>
               <a href='/skills/' className={linkClass('skills')}>
-                Skills<span className='num'>{counts.skills}</span>
+                {headerCopy.nav.skills}
+                <span className='num'>{counts.skills}</span>
               </a>
             </li>
             <li>
               <a href='/systems/' className={linkClass('systems')}>
-                Systems<span className='num'>{counts.systems}</span>
+                {headerCopy.nav.systems}
+                <span className='num'>{counts.systems}</span>
               </a>
             </li>
             <li>
               <a href='/templates/' className={linkClass('templates')}>
-                Templates<span className='num'>{counts.templates}</span>
+                {headerCopy.nav.templates}
+                <span className='num'>{counts.templates}</span>
               </a>
             </li>
             <li>
               <a href='/craft/' className={linkClass('craft')}>
-                Craft<span className='num'>{counts.craft}</span>
+                {headerCopy.nav.craft}
+                <span className='num'>{counts.craft}</span>
               </a>
             </li>
             <li>
               <a href='/blog/' className={linkClass('blog')}>
-                Blog
+                {headerCopy.nav.blog}
               </a>
             </li>
             <li>
               <a href={brandHref === '#top' ? '#contact' : '/#contact'}>
-                Contact
+                {headerCopy.nav.contact}
               </a>
             </li>
           </ul>
@@ -100,20 +119,21 @@ export function Header({
           <a
             className='nav-cta ghost'
             href={REPO_RELEASES}
-            aria-label='Download Open Design desktop'
-            title='Download the desktop app'
+            aria-label={headerCopy.downloadAria}
+            title={headerCopy.downloadTitle}
             {...ext}
           >
-            Download
+            {headerCopy.download}
           </a>
           <a
             className='nav-cta'
             href={REPO}
-            aria-label='Star Open Design on GitHub'
-            title='Click to star us on GitHub'
+            aria-label={headerCopy.starAria}
+            title={headerCopy.starTitle}
             {...ext}
           >
-            Star · <span data-github-stars>{github?.starsLabel ?? '40K+'}</span>
+            {headerCopy.starPrefix} ·{' '}
+            <span data-github-stars>{github?.starsLabel ?? '40K+'}</span>
           </a>
           <span className='status-dot' aria-hidden='true' />
         </div>

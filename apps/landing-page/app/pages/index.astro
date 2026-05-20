@@ -5,18 +5,39 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import FaviconLinks from '../_components/favicon-links.astro';
 import FontStylesheet from '../_components/font-stylesheet.astro';
+import LocaleSwitcherScript from '../_components/locale-switcher-script.astro';
 import PreciseLazyload from '../_components/precise-lazyload.astro';
 import { heroImage, heroImageSrcset } from '../image-assets';
+import {
+  DEFAULT_LOCALE,
+  LANDING_LOCALES,
+  alternateLinksForPath,
+  getHomeFaq,
+  getHomeSeo,
+  getLocaleDefinition,
+  isLandingLocale,
+  localePath,
+  type LandingLocaleCode,
+} from '../i18n';
 import { getCatalogCounts } from '../_lib/catalog';
 import { getGithubRepoMeta } from '../_lib/github';
 
+const rawLocale = Astro.props.locale as string | undefined;
+const locale: LandingLocaleCode = isLandingLocale(rawLocale)
+  ? rawLocale
+  : DEFAULT_LOCALE;
+const localeDef = getLocaleDefinition(locale);
 const counts = await getCatalogCounts();
 const github = await getGithubRepoMeta();
-const title = 'Open Design — Official open-source Claude Design alternative';
-const description = `Open Design is the official open-source, local-first Claude Design alternative. Generate decks, landing pages, dashboards, and brand systems with Claude Code, Codex, Cursor, Gemini, OpenCode, or Qwen — driven by ${counts.skills} composable skills and ${counts.systems} portable DESIGN.md systems.`;
-const canonical = new URL(Astro.url.pathname, Astro.site).toString();
+const { title, description } = getHomeSeo(locale, counts);
+const canonical = new URL(localePath(locale), Astro.site).toString();
 const origin = Astro.site?.toString() ?? 'https://open-design.ai/';
 const logoUrl = new URL('/android-chrome-512x512.png', Astro.site).toString();
+const alternateLinks = alternateLinksForPath('/').map((entry) => ({
+  ...entry,
+  href: new URL(entry.hrefPath, Astro.site).toString(),
+}));
+const xDefaultHref = new URL('/', Astro.site).toString();
 
 const REPO_URL = 'https://github.com/nexu-io/open-design';
 const RELEASES_URL = `${REPO_URL}/releases`;
@@ -26,57 +47,7 @@ const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`;
 const DISCORD_URL = 'https://discord.gg/9ptkbbqRu';
 const OFFICIAL_URL = `${origin}official/`;
 
-// Five canonical "official source" pillars surfaced both as a visible
-// strip on the homepage AND inside Organization.sameAs / SoftwareApplication
-// signals. This is the brand-defense surface from §2 of
-// growth/seo-opendesigner-analysis.md — keep these five and only these five
-// here so the official site, GitHub, releases, docs, and Discord all
-// reinforce each other instead of competing for the brand interpretation.
-const officialPillars = [
-  { label: 'Official site',  name: 'open-design.ai',        href: origin, internal: true },
-  { label: 'Source',         name: 'nexu-io/open-design',   href: REPO_URL },
-  { label: 'Releases',       name: github.versionLabel,     href: RELEASES_URL },
-  { label: 'Download',       name: 'Desktop · macOS · Win', href: RELEASES_URL },
-  { label: 'Docs',           name: 'README + /quickstart/', href: DOCS_URL },
-  { label: 'Community',      name: 'Discord',               href: DISCORD_URL },
-];
-
-// FAQ pairs — kept in lockstep with the visible FAQ section in page.tsx.
-// FAQPage schema must reflect content that is actually rendered.
-const faq = [
-  {
-    q: 'What is Open Design?',
-    a: 'Open Design is the official open-source AI design workspace from the nexu-io/open-design project. It turns a local coding agent — Claude Code, Codex, Cursor, Gemini CLI, OpenCode, or Qwen — into a design engine driven by composable skills and portable DESIGN.md systems.',
-  },
-  {
-    q: 'Is Open Design official?',
-    a: `Yes. The canonical project lives at ${origin} and the source is on GitHub at ${REPO_URL}. "Open Design", "OpenDesign", "open-design", and "Open Design AI" all refer to this same project.`,
-  },
-  {
-    q: 'How is Open Design different from Claude Design?',
-    a: 'Claude Design is a hosted product tied to a single vendor. Open Design is local-first, open source under Apache-2.0, and BYOK — you bring your existing agent and credentials, and your design system lives in your repo as a DESIGN.md file.',
-  },
-  {
-    q: 'Does Open Design run locally?',
-    a: 'Yes. The desktop app, daemon, and skill runtime all run on your machine. Generated artifacts land in your project directory; no design output is forced through a vendor cloud.',
-  },
-  {
-    q: 'Which coding agents does Open Design support?',
-    a: 'Claude Code, Codex (OpenAI), Cursor, Gemini CLI, OpenCode, Qwen, and other adapters that speak the same skill protocol. Switching agents does not require redesigning your skill library.',
-  },
-  {
-    q: 'Do I need a Claude subscription?',
-    a: 'No. Use whichever agent or API key you already have. Open Design is BYOK — bring your own keys for Anthropic, OpenAI, Google, or any supported adapter.',
-  },
-  {
-    q: 'What are skills and design systems?',
-    a: 'A skill is a SKILL.md file that teaches an agent how to produce one artifact (deck, landing page, dashboard, social post). A design system is a DESIGN.md file that encodes a brand — tokens, type, motion — so any skill can render in that brand without re-prompting.',
-  },
-  {
-    q: 'Can I self-host or fork it?',
-    a: 'Yes. Apache-2.0 license, full source on GitHub. Fork the repo, edit skills, ship your own brand-keyed build, or run the daemon on your own machines.',
-  },
-];
+const faq = getHomeFaq(locale, { origin, repo: REPO_URL });
 
 const websiteSchema = {
   '@type': 'WebSite',
@@ -84,7 +55,8 @@ const websiteSchema = {
   name: 'Open Design',
   alternateName: ['OpenDesign', 'open-design', 'opendesign', 'Open Design AI', 'OD'],
   url: origin,
-  inLanguage: 'en',
+  inLanguage: localeDef.htmlLang,
+  availableLanguage: LANDING_LOCALES.map((entry) => entry.htmlLang),
   publisher: { '@id': `${origin}#organization` },
 };
 
@@ -114,6 +86,7 @@ const softwareSchema = {
   alternateName: ['OpenDesign', 'open-design', 'opendesign', 'Open Design AI', 'OD'],
   description,
   url: origin,
+  inLanguage: localeDef.htmlLang,
   applicationCategory: 'DesignApplication',
   operatingSystem: 'macOS, Windows, Linux',
   license: 'https://www.apache.org/licenses/LICENSE-2.0',
@@ -136,7 +109,8 @@ const softwareSchema = {
 
 const faqSchema = {
   '@type': 'FAQPage',
-  '@id': `${origin}#faq`,
+  '@id': `${canonical}#faq`,
+  inLanguage: localeDef.htmlLang,
   mainEntity: faq.map(({ q, a }) => ({
     '@type': 'Question',
     name: q,
@@ -149,12 +123,12 @@ const homepageGraph = {
   '@graph': [websiteSchema, organizationSchema, softwareSchema, faqSchema],
 };
 const pageHtml = renderToStaticMarkup(
-  Page({ counts, github, faq }) as ReturnType<typeof createElement>,
+  Page({ counts, github, faq, locale }) as ReturnType<typeof createElement>,
 );
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={localeDef.htmlLang} dir={localeDef.dir}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -162,6 +136,10 @@ const pageHtml = renderToStaticMarkup(
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
+    {alternateLinks.map((entry) => (
+      <link rel="alternate" hreflang={entry.hreflang} href={entry.href} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href={xDefaultHref} />
 
     <FaviconLinks />
 
@@ -190,7 +168,10 @@ const pageHtml = renderToStaticMarkup(
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={heroImage} />
-    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale" content={localeDef.ogLocale} />
+    {LANDING_LOCALES.filter((entry) => entry.code !== locale).map((entry) => (
+      <meta property="og:locale:alternate" content={entry.ogLocale} />
+    ))}
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
@@ -207,6 +188,7 @@ const pageHtml = renderToStaticMarkup(
   <body>
     <Fragment set:html={pageHtml} />
     <PreciseLazyload />
+    <LocaleSwitcherScript />
     <script is:inline>
       (() => {
         const formatStars = (count) => {
