@@ -19,6 +19,8 @@ import type { SkillSummary } from '../types';
 import { listPlugins } from '../state/projects';
 import { fetchMcpServers, type McpServerConfig } from '../state/mcp';
 import { inlineMentionToken } from '../utils/inlineMentions';
+import { useI18n } from '../i18n';
+import type { Locale } from '../i18n';
 
 type ProjectSummary = { id: string; name: string };
 type ScheduleKind = RoutineSchedule['kind'];
@@ -55,6 +57,22 @@ const WEEKDAY_LABELS: { value: Weekday; short: string; long: string }[] = [
   { value: 5, short: 'Fri', long: 'Friday' },
   { value: 6, short: 'Sat', long: 'Saturday' },
 ];
+
+function weekdayLabel(locale: Locale, value: Weekday): { short: string; long: string } {
+  const index = WEEKDAY_LABELS.find((day) => day.value === value);
+  if (!index) return { short: 'Sun', long: 'Sunday' };
+  if (locale === 'zh-CN') {
+    const short = ['日', '一', '二', '三', '四', '五', '六'][value] ?? '日';
+    const long = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][value] ?? '星期日';
+    return { short, long };
+  }
+  if (locale === 'zh-TW') {
+    const short = ['日', '一', '二', '三', '四', '五', '六'][value] ?? '日';
+    const long = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][value] ?? '星期日';
+    return { short, long };
+  }
+  return { short: index.short, long: index.long };
+}
 
 const FALLBACK_TIMEZONES = [
   'UTC',
@@ -97,6 +115,12 @@ function tzCityLabel(timezone: string): string {
   return last.replace(/_/g, ' ');
 }
 
+function zhLabel(locale: Locale, simplified: string, traditional: string, fallback: string): string {
+  if (locale === 'zh-CN') return simplified;
+  if (locale === 'zh-TW') return traditional;
+  return fallback;
+}
+
 function formatTime12h(time: string): string {
   const m = /^(\d{2}):(\d{2})$/.exec(time);
   if (!m) return time;
@@ -107,16 +131,29 @@ function formatTime12h(time: string): string {
   return `${h12}:${mm} ${suffix}`;
 }
 
-export function describeScheduleSummary(schedule: RoutineSchedule): string {
+function scheduleKindLabel(kind: ScheduleKind, locale: Locale): string {
+  if (kind === 'hourly') return zhLabel(locale, '每小时', '每小時', 'Hourly');
+  if (kind === 'daily') return zhLabel(locale, '每日', '每日', 'Daily');
+  if (kind === 'weekdays') return zhLabel(locale, '工作日', '工作日', 'Weekdays');
+  return zhLabel(locale, '每周', '每週', 'Weekly');
+}
+
+export function describeScheduleSummary(schedule: RoutineSchedule, locale: Locale = 'en'): string {
   if (schedule.kind === 'hourly') {
     const mm = String(schedule.minute).padStart(2, '0');
+    if (locale === 'zh-CN') return `每小时第 ${mm} 分钟`;
+    if (locale === 'zh-TW') return `每小時第 ${mm} 分鐘`;
     return `Hourly at :${mm}`;
   }
   const tz = tzCityLabel(schedule.timezone);
-  if (schedule.kind === 'daily') return `Daily at ${formatTime12h(schedule.time)} · ${tz}`;
-  if (schedule.kind === 'weekdays') return `Weekdays at ${formatTime12h(schedule.time)} · ${tz}`;
-  const day = WEEKDAY_LABELS.find((w) => w.value === schedule.weekday)?.long ?? 'Sunday';
-  return `${day} at ${formatTime12h(schedule.time)} · ${tz}`;
+  if (schedule.kind === 'daily') {
+    return `${scheduleKindLabel('daily', locale)}${locale === 'en' ? ' at ' : ' · '}${formatTime12h(schedule.time)} · ${tz}`;
+  }
+  if (schedule.kind === 'weekdays') {
+    return `${scheduleKindLabel('weekdays', locale)}${locale === 'en' ? ' at ' : ' · '}${formatTime12h(schedule.time)} · ${tz}`;
+  }
+  const day = weekdayLabel(locale, schedule.weekday).long;
+  return `${day}${locale === 'en' ? ' at ' : ' · '}${formatTime12h(schedule.time)} · ${tz}`;
 }
 
 type FormState = {
@@ -213,6 +250,7 @@ export function NewAutomationModal({
   onClose,
   onSaved,
 }: Props) {
+  const { locale } = useI18n();
   const editingId = initial?.routine?.id ?? null;
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -239,6 +277,45 @@ export function NewAutomationModal({
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
+  );
+  const l = useMemo(
+    () => ({
+      editAutomation: zhLabel(locale, '编辑自动化', '編輯自動化', 'Edit automation'),
+      newAutomation: zhLabel(locale, '新建自动化', '新增自動化', 'New automation'),
+      automationTitle: zhLabel(locale, '自动化标题', '自動化標題', 'Automation title'),
+      useTemplate: zhLabel(locale, '使用模板', '使用範本', 'Use template'),
+      closeEsc: zhLabel(locale, '关闭（Esc）', '關閉（Esc）', 'Close (Esc)'),
+      promptPlaceholder: zhLabel(locale, '告诉代理按此计划执行什么，或用 @ 提及上下文……', '告訴代理按此排程執行什麼，或用 @ 提及脈絡……', 'Ask the agent what to run on this schedule, or @mention context...'),
+      contextResults: zhLabel(locale, '自动化上下文结果', '自動化脈絡結果', 'Automation context results'),
+      contextType: zhLabel(locale, '上下文类型', '脈絡類型', 'Context type'),
+      all: zhLabel(locale, '全部', '全部', 'All'),
+      skills: zhLabel(locale, '技能', '技能', 'Skills'),
+      plugins: zhLabel(locale, '插件', '外掛', 'Plugins'),
+      connectors: zhLabel(locale, '连接器', '連接器', 'Connectors'),
+      noResults: (q: string) => zhLabel(locale, `没有“${q}”的结果。`, `沒有「${q}」的結果。`, `No results for "${q}".`),
+      searchHelp: zhLabel(locale, '搜索技能、插件、MCP 服务器和连接器。', '搜尋技能、外掛、MCP 伺服器和連接器。', 'Search skills, plugins, MCP servers, and connectors.'),
+      selectedContext: zhLabel(locale, '已选择的自动化上下文', '已選取的自動化脈絡', 'Selected automation context'),
+      remove: (label: string) => zhLabel(locale, `移除 ${label}`, `移除 ${label}`, `Remove ${label}`),
+      newProjectEachRun: zhLabel(locale, '每次运行都创建新项目', '每次執行都建立新專案', 'New project each run'),
+      newProjectEachRunHint: zhLabel(locale, '每次运行都会开始一个全新的项目和对话。', '每次執行都會開始全新的專案與對話。', 'Each run starts a fresh project and conversation.'),
+      existingProjects: zhLabel(locale, '现有项目', '現有專案', 'Existing projects'),
+      cancel: zhLabel(locale, '取消', '取消', 'Cancel'),
+      saving: zhLabel(locale, '保存中…', '儲存中…', 'Saving...'),
+      save: zhLabel(locale, '保存', '儲存', 'Save'),
+      creating: zhLabel(locale, '创建中…', '建立中…', 'Creating...'),
+      create: zhLabel(locale, '创建', '建立', 'Create'),
+      done: zhLabel(locale, '完成', '完成', 'Done'),
+      minuteOfHour: zhLabel(locale, '每小时的第几分钟', '每小時的第幾分鐘', 'Minute of every hour'),
+      weekday: zhLabel(locale, '星期', '星期', 'Weekday'),
+      time: zhLabel(locale, '时间', '時間', 'Time'),
+      timezone: zhLabel(locale, '时区', '時區', 'Timezone'),
+      skill: zhLabel(locale, '技能', '技能', 'Skill'),
+      plugin: zhLabel(locale, '插件', '外掛', 'Plugin'),
+      connector: zhLabel(locale, '连接器', '連接器', 'Connector'),
+      liveArtifact: zhLabel(locale, '实时产物', '即時產物', 'Live artifact'),
+      automation: zhLabel(locale, '自动化', '自動化', 'Automation'),
+    }),
+    [locale],
   );
 
   useEffect(() => {
@@ -407,12 +484,12 @@ export function NewAutomationModal({
     e.preventDefault();
     setError(null);
     if (!form.name.trim()) {
-      setError('Add a title for this automation.');
+      setError(zhLabel(locale, '请为这个自动化添加标题。', '請為這個自動化加入標題。', 'Add a title for this automation.'));
       titleRef.current?.focus();
       return;
     }
     if (!form.prompt.trim()) {
-      setError('Add a prompt for the scheduled conversation.');
+      setError(zhLabel(locale, '请为定时对话添加提示词。', '請為排程對話加入提示詞。', 'Add a prompt for the scheduled conversation.'));
       return;
     }
     setSubmitting(true);
@@ -468,8 +545,8 @@ export function NewAutomationModal({
 
   const projectName = projects.find((p) => p.id === form.projectId)?.name ?? null;
   const projectLabel =
-    form.mode === 'reuse' && projectName ? projectName : 'New project each run';
-  const scheduleLabel = describeScheduleSummary(buildSchedule(form));
+    form.mode === 'reuse' && projectName ? projectName : l.newProjectEachRun;
+  const scheduleLabel = describeScheduleSummary(buildSchedule(form), locale);
   const mentionQueryNorm = (mention?.query ?? '').trim().toLowerCase();
   const filteredSkills = filterCapabilities(
     skills,
@@ -508,7 +585,7 @@ export function NewAutomationModal({
         kind: 'skills' as const,
         id,
         label: skill?.name ?? id,
-        meta: 'Skill',
+        meta: l.skill,
         icon: 'file' as IconName,
       };
     }),
@@ -518,7 +595,7 @@ export function NewAutomationModal({
         kind: 'plugins' as const,
         id,
         label: plugin?.title ?? id,
-        meta: 'Plugin',
+        meta: l.plugin,
         icon: 'sparkles' as IconName,
       };
     }),
@@ -538,7 +615,7 @@ export function NewAutomationModal({
         kind: 'connectors' as const,
         id,
         label: connector?.name ?? id,
-        meta: connector?.accountLabel ? `Connector · ${connector.accountLabel}` : 'Connector',
+        meta: connector?.accountLabel ? `${l.connector} · ${connector.accountLabel}` : l.connector,
         icon: 'link' as IconName,
       };
     }),
@@ -549,7 +626,7 @@ export function NewAutomationModal({
       className="automation-modal-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label={editingId ? 'Edit automation' : 'New automation'}
+      aria-label={editingId ? l.editAutomation : l.newAutomation}
       data-testid="automation-modal"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -566,10 +643,10 @@ export function NewAutomationModal({
             ref={titleRef}
             type="text"
             className="automation-modal__title-input"
-            placeholder="Automation title"
+            placeholder={l.automationTitle}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            aria-label="Automation title"
+            aria-label={l.automationTitle}
             data-testid="automation-modal-title"
           />
           <div className="automation-modal__head-actions">
@@ -580,7 +657,7 @@ export function NewAutomationModal({
                 onClick={() => setPopover((p) => (p === 'template' ? null : 'template'))}
               >
                 <Icon name="sparkles" size={13} />
-                <span>{selectedTemplate?.defaultName ?? selectedTemplate?.title ?? 'Use template'}</span>
+                <span>{selectedTemplate?.defaultName ?? selectedTemplate?.title ?? l.useTemplate}</span>
                 <Icon name="chevron-down" size={11} />
               </button>
               {popover === 'template' ? (
@@ -595,7 +672,7 @@ export function NewAutomationModal({
               type="button"
               className="automation-modal__close"
               onClick={onClose}
-              aria-label="Close (Esc)"
+              aria-label={l.closeEsc}
             >
               <Icon name="close" size={14} />
             </button>
@@ -607,7 +684,7 @@ export function NewAutomationModal({
             <textarea
               ref={promptRef}
               className="automation-modal__prompt"
-              placeholder="Ask the agent what to run on this schedule, or @mention context..."
+              placeholder={l.promptPlaceholder}
               value={form.prompt}
               onChange={(e) => updatePrompt(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onClick={refreshMentionFromPrompt}
@@ -626,17 +703,17 @@ export function NewAutomationModal({
               id="automation-context-picker"
               className="automation-mention-popover"
               role="listbox"
-              aria-label="Automation context results"
+              aria-label={l.contextResults}
               data-testid="automation-mention-popover"
               onMouseDown={(e) => e.preventDefault()}
             >
-              <div className="automation-mention-tabs" role="tablist" aria-label="Context type">
+              <div className="automation-mention-tabs" role="tablist" aria-label={l.contextType}>
                 {[
-                  ['all', 'All'],
-                  ['skills', 'Skills'],
-                  ['plugins', 'Plugins'],
+                  ['all', l.all],
+                  ['skills', l.skills],
+                  ['plugins', l.plugins],
                   ['mcp', 'MCP'],
-                  ['connectors', 'Connectors'],
+                  ['connectors', l.connectors],
                 ].map(([id, label]) => (
                   <button
                     key={id}
@@ -656,11 +733,11 @@ export function NewAutomationModal({
               <div className="automation-mention-results">
                 {!hasMentionResults ? (
                   <div className="automation-mention-empty">
-                    {mention.query ? `No results for "${mention.query}".` : 'Search skills, plugins, MCP servers, and connectors.'}
+                    {mention.query ? l.noResults(mention.query) : l.searchHelp}
                   </div>
                 ) : null}
                 {showSkills && filteredSkills.length > 0 ? (
-                  <MentionSection label="Skills">
+                  <MentionSection label={l.skills}>
                     {filteredSkills.map((skill) => (
                       <MentionItem
                         key={`skill-${skill.id}`}
@@ -674,7 +751,7 @@ export function NewAutomationModal({
                   </MentionSection>
                 ) : null}
                 {showPlugins && filteredPlugins.length > 0 ? (
-                  <MentionSection label="Plugins">
+                  <MentionSection label={l.plugins}>
                     {filteredPlugins.map((plugin) => (
                       <MentionItem
                         key={`plugin-${plugin.id}`}
@@ -702,7 +779,7 @@ export function NewAutomationModal({
                   </MentionSection>
                 ) : null}
                 {showConnectors && filteredConnectors.length > 0 ? (
-                  <MentionSection label="Connectors">
+                  <MentionSection label={l.connectors}>
                     {filteredConnectors.map((connector) => (
                       <MentionItem
                         key={`connector-${connector.id}`}
@@ -720,14 +797,14 @@ export function NewAutomationModal({
           ) : null}
 
           {selectedContextItems.length > 0 ? (
-            <div className="automation-selected-context" aria-label="Selected automation context">
+            <div className="automation-selected-context" aria-label={l.selectedContext}>
               {selectedContextItems.map((item) => (
                 <button
                   key={`${item.kind}-${item.id}`}
                   type="button"
                   className={`automation-selected-context__chip is-${item.kind}`}
                   onClick={() => removeSelectedContext(item.kind, item.id)}
-                  title={`Remove ${item.label}`}
+                  title={l.remove(item.label)}
                 >
                   <Icon name={item.icon} size={11} />
                   <span>{item.label}</span>
@@ -760,12 +837,12 @@ export function NewAutomationModal({
                       setForm({ ...form, mode: 'create_each_run', projectId: '' });
                       setPopover(null);
                     }}
-                    label="New project each run"
-                    hint="Each run starts a fresh project and conversation."
+                    label={l.newProjectEachRun}
+                    hint={l.newProjectEachRunHint}
                   />
                   {projects.length > 0 ? (
                     <>
-                      <div className="automation-popover__section-label">Existing projects</div>
+                      <div className="automation-popover__section-label">{l.existingProjects}</div>
                       {projects.map((p) => (
                         <PopoverItem
                           key={p.id}
@@ -808,7 +885,7 @@ export function NewAutomationModal({
               className="automation-modal__cancel"
               onClick={onClose}
             >
-              Cancel
+              {l.cancel}
             </button>
             <button
               type="submit"
@@ -817,11 +894,11 @@ export function NewAutomationModal({
             >
               {editingId
                 ? submitting
-                  ? 'Saving...'
-                  : 'Save'
+                  ? l.saving
+                  : l.save
                 : submitting
-                  ? 'Creating...'
-                  : 'Create'}
+                  ? l.creating
+                  : l.create}
             </button>
           </div>
         </footer>
@@ -860,6 +937,9 @@ function TemplatePopover({
   selectedId: string | null;
   onSelect: (template: AutomationTemplate) => void;
 }) {
+  const { locale } = useI18n();
+  const liveArtifact = zhLabel(locale, '实时产物', '即時產物', 'Live artifact');
+  const automation = zhLabel(locale, '自动化', '自動化', 'Automation');
   return (
     <div className="automation-popover automation-popover--templates">
       {templates.map((template) => (
@@ -874,7 +954,7 @@ function TemplatePopover({
           </span>
           <span className="automation-template-option__body">
             <span className="automation-template-option__title">{template.defaultName ?? template.title}</span>
-            <span className="automation-template-option__meta">{kindLabel(template.kind)}</span>
+            <span className="automation-template-option__meta">{template.kind === 'orbit' ? 'Orbit' : template.kind === 'live-artifact' ? liveArtifact : automation}</span>
           </span>
           {selectedId === template.id ? <Icon name="check" size={13} /> : null}
         </button>
@@ -1005,6 +1085,17 @@ function SchedulePopover({
   timezones: string[];
   onDone: () => void;
 }) {
+  const { locale } = useI18n();
+  const l = useMemo(
+    () => ({
+      minuteOfHour: zhLabel(locale, '每小时的第几分钟', '每小時的第幾分鐘', 'Minute of every hour'),
+      weekday: zhLabel(locale, '星期', '星期', 'Weekday'),
+      time: zhLabel(locale, '时间', '時間', 'Time'),
+      timezone: zhLabel(locale, '时区', '時區', 'Timezone'),
+      done: zhLabel(locale, '完成', '完成', 'Done'),
+    }),
+    [locale],
+  );
   return (
     <div className="automation-popover automation-popover--schedule">
       <div className="automation-popover__kinds" role="tablist">
@@ -1017,14 +1108,14 @@ function SchedulePopover({
             className={`automation-popover__kind${form.kind === k.kind ? ' is-active' : ''}`}
             onClick={() => setForm({ ...form, kind: k.kind })}
           >
-            {k.label}
+            {scheduleKindLabel(k.kind, locale)}
           </button>
         ))}
       </div>
 
       {form.kind === 'hourly' ? (
         <label className="automation-popover__field">
-          <span>Minute of every hour</span>
+          <span>{l.minuteOfHour}</span>
           <input
             type="number"
             min={0}
@@ -1042,23 +1133,23 @@ function SchedulePopover({
       ) : (
         <>
           {form.kind === 'weekly' ? (
-            <div className="automation-popover__weekdays" aria-label="Weekday">
+            <div className="automation-popover__weekdays" aria-label={l.weekday}>
               {WEEKDAY_LABELS.map((d) => (
                 <button
                   key={d.value}
                   type="button"
                   className={`automation-popover__weekday${form.weekday === d.value ? ' is-active' : ''}`}
                   onClick={() => setForm({ ...form, weekday: d.value })}
-                  title={d.long}
+                  title={weekdayLabel(locale, d.value).long}
                 >
-                  {d.short}
+                  {weekdayLabel(locale, d.value).short}
                 </button>
               ))}
             </div>
           ) : null}
           <div className="automation-popover__row">
             <label className="automation-popover__field">
-              <span>Time</span>
+              <span>{l.time}</span>
               <input
                 type="time"
                 value={form.time}
@@ -1066,7 +1157,7 @@ function SchedulePopover({
               />
             </label>
             <label className="automation-popover__field">
-              <span>Timezone</span>
+              <span>{l.timezone}</span>
               <select
                 value={form.timezone}
                 onChange={(e) => setForm({ ...form, timezone: e.target.value })}
@@ -1088,7 +1179,7 @@ function SchedulePopover({
           className="automation-popover__done-btn"
           onClick={onDone}
         >
-          Done
+          {l.done}
         </button>
       </div>
     </div>

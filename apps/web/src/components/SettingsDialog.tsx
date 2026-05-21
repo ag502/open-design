@@ -1475,8 +1475,13 @@ export function SettingsDialog({
     composio: { title: t('connectors.title'), subtitle: t('connectors.subtitle') },
     orbit: { title: t('settings.orbit.title'), subtitle: t('settings.orbit.lede') },
     routines: {
-      title: 'Automations',
-      subtitle: 'Scheduled automations that run unattended.',
+      title: t('entry.navTasks'),
+      subtitle:
+        locale === 'zh-CN'
+          ? '按计划自动运行、无需值守的自动化。'
+          : locale === 'zh-TW'
+            ? '依排程自動執行、無需值守的自動化。'
+            : 'Scheduled automations that run unattended.',
     },
     integrations: { title: t('settings.mcpServerTitle'), subtitle: t('settings.mcpServerHint') },
     mcpClient: { title: t('settings.externalMcpTitle'), subtitle: t('settings.externalMcpHint') },
