@@ -17,14 +17,14 @@ import {
   type QuestionForm,
 } from "../artifacts/question-form";
 import { stripArtifact } from "../artifacts/strip";
-import { QuestionFormView, parseSubmittedAnswers } from "./QuestionForm";
+import { QuestionFormView, localizeQuestionForm, parseSubmittedAnswers } from "./QuestionForm";
 import {
   getPluginFolderCandidates,
   type PluginFolderCandidate,
 } from "./design-files/pluginFolders";
 import type { PluginFolderAgentAction } from "./design-files/pluginFolderActions";
 import { Icon } from "./Icon";
-import { useT } from "../i18n";
+import { useI18n, useT } from "../i18n";
 import { deriveFileOps, type FileOpEntry } from "../runtime/file-ops";
 import { unfinishedTodosFromEvents, type TodoItem } from "../runtime/todos";
 import type { Dict } from "../i18n/types";
@@ -1296,12 +1296,14 @@ function FormBlock({
   locallySubmitted: Set<string>;
   onSubmitForm: (formId: string, text: string) => void;
 }) {
+  const { locale } = useI18n();
+  const localizedForm = useMemo(() => localizeQuestionForm(form, locale), [form, locale]);
   // Reconstruct prior answers from a follow-up user message so older
   // forms in the scrollback render in their answered state.
   const submittedFromHistory = useMemo(() => {
     if (!nextUserContent) return null;
-    return parseSubmittedAnswers(form, nextUserContent);
-  }, [form, nextUserContent]);
+    return parseSubmittedAnswers(localizedForm, nextUserContent);
+  }, [localizedForm, nextUserContent]);
   const wasSubmittedLocally = locallySubmitted.has(form.id);
   const interactive =
     isLastAssistant &&
@@ -1310,7 +1312,7 @@ function FormBlock({
     !wasSubmittedLocally;
   return (
     <QuestionFormView
-      form={form}
+      form={localizedForm}
       interactive={interactive}
       submittedAnswers={submittedFromHistory ?? undefined}
       onSubmit={(text) => onSubmitForm(form.id, text)}

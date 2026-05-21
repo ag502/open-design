@@ -179,6 +179,7 @@ export interface DaemonStreamOptions {
   // options and falls back to the CLI default when missing.
   model?: string | null;
   reasoning?: string | null;
+  locale?: string;
   research?: ResearchOptions;
   context?: RunContextSelection;
   initialLastEventId?: string | null;
@@ -234,6 +235,7 @@ export async function streamViaDaemon({
   commentAttachments,
   model,
   reasoning,
+  locale,
   research,
   context,
   initialLastEventId,
@@ -264,6 +266,7 @@ export async function streamViaDaemon({
     commentAttachments: commentAttachments ?? [],
     model: model ?? null,
     reasoning: reasoning ?? null,
+    ...(locale ? { locale } : {}),
     ...(context ? { context } : {}),
     ...(research ? { research } : {}),
   };

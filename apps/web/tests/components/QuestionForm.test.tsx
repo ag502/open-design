@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuestionFormView, parseSubmittedAnswers } from '../../src/components/QuestionForm';
 import type { QuestionForm } from '../../src/artifacts/question-form';
+import { I18nProvider } from '../../src/i18n';
 
 const form: QuestionForm = {
   id: 'discovery',
@@ -102,6 +103,38 @@ const selectObjectForm = {
       options: [
         { label: 'Mobile (iOS/Android)', value: 'mobile' },
         { label: 'Desktop web', value: 'desktop-web' },
+      ],
+    },
+  ],
+} as QuestionForm;
+
+const quickBriefForm = {
+  id: 'discovery',
+  title: 'Quick brief — 30 seconds',
+  description: "I'll lock these in before building. Skip what doesn't apply — I'll fill defaults.",
+  questions: [
+    {
+      id: 'hook',
+      label: "What's the angle / hook of this dating app?",
+      type: 'text',
+      placeholder: 'Target user',
+    },
+    {
+      id: 'tone',
+      label: 'Visual tone',
+      type: 'checkbox',
+      options: [
+        { label: 'Modern minimal', value: 'Modern minimal' },
+        { label: 'Human / approachable', value: 'Human / approachable' },
+      ],
+    },
+    {
+      id: 'brand',
+      label: 'Brand context',
+      type: 'radio',
+      options: [
+        { label: 'Pick a direction for me', value: 'pick_direction' },
+        { label: "I have a brand spec — I'll share it", value: 'brand_spec' },
       ],
     },
   ],
@@ -241,5 +274,33 @@ describe('QuestionFormView', () => {
       '- Primary surface: Mobile (iOS/Android) [value: mobile]',
     );
     expect(onSubmit.mock.calls[0]?.[1]).toEqual({ platform: 'mobile' });
+  });
+
+  it('localizes the quick brief form in Simplified Chinese while preserving stable values', () => {
+    const onSubmit = vi.fn();
+    render(
+      <I18nProvider initial="zh-CN">
+        <QuestionFormView form={quickBriefForm} interactive onSubmit={onSubmit} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText('快速简报 - 30 秒')).toBeTruthy();
+    expect(screen.getByText('这个约会应用的切入点 / 亮点是什么？')).toBeTruthy();
+    expect(screen.getByText('视觉调性')).toBeTruthy();
+    expect(screen.getByText('现代极简')).toBeTruthy();
+    expect(screen.getByText('品牌背景')).toBeTruthy();
+    expect(screen.getByText('帮我选一个方向')).toBeTruthy();
+    expect(screen.queryByText('Quick brief — 30 seconds')).toBeNull();
+    expect(screen.queryByText('Visual tone')).toBeNull();
+
+    fireEvent.click(screen.getByLabelText('帮我选一个方向'));
+    fireEvent.click(screen.getByRole('button', { name: '发送答案' }));
+
+    expect(onSubmit.mock.calls[0]?.[0]).toContain('- 品牌背景: 帮我选一个方向 [value: pick_direction]');
+    expect(onSubmit.mock.calls[0]?.[1]).toEqual({
+      brand: 'pick_direction',
+      hook: '',
+      tone: [],
+    });
   });
 });

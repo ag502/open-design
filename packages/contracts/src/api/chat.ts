@@ -33,6 +33,8 @@ export interface ChatRequest {
   commentAttachments?: ChatCommentAttachment[];
   model?: string | null;
   reasoning?: string | null;
+  /** Current UI locale so daemon-authored prompts can keep visible form copy localized. */
+  locale?: string;
   research?: ResearchOptions;
   context?: RunContextSelection;
 }

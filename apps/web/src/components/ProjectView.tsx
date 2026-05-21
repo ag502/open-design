@@ -195,6 +195,23 @@ interface Props {
 
 let liveArtifactEventSequence = 0;
 const CHAT_PANEL_WIDTH_STORAGE_KEY = 'open-design.project.chatPanelWidth';
+const LOCALE_STORAGE_KEY = 'open-design:locale';
+
+function readCurrentUiLocale(): string | undefined {
+  if (typeof document !== 'undefined') {
+    const htmlLang = document.documentElement.getAttribute('lang')?.trim();
+    if (htmlLang) return htmlLang;
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY)?.trim();
+      if (stored) return stored;
+    } catch {
+      /* ignore */
+    }
+  }
+  return undefined;
+}
 const DEFAULT_CHAT_PANEL_WIDTH = 460;
 const MIN_CHAT_PANEL_WIDTH = 345;
 const MAX_CHAT_PANEL_WIDTH = 720;
@@ -2417,6 +2434,7 @@ export function ProjectView({
           research: meta?.research,
           model: choice?.model ?? null,
           reasoning: choice?.reasoning ?? null,
+          locale: readCurrentUiLocale(),
           onRunCreated: (runId) => {
             const pinnedAssistant = {
               ...latestAssistantMsg,

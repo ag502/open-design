@@ -8987,6 +8987,38 @@ export async function startServer({
     });
   };
 
+  const renderLocaleInstructionPrompt = (locale) => {
+    if (typeof locale !== 'string' || locale.trim().length === 0 || locale === 'en') {
+      return '';
+    }
+    const languageName = {
+      'zh-CN': 'Simplified Chinese',
+      'zh-TW': 'Traditional Chinese',
+      ja: 'Japanese',
+      ko: 'Korean',
+      de: 'German',
+      fr: 'French',
+      'es-ES': 'Spanish',
+      'pt-BR': 'Brazilian Portuguese',
+      ru: 'Russian',
+      ar: 'Arabic',
+      fa: 'Persian',
+      id: 'Indonesian',
+      pl: 'Polish',
+      hu: 'Hungarian',
+      uk: 'Ukrainian',
+      tr: 'Turkish',
+      th: 'Thai',
+      it: 'Italian',
+    }[locale] ?? locale;
+    return [
+      '## UI language',
+      `The Open Design UI is currently set to ${languageName} (${locale}).`,
+      'All user-visible prose and any <question-form> title, description, labels, placeholders, helper text, and option labels must use that language.',
+      'Keep internal identifiers, JSON field names, and stable option values unchanged.',
+    ].join('\n');
+  };
+
   const startChatRun = async (chatBody, run) => {
     /** @type {Partial<ChatRequest> & { imagePaths?: string[] }} */
     chatBody = chatBody || {};
@@ -9006,6 +9038,7 @@ export async function startServer({
       commentAttachments = [],
       model,
       reasoning,
+      locale,
       research,
       context,
     } = chatBody;
@@ -9330,7 +9363,8 @@ export async function startServer({
       message,
       currentPrompt,
     );
-    const clientInstructionPrompt = [researchCommandContract, runContextPrompt, systemPrompt]
+    const localeInstructionPrompt = renderLocaleInstructionPrompt(locale);
+    const clientInstructionPrompt = [researchCommandContract, runContextPrompt, localeInstructionPrompt, systemPrompt]
       .map((part) => (typeof part === 'string' ? part.trim() : ''))
       .filter(Boolean)
       .join('\n\n---\n\n');
