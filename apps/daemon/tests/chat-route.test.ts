@@ -241,17 +241,25 @@ process.stdin.on('end', () => {
 
     expect(createProjectResponse.ok).toBe(true);
 
-    await withFakeAgent(
-      'opencode',
-      `
+    const fakeAgentScript = `
+const fs = require('node:fs');
+const stagedChecklist = fs.readFileSync(${JSON.stringify(stagedRelativePath)}, 'utf8');
+if (stagedChecklist !== ${JSON.stringify(expectedChecklist)}) {
+  console.error('staged-skill-side-files-mismatch');
+  process.exit(1);
+}
 process.stdin.resume();
 process.stdin.on('end', () => {
   console.log(JSON.stringify({ type: 'step_start' }));
-  console.log(JSON.stringify({ type: 'text', part: { text: 'staged-skill-side-files' } }));
+  console.log(JSON.stringify({ type: 'text', part: { text: 'staged-skill-side-files-before-spawn' } }));
   console.log(JSON.stringify({ type: 'step_finish', part: { tokens: { input: 1, output: 1 } } }));
   process.exit(0);
 });
-`,
+`;
+
+    await withFakeAgent(
+      'opencode',
+      fakeAgentScript,
       async () => {
         const response = await fetch(`${baseUrl}/api/chat`, {
           method: 'POST',
@@ -266,7 +274,7 @@ process.stdin.on('end', () => {
         const body = await response.text();
 
         expect(response.ok).toBe(true);
-        expect(body).toContain('staged-skill-side-files');
+        expect(body).toContain('staged-skill-side-files-before-spawn');
       },
     );
 
