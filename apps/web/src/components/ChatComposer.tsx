@@ -1510,9 +1510,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   sendDisabled ||
                   (!draft.trim() && staged.length === 0 && currentCommentAttachments().length === 0)
                 }
+                aria-label={t('chat.send')}
+                title={t('chat.send')}
               >
-                <Icon name="send" size={13} />
-                <span>{t('chat.send')}</span>
+                <Icon name="arrow-up" size={15} />
               </button>
             )}
           </div>
