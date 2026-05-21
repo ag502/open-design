@@ -8307,7 +8307,11 @@ export async function startServer({
         ? designSystemId
         : project?.designSystemId;
     const metadata = project?.metadata;
-    const allSkills = await listAllSkillLikeEntries();
+    let allSkillsPromise: ReturnType<typeof listAllSkillLikeEntries> | null = null;
+    const loadAllSkills = async () => {
+      allSkillsPromise ??= listAllSkillLikeEntries();
+      return await allSkillsPromise;
+    };
 
     // Per-turn skills picked via the composer's @-mention popover. They
     // never persist on the project — we just append their bodies after the
@@ -8337,6 +8341,7 @@ export async function startServer({
       // Span both functional skills and design templates so a project
       // saved against either surface keeps its system prompt after the
       // skills/design-templates split. See specs/current/skills-and-design-templates.md.
+      const allSkills = await loadAllSkills();
       const skill = findSkillById(allSkills, effectiveSkillId);
       if (skill) {
         skillBody = skill.body;
@@ -8349,6 +8354,7 @@ export async function startServer({
       }
     }
     if (adHocSkillIds.length > 0) {
+      const allSkills = await loadAllSkills();
       const seen = new Set(
         effectiveCanonicalSkillId ? [String(effectiveCanonicalSkillId)] : [],
       );
@@ -8361,6 +8367,7 @@ export async function startServer({
         seen.add(canonicalId);
         const extra = findSkillById(allSkills, id);
         if (!extra) continue;
+        if (!activeSkillDir) activeSkillDir = extra.dir;
         if (!skillMode) skillMode = extra.mode;
         if (Array.isArray(extra.craftRequires)) {
           for (const craft of extra.craftRequires) {

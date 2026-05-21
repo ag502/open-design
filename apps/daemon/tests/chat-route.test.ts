@@ -222,6 +222,63 @@ process.stdin.on('end', () => {
     );
   });
 
+  it('stages ad-hoc skill side files into the project cwd', async () => {
+    const projectId = `project-${randomUUID()}`;
+    const stagedRelativePath = '.od-skills/release-notes-one-pager/references/checklist.md';
+    const expectedChecklist = await fsp.readFile(
+      resolve(process.cwd(), '..', '..', 'skills', 'release-notes-one-pager', 'references', 'checklist.md'),
+      'utf8',
+    );
+
+    const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Ad hoc staged skill project',
+      }),
+    });
+
+    expect(createProjectResponse.ok).toBe(true);
+
+    await withFakeAgent(
+      'opencode',
+      `
+process.stdin.resume();
+process.stdin.on('end', () => {
+  console.log(JSON.stringify({ type: 'step_start' }));
+  console.log(JSON.stringify({ type: 'text', part: { text: 'staged-skill-side-files' } }));
+  console.log(JSON.stringify({ type: 'step_finish', part: { tokens: { input: 1, output: 1 } } }));
+  process.exit(0);
+});
+`,
+      async () => {
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: 'opencode',
+            projectId,
+            message: 'draft the release notes',
+            skillIds: ['release-notes-one-pager'],
+          }),
+        });
+        const body = await response.text();
+
+        expect(response.ok).toBe(true);
+        expect(body).toContain('staged-skill-side-files');
+      },
+    );
+
+    const stagedFileResponse = await fetch(
+      `${baseUrl}/api/projects/${projectId}/raw/${stagedRelativePath}`,
+    );
+    const stagedFileBody = await stagedFileResponse.text();
+
+    expect(stagedFileResponse.ok).toBe(true);
+    expect(stagedFileBody).toBe(expectedChecklist);
+  });
+
   it('propagates the composed skill mode for ad-hoc-only deck skills', async () => {
     await withFakeAgent(
       'opencode',
