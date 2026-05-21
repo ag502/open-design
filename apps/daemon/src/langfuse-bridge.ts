@@ -14,6 +14,7 @@ import { readAppConfig } from './app-config.js';
 import type { AppVersionInfo } from './app-version.js';
 import { listMessages } from './db.js';
 import {
+  readTelemetrySinkConfig,
   reportRunCompleted,
   reportRunFeedback,
   type ArtifactSummary,
@@ -387,33 +388,43 @@ export type FeedbackReportOutcome =
 export async function reportRunFeedbackFromDaemon(
   opts: ReportRunFeedbackFromDaemonOpts,
 ): Promise<FeedbackReportOutcome> {
+  let cfg;
   try {
-    const cfg = await readAppConfig(opts.dataDir);
-    const prefs = cfg.telemetry ?? {};
-    if (prefs.metrics !== true || prefs.content !== true) {
-      return { status: 'skipped_consent' };
-    }
-    const ctx: FeedbackReportContext = {
-      runId: opts.runId,
-      installationId: cfg.installationId ?? null,
-      prefs,
-      rating: opts.rating,
-      reasonCodes: opts.reasonCodes,
-      hasCustomReason: opts.hasCustomReason,
-      customReason: opts.customReason,
-      ...(opts.scoreMetadata ? { metadata: opts.scoreMetadata } : {}),
-    };
-    await reportRunFeedback(
-      ctx,
-      opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
-    );
-    // reportRunFeedback silently returns when no sink is configured. The
-    // public API surface here doesn't currently distinguish accepted from
-    // no-sink, so report accepted; instrumented tests can verify by
-    // observing the fetch mock.
-    return { status: 'accepted' };
+    cfg = await readAppConfig(opts.dataDir);
   } catch (err) {
-    console.warn('[langfuse-bridge] feedback report failed:', String(err));
+    console.warn('[langfuse-bridge] feedback config read failed:', String(err));
     return { status: 'skipped_no_sink' };
   }
+  const prefs = cfg.telemetry ?? {};
+  if (prefs.metrics !== true || prefs.content !== true) {
+    return { status: 'skipped_consent' };
+  }
+  // Pre-resolve the sink before claiming `accepted`. Avoids advertising a
+  // successful enqueue to callers when there's no Langfuse endpoint
+  // configured to ship the score to.
+  const sink = readTelemetrySinkConfig();
+  if (!sink) {
+    return { status: 'skipped_no_sink' };
+  }
+  const ctx: FeedbackReportContext = {
+    runId: opts.runId,
+    installationId: cfg.installationId ?? null,
+    prefs,
+    rating: opts.rating,
+    reasonCodes: opts.reasonCodes,
+    hasCustomReason: opts.hasCustomReason,
+    customReason: opts.customReason,
+    ...(opts.scoreMetadata ? { metadata: opts.scoreMetadata } : {}),
+  };
+  // Fire-and-forget the actual network send so the route can respond
+  // immediately. The handler's response already encodes the consent +
+  // sink-presence outcome above; failures inside the send are operational
+  // telemetry, not a client-facing signal.
+  void reportRunFeedback(
+    ctx,
+    opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
+  ).catch((err) => {
+    console.warn('[langfuse-bridge] feedback report failed:', String(err));
+  });
+  return { status: 'accepted' };
 }

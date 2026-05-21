@@ -682,15 +682,20 @@ export async function reportRunCompleted(
   await postLangfuseBatch(config, batch, fetchImpl);
 }
 
-/**
- * Build a Langfuse `score-create` batch for a user-supplied turn rating.
- *
- * Langfuse scores let evals filter traces by user feedback. We emit one
- * NUMERIC score (`user_rating`, +1 / -1) plus optional CATEGORICAL scores
- * for each reason code, so the Langfuse UI's score filters work out of
- * the box. Raw custom-reason text is never sent — only its length bucket
- * — to honour the product tracking doc's privacy constraint.
- */
+// Build a Langfuse `score-create` batch for a user-supplied turn rating.
+//
+// Langfuse scores let evals filter traces by user feedback. We emit one
+// NUMERIC score (`user_rating`, +1 / -1) plus optional CATEGORICAL scores
+// for each reason code, so the Langfuse UI's score filters work out of
+// the box. Raw custom-reason text rides in the score metadata when the
+// user opted into telemetry.content; the consent gate lives in
+// reportRunFeedback below, so this builder stays content-agnostic.
+//
+// Limitation: stable score ids (`${traceId}-rating`, `${traceId}-reason-${code}`)
+// mean re-submission overwrites cleanly, but reason codes the user removes
+// in a follow-up submission do not get a tombstone. A future change can
+// thread `removedReasonCodes` through and emit overwriting "cleared"
+// scores for them; not done here to keep this PR scoped to the bridge.
 export function buildFeedbackPayload(ctx: FeedbackReportContext): unknown[] {
   const traceId = ctx.runId;
   const nowIso = new Date().toISOString();

@@ -179,10 +179,12 @@ export type TrackingFeedbackReasonCode =
   | 'strong_visual'
   | 'useful_structure'
   | 'easy_to_continue'
+  | 'followed_design_system'
   | 'missed_request'
   | 'weak_visual'
   | 'incomplete_output'
   | 'hard_to_use'
+  | 'missed_design_system'
   | 'other';
 
 // Product confirmed on 2026-05-13: custom_reason ships the raw text so

@@ -12,6 +12,24 @@ import { isSafeId as isSafeProjectId } from './projects.js';
 import { projectKindToTracking } from '@open-design/contracts/analytics';
 import { validateBaseUrlResolved } from './connectionTest.js';
 
+// Allowlist for the `/feedback` route. Mirrors the
+// ChatMessageFeedbackReasonCode union in packages/contracts/src/api/chat.ts.
+// Kept inline (not imported as a runtime value, since the contract type is
+// type-only) so a stale client can't poison Langfuse with unknown categories.
+const FEEDBACK_REASON_ALLOWLIST: ReadonlySet<string> = new Set([
+  'matched_request',
+  'strong_visual',
+  'useful_structure',
+  'easy_to_continue',
+  'followed_design_system',
+  'missed_request',
+  'weak_visual',
+  'incomplete_output',
+  'hard_to_use',
+  'missed_design_system',
+  'other',
+]);
+
 export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths' | 'telemetry'> {}
 
 export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
@@ -127,8 +145,13 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   // feedback itself via PUT /messages/:id; this endpoint exists only as a
   // telemetry side channel — the daemon is the single network egress for
   // Langfuse and gates on `telemetry.metrics + telemetry.content` consent.
-  // Fire-and-forget: respond 202 once enqueued so the UI isn't blocked.
-  app.post('/api/runs/:id/feedback', (req, res) => {
+  //
+  // The consent + sink decision is fast (awaits a small file read, no
+  // network); we await it so the response status honestly reflects whether
+  // the score was enqueued, skipped for consent, or skipped because no
+  // Langfuse sink is configured. The actual Langfuse network call happens
+  // as a detached promise inside the bridge.
+  app.post('/api/runs/:id/feedback', async (req, res) => {
     const runId = req.params.id;
     const body = (req.body ?? {}) as Partial<{
       projectId: string;
@@ -145,8 +168,19 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     if (body.rating !== 'positive' && body.rating !== 'negative') {
       return sendApiError(res, 400, 'INVALID_RATING', 'rating must be positive or negative');
     }
+    // Drop anything outside the contract-side reason allowlist and
+    // deduplicate; otherwise a malformed or replayed client payload could
+    // create unknown Langfuse categories or duplicate score ids in the
+    // same batch.
     const reasonCodes = Array.isArray(body.reasonCodes)
-      ? body.reasonCodes.filter((c): c is string => typeof c === 'string')
+      ? Array.from(
+          new Set(
+            body.reasonCodes.filter(
+              (c): c is string =>
+                typeof c === 'string' && FEEDBACK_REASON_ALLOWLIST.has(c),
+            ),
+          ),
+        )
       : [];
     const customReason = typeof body.customReason === 'string' ? body.customReason : '';
     const reportFeedback = ctx.telemetry?.reportFeedback;
@@ -163,9 +197,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       hasCustomReason: body.hasCustomReason === true,
       customReason,
     };
-    // Don't await — the request returns immediately. Errors are logged
-    // inside langfuse-bridge.
-    void reportFeedback({
+    const outcome = await reportFeedback({
       runId,
       rating: body.rating,
       reasonCodes,
@@ -173,7 +205,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       customReason,
       scoreMetadata,
     });
-    res.status(202).json({ status: 'accepted' });
+    res.status(202).json(outcome);
   });
 
   app.post('/api/chat', (req, res) => {
