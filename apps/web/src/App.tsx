@@ -320,7 +320,7 @@ export function App() {
   const activeProjectId = route.kind === 'project' ? route.projectId : null;
   const activeFileName = route.kind === 'project' ? route.fileName : null;
   const showPrivacyConsent =
-    daemonConfigLoaded && config.privacyDecisionAt == null && !settingsOpen;
+    daemonConfigLoaded && config.privacyDecisionAt == null;
   useEffect(() => {
     const body = activeProjectId
       ? { projectId: activeProjectId, fileName: activeFileName }
@@ -443,43 +443,53 @@ export function App() {
             ? t('settings.mediaProviderLoadError')
             : null,
         );
-        setConfig((prev) => {
-          const migratedLocalMediaProviders = shouldSyncLocalMediaProvidersToDaemon(
-            prev.mediaProviders,
-            daemonMediaProvidersLoaded,
-          );
-          const next = mergeDaemonMediaProviders(
-            mergeDaemonConfig(prev, daemonConfig),
-            daemonMediaProvidersLoaded,
-          );
-          const hasLocalComposioKey = Boolean(next.composio?.apiKey?.trim());
-          if (!hasLocalComposioKey && daemonComposioConfig) {
-            next.composio = daemonComposioConfig;
-          }
-          saveConfig(next);
-          if (
-            daemonMediaProvidersResult.status === 'ok' &&
-            migratedLocalMediaProviders &&
-            hasAnyConfiguredProvider(next.mediaProviders)
-          ) {
-            void syncMediaProvidersToDaemon(next.mediaProviders, {
-              daemonProviders: daemonMediaProvidersLoaded,
-            });
-          }
-          // Migrate localStorage prefs to daemon on first boot with the new
-          // endpoint. If daemon already had values the merge above used them;
-          // writing back is idempotent and keeps both sides in sync.
-          void syncConfigToDaemon(next);
-          void syncComposioConfigToDaemon(next.composio);
+        // Compute the next config outside the setConfig updater so we can
+        // both (a) call navigate() after setConfig returns — calling it
+        // inside the updater would trigger a Router setState during React's
+        // render phase — and (b) read next.onboardingCompleted synchronously,
+        // since React batches setConfig and the updater doesn't run until
+        // the next render. latestPersistedConfigRef is kept in sync with
+        // the rendered config and is safe to read here.
+        const baseConfig = latestPersistedConfigRef.current;
+        const migratedLocalMediaProviders = shouldSyncLocalMediaProvidersToDaemon(
+          baseConfig.mediaProviders,
+          daemonMediaProvidersLoaded,
+        );
+        const next = mergeDaemonMediaProviders(
+          mergeDaemonConfig(baseConfig, daemonConfig),
+          daemonMediaProvidersLoaded,
+        );
+        const hasLocalComposioKey = Boolean(next.composio?.apiKey?.trim());
+        if (!hasLocalComposioKey && daemonComposioConfig) {
+          next.composio = daemonComposioConfig;
+        }
+        saveConfig(next);
+        if (
+          daemonMediaProvidersResult.status === 'ok' &&
+          migratedLocalMediaProviders &&
+          hasAnyConfiguredProvider(next.mediaProviders)
+        ) {
+          void syncMediaProvidersToDaemon(next.mediaProviders, {
+            daemonProviders: daemonMediaProvidersLoaded,
+          });
+        }
+        // Migrate localStorage prefs to daemon on first boot with the new
+        // endpoint. If daemon already had values the merge above used them;
+        // writing back is idempotent and keeps both sides in sync.
+        void syncConfigToDaemon(next);
+        void syncComposioConfigToDaemon(next.composio);
+        latestPersistedConfigRef.current = next;
+        setConfig(next);
 
-          // Route first-run users through the global onboarding panel after
-          // privacy is resolved. The panel owns completion; Settings stays a
-          // configuration surface rather than the product onboarding path.
-          if (!next.onboardingCompleted && next.privacyDecisionAt != null) {
-            navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
-          }
-          return next;
-        });
+        // Route first-run users through the global onboarding panel.
+        // The onboarding panel and the privacy banner have independent
+        // lifecycles: onboarding keys off `onboardingCompleted`, the
+        // banner keys off `privacyDecisionAt`. They may coexist on the
+        // first launch; the banner sits above the modal layer so it
+        // stays actionable regardless of the active view.
+        if (!next.onboardingCompleted) {
+          navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
+        }
         setDaemonConfigLoaded(true);
         // Composio key hydration is part of this same daemon-config
         // fetch — by the time we land here the daemon has either
@@ -1445,8 +1455,10 @@ export function App() {
       <MemoryToast onOpenMemory={() => openSettings('memory')} />
       {/* First-run privacy consent banner. It waits for daemon config
           hydration because privacyDecisionAt is daemon-owned and stripped
-          from localStorage. It also yields while Settings is open so the
-          floating banner never intercepts modal interactions. */}
+          from localStorage. Lifecycle is independent of Settings and
+          onboarding — the banner stays mounted until the user clicks
+          "I get it", regardless of which view is active. Its z-index in
+          index.css sits above modal backdrops so it stays actionable. */}
       {showPrivacyConsent ? (
         <PrivacyConsentModal
           onAccept={() => {
@@ -1454,6 +1466,9 @@ export function App() {
             // surface the previous two-button "Share usage data" path opted
             // into. The banner footer + PrivacySection give the user a
             // one-click path to flip everything off later.
+            // The banner owns only the privacy decision; it does not drive
+            // navigation. Onboarding is gated by `onboardingCompleted` on
+            // its own and runs in parallel.
             const installationId = generateInstallationIdSafe();
             void handleConfigPersist({
               ...latestPersistedConfigRef.current,
@@ -1461,9 +1476,6 @@ export function App() {
               privacyDecisionAt: Date.now(),
               telemetry: { metrics: true, content: true, artifactManifest: false },
             });
-            if (!latestPersistedConfigRef.current.onboardingCompleted) {
-              navigate({ kind: 'home', view: 'onboarding' });
-            }
           }}
         />
       ) : null}

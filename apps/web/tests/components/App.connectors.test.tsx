@@ -278,7 +278,11 @@ describe('App connectors settings flows', () => {
     );
   });
 
-  it('hides first-run privacy consent while settings is open', async () => {
+  it('keeps the first-run privacy banner mounted while settings is open', async () => {
+    // The banner and Settings have independent lifecycles. The banner's
+    // z-index in index.css sits above the modal backdrop, so opening
+    // Settings (or any other modal) must not unmount the banner — the
+    // user has to be able to acknowledge the disclosure from any view.
     const { container } = render(<App />);
 
     await waitFor(() => {
@@ -290,7 +294,7 @@ describe('App connectors settings flows', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Settings dialog' })).toBeTruthy();
     });
-    expect(container.querySelector('.privacy-consent-banner')).toBeNull();
+    expect(container.querySelector('.privacy-consent-banner')).toBeTruthy();
   });
 
   it('normalizes local persistence but sends the raw replacement key to the daemon on save', async () => {
