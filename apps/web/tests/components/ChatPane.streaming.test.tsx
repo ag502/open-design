@@ -132,7 +132,7 @@ Expected output:
     expect(screen.getByTestId('assistant-streaming-assistant-1').textContent).toBe('streaming');
   });
 
-  it('renders a stopped pinned todo after a terminal run without a final TodoWrite', () => {
+  it('hides pinned todo after a terminal run with unfinished work', () => {
     const messages: ChatMessage[] = [
       {
         id: 'assistant-1',
@@ -180,9 +180,8 @@ Expected output:
       />,
     );
 
-    expect(screen.getByText('0/2')).toBeTruthy();
-    expect(container.querySelector('.todo-stopped')?.textContent).toContain('Build prototype');
-    expect(container.querySelector('.todo-in_progress')).toBeNull();
+    expect(container.querySelector('.chat-pinned-todo')).toBeNull();
+    expect(screen.queryByText('0/2')).toBeNull();
     expect(container.querySelector('.op-todo-current')).toBeNull();
   });
 
