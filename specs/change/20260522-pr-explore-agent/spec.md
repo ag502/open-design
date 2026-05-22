@@ -40,9 +40,15 @@ covering the manual "does it work" step.
 In:
 
 - `pull_request` events from internal members
-  (`author_association IN OWNER, MEMBER`), **only when the PR touches
-  surfaces the browser-only verifier can actually observe**:
-  `apps/web/**` and/or `apps/landing-page/**`.
+  (`author_association IN OWNER, MEMBER`) **opened from the same
+  repository, not from a fork** — concretely:
+  `github.event.pull_request.head.repo.full_name == github.repository`.
+  This is in addition to `author_association`, because a member can
+  open a PR from their personal fork of `nexu-io/open-design`, and
+  v1 explicitly excludes any fork-origin PR (see Out, below).
+- Triggered **only when the PR touches surfaces the browser-only
+  verifier can actually observe**: `apps/web/**` and/or
+  `apps/landing-page/**`.
 - Advisory comment only, posted via gh-aw `safe-outputs` (no merge
   block, no required check).
 - Per-PR isolated `tools-dev` namespace, killed at job end.
@@ -265,12 +271,27 @@ STEP_START|<step-id>|<single-line UTF-8 title>
 STEP_DONE|<step-id>|<single-line UTF-8 verdict text>
 ```
 
+Wire format and parser — exact rule:
+
+The parser splits each line at most twice on `|`, giving 3 fields:
+marker keyword, step-id, payload. The third field (`<title>` or
+`<verdict>`) is **the rest of the line as-is** and **may freely
+contain `|`** without escaping. Concretely the parser regex is
+`^STEP_(START|DONE)\|(step-\d{2,})\|(.+)$`, where the third capture
+group is greedy `.+`. A title like `Product | Library dropdown shows
+expected children` parses correctly because the parser never splits
+past the second `|`.
+
 Constraints (machine-enforced by `e2e/agent/extract-verdicts.mjs`):
 
 - `<step-id>` matches `^step-\d{2,}$`, monotonically increasing per
-  session starting at `step-01`.
+  session starting at `step-01`. The step-id field itself MUST NOT
+  contain `|` (the regex `\d{2,}` already enforces this; restated for
+  the agent prompt).
 - `<title>` and `<verdict>` are single-line UTF-8, max 500 characters
-  each; newlines or control characters fail validation.
+  each; newlines or control characters (including the marker prefix
+  `STEP_START`/`STEP_DONE` reappearing inside the same line) fail
+  validation. `|` characters inside title/verdict are allowed.
 - Every `STEP_START` must be matched by exactly one `STEP_DONE` with
   the same `<step-id>` before session end.
 - Validation failure (malformed marker, missing pair, length overflow,
