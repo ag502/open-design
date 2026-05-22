@@ -20,7 +20,9 @@ import {
   trackUpdatePromptSurfaceView,
 } from '../analytics/events';
 
-type InstallState = 'idle' | 'opening';
+const INSTALL_HANDOFF_WATCHDOG_MS = 10_000;
+
+type InstallState = 'idle' | 'opening' | 'handoff' | 'recoverable';
 type Translator = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
 function versionText(t: Translator, model: UpdaterModel): string {
@@ -58,9 +60,32 @@ export function UpdaterPopup() {
   const t = useT();
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const actionInFlightRef = useRef(false);
+  const handoffWatchdogRef = useRef<number | null>(null);
   const [model, setModel] = useState<UpdaterModel>(() => deriveUpdaterModel(null));
   const [panelOpen, setPanelOpen] = useState(false);
   const [installState, setInstallState] = useState<InstallState>('idle');
+
+  const clearHandoffWatchdog = useCallback(() => {
+    if (handoffWatchdogRef.current == null) return;
+    window.clearTimeout(handoffWatchdogRef.current);
+    handoffWatchdogRef.current = null;
+  }, []);
+
+  const recoverFromInstallerHandoff = useCallback(() => {
+    handoffWatchdogRef.current = null;
+    actionInFlightRef.current = false;
+    setInstallState('recoverable');
+    setPanelOpen(true);
+  }, []);
+
+  const startHandoffWatchdog = useCallback(() => {
+    clearHandoffWatchdog();
+    // The quit IPC can resolve before Electron has actually torn down the
+    // renderer. Keep the handoff UI up, but do not leave it stuck forever.
+    handoffWatchdogRef.current = window.setTimeout(recoverFromInstallerHandoff, INSTALL_HANDOFF_WATCHDOG_MS);
+  }, [clearHandoffWatchdog, recoverFromInstallerHandoff]);
+
+  useEffect(() => clearHandoffWatchdog, [clearHandoffWatchdog]);
 
   useEffect(() => {
     let mounted = true;
@@ -84,7 +109,9 @@ export function UpdaterPopup() {
   }, []);
 
   const ready = model.environment === 'desktop' && model.shouldShowControl;
-  const openingInstaller = installState === 'opening';
+  const installBusy = installState === 'opening' || installState === 'handoff';
+  const canStartInstall = ready || installState === 'recoverable';
+  const showControl = ready || installState !== 'idle';
   const controlLabel = t('updater.openInstaller');
   const channelLabel = channelLabelFor(model.status?.channel);
   const analytics = useAnalytics();
@@ -127,7 +154,7 @@ export function UpdaterPopup() {
   }, [analytics.track, promptSurfaceKey, versionProps]);
 
   const close = useCallback(() => {
-    if (openingInstaller) return;
+    if (installBusy) return;
     trackUpdateIndicatorClick(analytics.track, {
       page_name: 'home',
       area: 'update_prompt',
@@ -136,7 +163,7 @@ export function UpdaterPopup() {
       ...versionProps,
     });
     setPanelOpen(false);
-  }, [analytics.track, openingInstaller, versionProps]);
+  }, [analytics.track, installBusy, versionProps]);
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -157,9 +184,11 @@ export function UpdaterPopup() {
   }, [close, panelOpen]);
 
   const installAndQuit = async () => {
-    if (actionInFlightRef.current || !ready) return;
+    if (actionInFlightRef.current || !canStartInstall) return;
     actionInFlightRef.current = true;
+    clearHandoffWatchdog();
     setInstallState('opening');
+    setPanelOpen(true);
     trackUpdateIndicatorClick(analytics.track, {
       page_name: 'home',
       area: 'update_prompt',
@@ -170,6 +199,8 @@ export function UpdaterPopup() {
     try {
       const result = await openUpdaterInstaller({ payload: { source: 'updater-prompt' } });
       if (!result.ok) {
+        actionInFlightRef.current = false;
+        setInstallState('idle');
         trackUpdateInstallResult(analytics.track, {
           page_name: 'home',
           area: 'update_prompt',
@@ -180,6 +211,8 @@ export function UpdaterPopup() {
         return;
       }
       if (result.model.errorMessage != null) {
+        actionInFlightRef.current = false;
+        setInstallState('idle');
         trackUpdateInstallResult(analytics.track, {
           page_name: 'home',
           area: 'update_prompt',
@@ -190,15 +223,25 @@ export function UpdaterPopup() {
         return;
       }
       setModel(result.model);
+      setInstallState('handoff');
+      startHandoffWatchdog();
       trackUpdateInstallResult(analytics.track, {
         page_name: 'home',
         area: 'update_prompt',
         result: 'success',
         ...versionProps,
       });
-      setPanelOpen(false);
-      await quitAfterUpdaterInstallerOpen({ payload: { source: 'updater-prompt' } });
+      const quitResult = await quitAfterUpdaterInstallerOpen({ payload: { source: 'updater-prompt' } });
+      if (!quitResult.ok) {
+        clearHandoffWatchdog();
+        actionInFlightRef.current = false;
+        setInstallState('recoverable');
+        setPanelOpen(true);
+      }
     } catch (error) {
+      clearHandoffWatchdog();
+      actionInFlightRef.current = false;
+      setInstallState('idle');
       trackUpdateInstallResult(analytics.track, {
         page_name: 'home',
         area: 'update_prompt',
@@ -206,27 +249,24 @@ export function UpdaterPopup() {
         error_code: error instanceof Error ? error.name : 'unknown',
         ...versionProps,
       });
-    } finally {
-      actionInFlightRef.current = false;
-      setInstallState('idle');
     }
   };
 
-  if (!ready) return null;
+  if (!showControl) return null;
 
   return (
     <div className="entry-updater-menu" ref={wrapRef}>
       <button
-        aria-disabled={openingInstaller ? 'true' : undefined}
+        aria-disabled={installBusy ? 'true' : undefined}
         aria-expanded={panelOpen}
         aria-label={controlLabel}
-        className={`entry-nav-rail__btn entry-updater-menu__button is-ready${panelOpen ? ' is-active' : ''}${openingInstaller ? ' is-disabled' : ''}`}
+        className={`entry-nav-rail__btn entry-updater-menu__button is-ready${panelOpen ? ' is-active' : ''}${installBusy ? ' is-disabled' : ''}`}
         data-testid="entry-nav-updater"
         data-tooltip={controlLabel}
         title={controlLabel}
         type="button"
         onClick={() => {
-          if (openingInstaller) return;
+          if (installBusy) return;
           if (panelOpen) {
             setPanelOpen(false);
             return;
@@ -261,19 +301,19 @@ export function UpdaterPopup() {
             {channelLabel != null ? <span className="updater-popup__badge">{channelLabel}</span> : null}
           </div>
           <div className="updater-popup__actions">
-            <button className="updater-popup__button" disabled={openingInstaller} type="button" onClick={close}>
+            <button className="updater-popup__button" disabled={installBusy} type="button" onClick={close}>
               {t('updater.later')}
             </button>
             <button
               className="updater-popup__button updater-popup__button--primary"
               data-testid="updater-install-button"
-              disabled={openingInstaller}
+              disabled={installBusy}
               type="button"
               onClick={() => {
                 void installAndQuit();
               }}
             >
-              {openingInstaller ? t('updater.opening') : t('updater.openInstaller')}
+              {installBusy ? t('updater.opening') : t('updater.openInstaller')}
             </button>
           </div>
         </section>

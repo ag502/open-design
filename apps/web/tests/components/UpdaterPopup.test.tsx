@@ -153,7 +153,7 @@ describe('UpdaterPopup', () => {
     expect(screen.queryByTestId('updater-popup')).toBeNull();
   });
 
-  it('installs and quits from the prompt with one disabled in-flight action', async () => {
+  it('keeps the prompt in handoff loading after opening the installer', async () => {
     let status = downloadedStatus();
     let resolveInstall: (status: OpenDesignHostUpdaterStatusSnapshot) => void = () => undefined;
     const install = vi.fn(() => new Promise<OpenDesignHostUpdaterStatusSnapshot>((resolve) => {
@@ -194,8 +194,64 @@ describe('UpdaterPopup', () => {
 
     await waitFor(() => expect(install).toHaveBeenCalledWith({ payload: { source: 'updater-prompt' } }));
     await waitFor(() => expect(quit).toHaveBeenCalledWith({ payload: { source: 'updater-prompt' } }));
-    expect(screen.queryByTestId('updater-popup')).toBeNull();
-    expect(screen.queryByTestId('entry-nav-updater')).toBeNull();
+    expect(screen.getByTestId('entry-nav-updater')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Update ready' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Opening installer...' }).getAttribute('disabled')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Later' }).getAttribute('disabled')).not.toBeNull();
+  });
+
+  it('recovers the handoff prompt if the app has not closed after the watchdog', async () => {
+    const install = vi.fn(async () => downloadedStatus({
+      installResult: {
+        dryRun: true,
+        openedAt: '2026-05-19T00:00:00.000Z',
+        path: '/tmp/open-design-updater/Open Design Beta.dmg',
+      },
+    }));
+    const quit = vi.fn(async () => ({ ok: true as const }));
+    restoreHost = installMockOpenDesignHost({
+      host: {
+        updater: {
+          install,
+          quit,
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    render(<UpdaterPopup />);
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByTestId('updater-install-button'));
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(screen.getByRole('button', { name: 'Opening installer...' }).getAttribute('disabled')).not.toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+
+      expect(screen.getByRole('dialog', { name: 'Update ready' })).toBeTruthy();
+      expect(screen.getByTestId('updater-install-button').textContent).toBe('Install update');
+      expect(screen.getByTestId('updater-install-button').getAttribute('disabled')).toBeNull();
+      fireEvent.click(screen.getByTestId('updater-install-button'));
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(install).toHaveBeenCalledTimes(2);
+      expect(quit).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps install failures internal and leaves the ready prompt usable', async () => {
