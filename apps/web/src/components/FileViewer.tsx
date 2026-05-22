@@ -3272,7 +3272,7 @@ function ReactComponentViewer({
                   aria-expanded={shareMenuOpen}
                   onClick={() => setShareMenuOpen((v) => !v)}
                 >
-                  <RemixIcon name="download-2-line" size={15} />
+                  <span className="export-action-spacer" aria-hidden />
                   <span>{t('fileViewer.shareLabel')}</span>
                   <RemixIcon name="arrow-down-s-line" size={14} />
                 </button>
@@ -5949,7 +5949,7 @@ function HtmlViewer({
                 aria-expanded={shareMenuOpen}
                 onClick={openExportMenu}
               >
-                <RemixIcon name="download-2-line" size={15} />
+                <span className="export-action-spacer" aria-hidden />
                 <span>{t('fileViewer.shareLabel')}</span>
                 <RemixIcon name="arrow-down-s-line" size={14} />
               </button>

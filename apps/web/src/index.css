@@ -1129,6 +1129,7 @@ code {
   color: var(--bg);
 }
 .chrome-action-export {
+  min-width: 106px;
   background: var(--accent);
   border-color: var(--accent);
   color: white;
@@ -14504,10 +14505,16 @@ button.ghost.mcp-copy-btn:hover:not(:disabled) {
 .share-menu { position: relative; display: inline-block; }
 .viewer-action-export {
   gap: 6px;
+  min-width: 106px;
   background: var(--accent);
   border-color: var(--accent);
   color: white;
   box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.export-action-spacer {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
 }
 .viewer-action-export:hover:not(:disabled) {
   background: var(--accent-hover);
