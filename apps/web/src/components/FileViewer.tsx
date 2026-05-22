@@ -2773,6 +2773,7 @@ function CommentPreviewOverlays({
   hoveredPodMemberId,
   activeTarget,
   boardTool,
+  showActivePin = false,
   scale,
   strokePoints,
   onOpenComment,
@@ -2783,6 +2784,7 @@ function CommentPreviewOverlays({
   hoveredPodMemberId: string | null;
   activeTarget: PreviewCommentSnapshot | null;
   boardTool: BoardTool;
+  showActivePin?: boolean;
   scale: number;
   strokePoints: StrokePoint[];
   onOpenComment: (comment: PreviewComment, snapshot: PreviewCommentSnapshot) => void;
@@ -2834,6 +2836,16 @@ function CommentPreviewOverlays({
           hoveredMemberId={hoveredPodMemberId}
         />
       ) : null}
+      {showActivePin && activeTarget ? (
+        <div
+          className="comment-active-pin"
+          style={activeCommentPinStyle(activeTarget, scale)}
+          data-testid="comment-active-pin"
+          aria-hidden="true"
+        >
+          C
+        </div>
+      ) : null}
       {boardTool === 'pod' && strokePoints.length > 1 ? (
         <svg className="board-pod-stroke">
           <polyline
@@ -2843,6 +2855,18 @@ function CommentPreviewOverlays({
       ) : null}
     </div>
   );
+}
+
+function activeCommentPinStyle(target: PreviewCommentSnapshot, scale: number): CSSProperties {
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const anchor = target.hoverPoint ?? {
+    x: target.position.x,
+    y: target.position.y,
+  };
+  return {
+    left: Math.round(anchor.x * safeScale),
+    top: Math.round(anchor.y * safeScale),
+  };
 }
 
 export function CommentTargetOverlay({
@@ -3685,6 +3709,7 @@ function HtmlViewer({
   const [reloadKey, setReloadKey] = useState(0);
   const [boardMode, setBoardMode] = useState(false);
   const [commentPanelOpen, setCommentPanelOpen] = useState(false);
+  const [commentCreateMode, setCommentCreateMode] = useState(false);
   const [boardTool, setBoardTool] = useState<BoardTool>('inspect');
   const [inspectMode, setInspectMode] = useState(false);
   const [palettePopoverOpen, setPalettePopoverOpen] = useState(false);
@@ -4568,6 +4593,7 @@ function HtmlViewer({
   useEffect(() => {
     const selectionMode = boardMode || drawClickSelectionMode;
     if (!selectionMode) {
+      setCommentCreateMode(false);
       setActiveCommentTarget((current) => (current ? null : current));
       setHoveredCommentTarget((current) => (current ? null : current));
       setActivePreviewCommentId((current) => (current ? null : current));
@@ -5495,6 +5521,7 @@ function HtmlViewer({
     clearBoardComposer();
     fireArtifactToolbarClick(nextTool === 'pod' ? 'pods' : 'comment');
     setCommentPanelOpen(false);
+    setCommentCreateMode(false);
     activateBoard(nextTool);
     setAgentToolsOpen(false);
   }
@@ -5531,6 +5558,7 @@ function HtmlViewer({
     }
     const activateDraw = () => {
       setCommentPanelOpen(false);
+      setCommentCreateMode(false);
       setBoardMode(false);
       clearBoardComposer();
       setInspectMode(false);
@@ -5551,14 +5579,16 @@ function HtmlViewer({
   function activateCommentTool() {
     fireArtifactToolbarClick('comment');
     capturePreviewScrollPosition();
-    if (boardMode && boardTool === 'inspect') {
+    if (boardMode && !commentCreateMode && boardTool === 'inspect') {
       setBoardMode(false);
+      setCommentCreateMode(false);
       clearBoardComposer();
       setAgentToolsOpen(false);
       return;
     }
     const activateComment = () => {
       setCommentPanelOpen(false);
+      setCommentCreateMode(false);
       clearBoardComposer();
       setInspectMode(false);
       setDrawOverlayOpen(false);
@@ -5575,31 +5605,33 @@ function HtmlViewer({
     activateComment();
   }
 
-  function toggleCommentPanel() {
+  function activateCommentCreateTool() {
     fireArtifactToolbarClick('comment');
-    const activatePanel = () => {
-      setCommentPanelOpen((open) => {
-        const next = !open;
-        if (next) {
-          setBoardMode(false);
-          clearBoardComposer();
-          setInspectMode(false);
-          setDrawOverlayOpen(false);
-          setManualEditMode(false);
-          setMode('preview');
-        }
-        return next;
-      });
-      setCommentSidePanelCollapsed(false);
+    capturePreviewScrollPosition();
+    if (boardMode && commentCreateMode) {
+      setBoardMode(false);
+      setCommentCreateMode(false);
+      clearBoardComposer();
+      closeArtifactToolMenus();
+      return;
+    }
+    const activateCommentCreate = () => {
+      setCommentPanelOpen(false);
+      setCommentCreateMode(true);
+      clearBoardComposer();
+      setInspectMode(false);
+      setDrawOverlayOpen(false);
+      setMode('preview');
+      activateBoard('inspect');
       closeArtifactToolMenus();
     };
     if (manualEditMode) {
       void exitManualEditModeAfterFlush().then((ok) => {
-        if (ok) activatePanel();
+        if (ok) activateCommentCreate();
       });
       return;
     }
-    activatePanel();
+    activateCommentCreate();
   }
 
   function activateInspectTool() {
@@ -5608,6 +5640,7 @@ function HtmlViewer({
       const next = !v;
       if (next) {
         setCommentPanelOpen(false);
+        setCommentCreateMode(false);
         setBoardMode(false);
         clearBoardComposer();
         setManualEditMode(false);
@@ -5625,6 +5658,7 @@ function HtmlViewer({
     capturePreviewScrollPosition();
     if (!manualEditMode) {
       setCommentPanelOpen(false);
+      setCommentCreateMode(false);
       setBoardMode(false);
       clearBoardComposer();
       setInspectMode(false);
@@ -5883,7 +5917,7 @@ function HtmlViewer({
       }}
     />
   ) : null;
-  const commentComposer = boardMode && activeCommentTarget ? (
+  const commentComposer = boardMode && commentCreateMode && activeCommentTarget ? (
     <BoardComposerPopover
       target={activeCommentTarget}
       existing={visibleSideComments.find((comment) => comment.elementId === activeCommentTarget.elementId) ?? null}
@@ -6059,30 +6093,30 @@ function HtmlViewer({
               <div className="artifact-tool-menu-anchor">
                 <button
                   type="button"
-                  className={`viewer-action viewer-action-icon viewer-comment-toggle${boardMode && boardTool === 'inspect' ? ' active' : ''}`}
+                  className={`viewer-action viewer-action-icon viewer-comment-toggle${boardMode && !commentCreateMode && boardTool === 'inspect' ? ' active' : ''}`}
                   data-testid="board-mode-toggle"
                   data-tooltip={t('fileViewer.comment')}
                   title={t('fileViewer.comment')}
                   aria-label={t('fileViewer.comment')}
-                  aria-pressed={boardMode && boardTool === 'inspect'}
+                  aria-pressed={boardMode && !commentCreateMode && boardTool === 'inspect'}
                   onClick={activateCommentTool}
                 >
                   <RemixIcon name="chat-new-line" size={15} />
-                  {boardMode && boardTool === 'inspect' ? <span className="viewer-action-active-dot" aria-hidden /> : null}
+                  {boardMode && !commentCreateMode && boardTool === 'inspect' ? <span className="viewer-action-active-dot" aria-hidden /> : null}
                 </button>
               </div>
               <button
                 type="button"
-                className={`viewer-action viewer-action-icon viewer-comment-toggle${commentPanelOpen ? ' active' : ''}`}
+                className={`viewer-action viewer-action-icon viewer-comment-toggle${boardMode && commentCreateMode ? ' active' : ''}`}
                 data-testid="comment-panel-toggle"
                 data-tooltip={t('chat.tabComments')}
                 title={t('chat.tabComments')}
                 aria-label={t('chat.tabComments')}
-                aria-pressed={commentPanelOpen}
-                onClick={toggleCommentPanel}
+                aria-pressed={boardMode && commentCreateMode}
+                onClick={activateCommentCreateTool}
               >
                 <RemixIcon name="message-3-line" size={15} />
-                {commentPanelOpen ? <span className="viewer-action-active-dot" aria-hidden /> : null}
+                {boardMode && commentCreateMode ? <span className="viewer-action-active-dot" aria-hidden /> : null}
               </button>
               <button
                 className={`viewer-action viewer-action-icon${manualEditMode ? ' active' : ''}`}
@@ -6291,10 +6325,10 @@ function HtmlViewer({
             <>
               <button
                 type="button"
-                className={`viewer-action viewer-comment-toggle${boardMode && boardTool === 'inspect' ? ' active' : ''}`}
+                className={`viewer-action viewer-comment-toggle${boardMode && !commentCreateMode && boardTool === 'inspect' ? ' active' : ''}`}
                 data-testid="board-mode-toggle"
                 title={t('fileViewer.comment')}
-                aria-pressed={boardMode && boardTool === 'inspect'}
+                aria-pressed={boardMode && !commentCreateMode && boardTool === 'inspect'}
                 onClick={activateCommentTool}
               >
                 <RemixIcon name="chat-new-line" size={14} />
@@ -6302,11 +6336,11 @@ function HtmlViewer({
               </button>
               <button
                 type="button"
-                className={`viewer-action viewer-comment-toggle${commentPanelOpen ? ' active' : ''}`}
+                className={`viewer-action viewer-comment-toggle${boardMode && commentCreateMode ? ' active' : ''}`}
                 data-testid="comment-panel-toggle"
                 title={t('chat.tabComments')}
-                aria-pressed={commentPanelOpen}
-                onClick={toggleCommentPanel}
+                aria-pressed={boardMode && commentCreateMode}
+                onClick={activateCommentCreateTool}
               >
                 <RemixIcon name="message-3-line" size={14} />
                 <span>{t('chat.tabComments')}</span>
@@ -6651,6 +6685,7 @@ function HtmlViewer({
                 hoveredPodMemberId={hoveredPodMemberId}
                 activeTarget={activeCommentTarget}
                 boardTool={boardTool}
+                showActivePin={commentCreateMode}
                 scale={overlayPreviewScale}
                 strokePoints={strokePoints}
                 onOpenComment={(comment, snapshot) => {
@@ -6681,7 +6716,7 @@ function HtmlViewer({
               </div>
             ) : null}
             {!commentPortalHost ? commentComposer : null}
-            {boardMode && hoveredCommentTarget && (!activeCommentTarget || commentPortalHost) ? (
+            {boardMode && !commentCreateMode && hoveredCommentTarget && (!activeCommentTarget || commentPortalHost) ? (
               <AnnotationHoverPopover target={hoveredCommentTarget} scale={overlayPreviewScale} />
             ) : null}
             {commentPortalHost && commentSidePanel

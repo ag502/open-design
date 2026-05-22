@@ -1470,7 +1470,7 @@ describe('FileViewer tweaks toolbar', () => {
 
     fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
-    expect(screen.getByTestId('comment-side-panel')).toBeTruthy();
+    expect(screen.queryByTestId('comment-side-panel')).toBeNull();
     expect(screen.queryByTestId('comment-saved-marker-pin-applying')).toBeNull();
     expect(screen.queryByText('Already sent to Claude')).toBeNull();
   });
@@ -1486,8 +1486,10 @@ describe('FileViewer tweaks toolbar', () => {
     );
 
     fireEvent.click(screen.getByTestId('comment-panel-toggle'));
-    expect(screen.getByTestId('comment-side-panel')).toBeTruthy();
+    expect(screen.queryByTestId('comment-side-panel')).toBeNull();
     expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('inspect-empty-hint-container')).toBeTruthy();
 
     clickAgentTool('board-mode-toggle');
 
@@ -1498,10 +1500,10 @@ describe('FileViewer tweaks toolbar', () => {
 
     fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
-    expect(screen.getByTestId('comment-side-panel')).toBeTruthy();
+    expect(screen.queryByTestId('comment-side-panel')).toBeNull();
     expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('false');
-    expect(screen.queryByTestId('inspect-empty-hint-container')).toBeNull();
+    expect(screen.getByTestId('inspect-empty-hint-container')).toBeTruthy();
   });
 
   it('keeps saved comment marker numbers aligned with the side panel order', () => {
@@ -1545,11 +1547,6 @@ describe('FileViewer tweaks toolbar', () => {
 
     fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
-    expect(screen.getAllByTestId('comment-side-item')[0]?.textContent).toContain('Newer comment');
-    expect(screen.getAllByTestId('comment-side-item')[1]?.textContent).toContain('Older comment');
-
-    clickAgentTool('board-mode-toggle');
-
     expect(screen.queryByTestId('comment-side-panel')).toBeNull();
     expect(screen.getByTestId('comment-saved-marker-pin-newer').textContent).toContain('1');
     expect(screen.getByTestId('comment-saved-marker-pin-older').textContent).toContain('2');
@@ -1584,7 +1581,7 @@ describe('FileViewer tweaks toolbar', () => {
     );
 
     const frame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
-    clickAgentTool('board-mode-toggle');
+    fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
     window.dispatchEvent(new MessageEvent('message', {
       source: frame.contentWindow,
@@ -1616,7 +1613,7 @@ describe('FileViewer tweaks toolbar', () => {
     );
 
     const frame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
-    clickAgentTool('board-mode-toggle');
+    fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
     window.dispatchEvent(new MessageEvent('message', {
       source: frame.contentWindow,
@@ -1655,10 +1652,11 @@ describe('FileViewer tweaks toolbar', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Region' }));
     expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('false');
 
-    fireEvent.click(screen.getByTestId('board-mode-toggle'));
+    fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
     expect(screen.queryByRole('menuitem', { name: 'Pick element' })).toBeNull();
-    expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
   });
 
   it('shows captured element style details while hovering before clicking', async () => {
@@ -1706,9 +1704,10 @@ describe('FileViewer tweaks toolbar', () => {
       data: { ...target, type: 'od:comment-target' },
     }));
 
-    expect(await screen.findByTestId('comment-popover-input')).toBeTruthy();
-    expect(screen.getByTestId('comment-popover').getAttribute('style')).toContain('214px');
-    expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
+    expect(screen.queryByTestId('comment-popover-input')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
+    });
   });
 
   it('closes an open saved-comment composer when that comment leaves the open state', async () => {
@@ -1739,7 +1738,7 @@ describe('FileViewer tweaks toolbar', () => {
       />,
     );
 
-    clickAgentTool('board-mode-toggle');
+    fireEvent.click(screen.getByTestId('comment-panel-toggle'));
     fireEvent.click(screen.getByRole('button', { name: 'Open comment for pin-transition' }));
 
     expect((await screen.findByTestId('comment-popover-input') as HTMLTextAreaElement).value)

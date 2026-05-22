@@ -12150,6 +12150,25 @@ button.connector-action.is-loading {
   background: #0958d9;
   transform: translateY(-1px);
 }
+.comment-active-pin {
+  position: absolute;
+  z-index: 42;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-panel);
+  border-radius: 50%;
+  background: #d86f4c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+  box-shadow: 0 6px 18px rgba(80, 43, 28, 0.22);
+  pointer-events: none;
+}
 .comment-popover {
   position: absolute;
   left: 14px;
