@@ -5756,13 +5756,13 @@ function HtmlViewer({
                       className={`artifact-tool-menu-item${drawOverlayOpen ? ' active' : ''}`}
                       type="button"
                       data-testid="draw-overlay-toggle"
-                      title="Sketch annotation"
+                      title="Sketch on screenshot"
                       role="menuitem"
                       aria-pressed={drawOverlayOpen}
                       onClick={activateDrawTool}
                     >
-                      <Icon name="draw" size={13} />
-                      <span>Sketch annotation</span>
+                      <Icon name="screenshot-sketch" size={14} />
+                      <span>Sketch on screenshot</span>
                     </button>
                   </div>
                 ) : null}

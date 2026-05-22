@@ -1330,7 +1330,7 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.queryByRole('menuitem', { name: 'Pick element' })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Region' })).toBeTruthy();
     expect(screen.getByTestId('draw-overlay-toggle')).toBeTruthy();
-    expect(screen.getByText('Sketch annotation')).toBeTruthy();
+    expect(screen.getByText('Sketch on screenshot')).toBeTruthy();
     expect(screen.queryByPlaceholderText('Type anywhere to add a note')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Pods' })).toBeNull();
 
