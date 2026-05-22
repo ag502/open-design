@@ -196,28 +196,26 @@ export async function waitForPendingApprovalRuns(
   const pollIntervalMs = config.pollIntervalMs ?? defaultPendingRunPollIntervalMs;
   const firstAppearanceTimeoutMs = config.firstAppearanceTimeoutMs ?? defaultPendingRunFirstAppearanceTimeoutMs;
   const settlingPollAttempts = config.settlingPollAttempts ?? defaultPendingRunSettlingPollAttempts;
-  const pendingRuns = new Map<number, WorkflowRun>();
   const firstAppearanceDeadline = now() + firstAppearanceTimeoutMs;
+  let pendingRuns: WorkflowRun[] = [];
 
   const collectRuns = async (): Promise<void> => {
-    for (const run of await loadRuns()) {
-      pendingRuns.set(run.id, run);
-    }
+    pendingRuns = await loadRuns();
   };
 
   await collectRuns();
 
-  while (pendingRuns.size === 0 && now() < firstAppearanceDeadline) {
+  while (pendingRuns.length === 0 && now() < firstAppearanceDeadline) {
     await sleep(pollIntervalMs);
     await collectRuns();
   }
 
-  for (let attempt = 0; pendingRuns.size > 0 && attempt < settlingPollAttempts; attempt += 1) {
+  for (let attempt = 0; pendingRuns.length > 0 && attempt < settlingPollAttempts; attempt += 1) {
     await sleep(pollIntervalMs);
     await collectRuns();
   }
 
-  return [...pendingRuns.values()];
+  return pendingRuns;
 }
 
 async function github<T>(path: string, init: RequestInit = {}): Promise<T> {

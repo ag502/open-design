@@ -318,7 +318,7 @@ test("waitForPendingApprovalRuns retries until action_required runs appear and k
   assert.deepEqual(sleeps, [3000, 3000, 3000, 3000, 3000]);
 });
 
-test("waitForPendingApprovalRuns keeps polling and unions newly discovered runs across the retry window", async () => {
+test("waitForPendingApprovalRuns keeps polling and returns the latest eligible run snapshot across the retry window", async () => {
   const ciRun = {
     id: 26273463769,
     name: "CI",
@@ -355,6 +355,31 @@ test("waitForPendingApprovalRuns keeps polling and unions newly discovered runs 
 
   assert.deepEqual(pendingRuns, [ciRun, visualRun]);
   assert.deepEqual(sleeps, [3000, 3000, 3000]);
+});
+
+test("waitForPendingApprovalRuns drops runs that disappear in later polls", async () => {
+  const staleRun = {
+    id: 26273463769,
+    name: "CI",
+    event: "pull_request",
+    status: "completed",
+    conclusion: "action_required",
+    head_sha: "734076155c44e569304856590019cea54506fdab",
+    path: ".github/workflows/ci.yml@main",
+    pull_requests: [],
+  };
+  const survivingRun = {
+    ...staleRun,
+    id: 26273463770,
+    name: "Visual PR Verify",
+    path: ".github/workflows/visual-pr-verify.yml@main",
+  };
+
+  const batches = [[staleRun], [staleRun, survivingRun], [survivingRun], [survivingRun]];
+
+  const pendingRuns = await waitForPendingApprovalRuns(async () => batches.shift() ?? [survivingRun], async () => {}, () => 0);
+
+  assert.deepEqual(pendingRuns, [survivingRun]);
 });
 
 test("waitForPendingApprovalRuns keeps polling until the first run appears, even after the old short retry budget", async () => {
