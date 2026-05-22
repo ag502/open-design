@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
+import { AgentIcon } from './AgentIcon';
 import { RemixIcon } from './RemixIcon';
 import { renderModelOptions } from './modelOptions';
 import type { AgentInfo, AppConfig, ExecMode } from '../types';
@@ -95,7 +96,11 @@ export function AvatarMenu({
         title={t('avatar.title')}
         aria-label={t('avatar.title')}
       >
-        <RemixIcon name={currentAgent ? 'robot-2-line' : 'link'} size={18} />
+        {currentAgent ? (
+          <AgentIcon id={currentAgent.id} size={18} />
+        ) : (
+          <RemixIcon name="link" size={18} />
+        )}
         <RemixIcon name="arrow-down-s-line" size={13} />
       </button>
       {open ? (
@@ -185,7 +190,7 @@ export function AvatarMenu({
                       // pick a model for the agent they just chose.
                     }}
                   >
-                    <RemixIcon name="robot-2-line" size={18} />
+                    <AgentIcon id={a.id} size={18} />
                     <span>{a.name}</span>
                     {selected ? (
                       <span className="avatar-item-meta">
