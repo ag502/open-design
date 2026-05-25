@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T08:04:30.858Z",
+  "generatedAt": "2026-05-25T08:30:36.097Z",
   "contributors": {
     "1115052994": {
       "lastAnnouncedTier": "spark",
@@ -85,8 +85,8 @@
     },
     "zoeforfun": {
       "lastAnnouncedTier": "node",
-      "lastKnownScore": 331,
-      "lastCheckedAt": "2026-05-21T12:48:48.181Z",
+      "lastKnownScore": 344,
+      "lastCheckedAt": "2026-05-25T08:30:36.097Z",
       "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-18T06:04:07.402Z"
     },
