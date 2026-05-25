@@ -3246,6 +3246,16 @@ function normalizeAnnotationStyle(input: unknown): PreviewCommentSnapshot['style
   return Object.keys(style).length > 0 ? style : undefined;
 }
 
+function inspectTargetFromCommentSnapshot(snapshot: PreviewCommentSnapshot): InspectTarget {
+  return {
+    elementId: snapshot.elementId,
+    selector: snapshot.selector,
+    label: snapshot.label,
+    text: snapshot.text,
+    style: snapshot.style ?? {},
+  };
+}
+
 const ANNOTATION_STYLE_KEYS = [
   'color',
   'backgroundColor',
@@ -4690,13 +4700,13 @@ function HtmlViewer({
     clearManualEditStyleTimer();
   }, [file.name]);
 
-  // Selecting a new file or turning inspect off resets the panel target.
+  // Selecting a new file or turning inspect/comment-inspect off resets the panel target.
   useEffect(() => {
-    if (!inspectMode) {
+    if (!inspectMode && !(boardMode && boardTool === 'inspect')) {
       setActiveInspectTarget(null);
       setInspectError(null);
     }
-  }, [inspectMode]);
+  }, [inspectMode, boardMode, boardTool]);
 
   // Hydrate the host-authoritative override map from the artifact source
   // synchronously, *before* React commits a render that carries a new
@@ -4801,6 +4811,9 @@ function HtmlViewer({
       }
       if (data.type === 'od:comment-leave') {
         setHoveredCommentTarget(null);
+        if (boardMode && boardTool === 'inspect' && !activeCommentTarget) {
+          setActiveInspectTarget(null);
+        }
         return;
       }
       if (data.type === 'od:comment-hover') {
@@ -4808,6 +4821,11 @@ function HtmlViewer({
         if (!snapshot.elementId) return;
         setHoveredCommentTarget(snapshot);
         setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
+        if (boardMode && boardTool === 'inspect') {
+          setActiveInspectTarget(inspectTargetFromCommentSnapshot(snapshot));
+          setInspectError(null);
+          setInspectSavedAt(null);
+        }
         if (commentPortalHost && boardMode && boardTool === 'inspect') {
           setActiveCommentTarget((current) => current ?? snapshot);
         }
@@ -4824,6 +4842,11 @@ function HtmlViewer({
         setActiveCommentTarget(snapshot);
         setHoveredCommentTarget(snapshot);
         setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
+        if (boardMode && boardTool === 'inspect') {
+          setActiveInspectTarget(inspectTargetFromCommentSnapshot(snapshot));
+          setInspectError(null);
+          setInspectSavedAt(null);
+        }
         if (boardMode) {
           setActivePreviewCommentId(existing?.id ?? null);
           setCommentDraft(existing?.note ?? '');
@@ -4869,7 +4892,7 @@ function HtmlViewer({
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [boardMode, boardTool, commentPortalHost, drawClickSelectionMode, file.name, isOurPreviewIframeSource, previewComments]);
+  }, [activeCommentTarget, boardMode, boardTool, commentPortalHost, drawClickSelectionMode, file.name, isOurPreviewIframeSource, previewComments]);
 
   useEffect(() => {
     if (!manualEditMode) {
@@ -6174,7 +6197,7 @@ function HtmlViewer({
     <div className="viewer html-viewer">
       <div className="viewer-toolbar">
         <div className="viewer-toolbar-left">
-          <div className="viewer-mode-segmented" role="group" aria-label="View mode">
+          <div className="viewer-tabs" role="tablist" aria-label="View mode">
             {([
               ['preview', t('fileViewer.preview')],
               ['source', t('fileViewer.source')],
@@ -6182,8 +6205,9 @@ function HtmlViewer({
               <button
                 key={id}
                 type="button"
-                className={`viewer-mode-segment${mode === id ? ' active' : ''}`}
-                aria-pressed={mode === id}
+                role="tab"
+                className={`viewer-tab ${mode === id ? 'active' : ''}`}
+                aria-selected={mode === id}
                 onClick={() => {
                   fireArtifactToolbarClick(id);
                   selectMode(id);
@@ -6283,52 +6307,18 @@ function HtmlViewer({
               >
                 <RemixIcon name="edit-line" size={15} />
               </button>
-              <div className="artifact-tool-menu-anchor">
-                <button
-                  type="button"
-                  className={`viewer-action viewer-action-icon artifact-tool-menu-trigger${drawOverlayOpen ? ' active' : ''}`}
-                  aria-haspopup="menu"
-                  aria-expanded={agentToolsOpen}
-                  aria-label="More annotation tools"
-                  data-tooltip="More"
-                  title="More"
-                  onClick={() => {
-                    setAgentToolsOpen((v) => !v);
-                    setManualToolsOpen(false);
-                    setPalettePopoverOpen(false);
-                  }}
-                >
-                  <RemixIcon name="more-2-fill" size={16} />
-                </button>
-                {agentToolsOpen ? (
-                  <div className="artifact-tool-menu" role="menu" aria-label="More annotation tools">
-                    <button
-                      className={`artifact-tool-menu-item${boardMode && boardTool === 'pod' ? ' active' : ''}`}
-                      type="button"
-                      title="Draw a region annotation"
-                      role="menuitem"
-                      aria-label="Region"
-                      aria-pressed={boardMode && boardTool === 'pod'}
-                      onClick={() => activateBoardPicker('pod')}
-                    >
-                      <RemixIcon name="focus-3-line" size={15} />
-                      <span>Region</span>
-                    </button>
-                    <button
-                      className={`artifact-tool-menu-item${drawOverlayOpen ? ' active' : ''}`}
-                      type="button"
-                      data-testid="draw-overlay-toggle"
-                      title="Sketch on screenshot"
-                      role="menuitem"
-                      aria-pressed={drawOverlayOpen}
-                      onClick={activateDrawTool}
-                    >
-                      <RemixIcon name="mark-pen-line" size={15} />
-                      <span>Sketch on screenshot</span>
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+              <button
+                className={`viewer-action viewer-action-icon${drawOverlayOpen ? ' active' : ''}`}
+                type="button"
+                data-testid="draw-overlay-toggle"
+                data-tooltip="Sketch on screenshot"
+                title="Sketch on screenshot"
+                aria-label="Sketch on screenshot"
+                aria-pressed={drawOverlayOpen}
+                onClick={activateDrawTool}
+              >
+                <RemixIcon name="mark-pen-line" size={15} />
+              </button>
               <div className="artifact-tool-menu-anchor">
                 <button
                   type="button"
@@ -6901,13 +6891,13 @@ function HtmlViewer({
               </div>
             ) : null}
             {commentComposer}
-            {boardMode && !commentCreateMode && hoveredCommentTarget && (!activeCommentTarget || commentPortalHost) ? (
+            {boardMode && boardTool !== 'inspect' && !commentCreateMode && hoveredCommentTarget && (!activeCommentTarget || commentPortalHost) ? (
               <AnnotationHoverPopover target={hoveredCommentTarget} scale={overlayPreviewScale} />
             ) : null}
             {commentPortalHost && commentSidePanel
               ? createPortal(commentSidePanel, commentPortalHost)
               : commentSidePanel}
-            {inspectMode && activeInspectTarget ? (
+            {(inspectMode || (boardMode && boardTool === 'inspect')) && activeInspectTarget ? (
               <InspectPanel
                 target={activeInspectTarget}
                 onApply={(prop, value) => {
@@ -6932,7 +6922,13 @@ function HtmlViewer({
                 onSaveToSource={() => {
                   void saveInspectToSource();
                 }}
-                onClose={() => setActiveInspectTarget(null)}
+                onClose={() => {
+                  setActiveInspectTarget(null);
+                  if (boardMode && boardTool === 'inspect') {
+                    setActiveCommentTarget(null);
+                    setHoveredCommentTarget(null);
+                  }
+                }}
                 saving={savingInspect}
                 savedAt={inspectSavedAt}
                 error={inspectError}

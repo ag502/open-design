@@ -586,6 +586,9 @@ export function ProjectView({
   const [instructionsMode, setInstructionsMode] = useState<'closed' | 'review' | 'edit'>('closed');
   const [instructionsDraft, setInstructionsDraft] = useState(project.customInstructions ?? '');
   const [instructionsSaving, setInstructionsSaving] = useState(false);
+  const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
+  const projectSettingsWrapRef = useRef<HTMLDivElement | null>(null);
+  const projectSettingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   // Keep the draft in sync with the server value while the editor is not
   // open (e.g. after an external update or project switch). If the saved
   // value disappears while the review panel is showing, collapse the
@@ -597,6 +600,28 @@ export function ProjectView({
       setInstructionsMode('closed');
     }
   }, [project.customInstructions, instructionsMode]);
+
+  useEffect(() => {
+    if (!projectSettingsOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!projectSettingsWrapRef.current) return;
+      if (!projectSettingsWrapRef.current.contains(e.target as Node)) {
+        setProjectSettingsOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setProjectSettingsOpen(false);
+        projectSettingsTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [projectSettingsOpen]);
   // PR #974 round 7 (mrcfps @ useDesignMdState.ts:131): counter that
   // bumps on file-changed SSE events, live_artifact* events, and the
   // chat streaming-completion edge so the staleness chip stays in sync
@@ -4082,6 +4107,9 @@ export function ProjectView({
   // pipeline; this hook only governs whether the web layer renders the
   // resulting SSE stream.
   const critiqueTheaterEnabled = useCritiqueTheaterEnabled();
+  const projectInstructions = (project.customInstructions ?? '').trim();
+  const hasProjectInstructions = projectInstructions.length > 0;
+  const projectInstructionsPreview = compactInlinePreview(projectInstructions);
 
   return (
     <div className="app">
@@ -4096,6 +4124,52 @@ export function ProjectView({
         fileActionsBefore={<HandoffButton projectId={project.id} />}
         actions={(
           <>
+            <div className="project-settings-menu" ref={projectSettingsWrapRef}>
+              <button
+                ref={projectSettingsTriggerRef}
+                type="button"
+                className="settings-icon-btn"
+                data-testid="project-settings-trigger"
+                title={t('settings.title')}
+                aria-label={t('settings.title')}
+                aria-haspopup="dialog"
+                aria-expanded={projectSettingsOpen}
+                onClick={() => setProjectSettingsOpen((open) => !open)}
+              >
+                <Icon name="settings" size={16} />
+              </button>
+              {projectSettingsOpen ? (
+                <div
+                  className="project-settings-popover"
+                  role="dialog"
+                  aria-label={t('settings.title')}
+                >
+                  <button
+                    type="button"
+                    className="project-settings-item"
+                    data-testid="project-settings-instructions"
+                    onClick={() => {
+                      setProjectSettingsOpen(false);
+                      setInstructionsDraft(project.customInstructions ?? '');
+                      setInstructionsMode(hasProjectInstructions ? 'review' : 'edit');
+                    }}
+                  >
+                    <span className="project-settings-item-icon" aria-hidden>
+                      <Icon name="sliders" size={14} />
+                    </span>
+                    <span className="project-settings-item-main">
+                      <span className="project-settings-item-label">{t('project.customInstructions')}</span>
+                      <span className="project-settings-item-meta">
+                        {hasProjectInstructions ? projectInstructionsPreview : t('project.customInstructionsPlaceholder')}
+                      </span>
+                    </span>
+                    <span className="project-settings-item-action">
+                      {t('common.edit')}
+                    </span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <AvatarMenu
               config={config}
               agents={agents}
@@ -4130,39 +4204,28 @@ export function ProjectView({
             >
               {project.name}
             </span>
-            <span className="meta" data-testid="project-meta">{projectMeta}</span>
+            {projectMeta !== t('project.metaFreeform') ? (
+              <span className="meta" data-testid="project-meta">{projectMeta}</span>
+            ) : null}
             <ProjectDesignSystemPicker
               designSystems={designSystems}
               selectedId={project.designSystemId ?? null}
               onChange={handleChangeDesignSystemId}
             />
-            {(project.customInstructions ?? '').trim() ? (
+            {hasProjectInstructions ? (
               <button
                 type="button"
                 className={`project-instructions-chip${instructionsMode !== 'closed' ? ' is-open' : ''}`}
                 data-testid="project-instructions-chip"
-                title={t('project.customInstructions')}
+                title={projectInstructions}
+                aria-label={t('project.customInstructions')}
                 aria-expanded={instructionsMode !== 'closed'}
                 onClick={() => setInstructionsMode((m) => (m === 'closed' ? 'review' : 'closed'))}
               >
-                <Icon name="file" size={11} />
-                <span>{t('project.customInstructions')}</span>
+                <Icon name="sliders" size={11} />
+                <span>&quot;{projectInstructionsPreview}&quot;</span>
               </button>
-            ) : (
-              <button
-                type="button"
-                className="project-instructions-toggle"
-                data-testid="project-instructions-add"
-                title={t('project.customInstructions')}
-                aria-expanded={instructionsMode !== 'closed'}
-                onClick={() => {
-                  setInstructionsDraft('');
-                  setInstructionsMode((m) => (m === 'closed' ? 'edit' : 'closed'));
-                }}
-              >
-                <Icon name="edit" size={13} />
-              </button>
-            )}
+            ) : null}
           </span>
         </div>
       </AppChromeHeader>
@@ -4536,6 +4599,10 @@ function isTerminalRunStatus(status: ChatMessage['runStatus']): boolean {
 
 function isActiveRunStatus(status: ChatMessage['runStatus']): boolean {
   return status === 'queued' || status === 'running';
+}
+
+function compactInlinePreview(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 export interface RetryTarget {

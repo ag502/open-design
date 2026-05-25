@@ -82,21 +82,12 @@ function openManualTools() {
   fireEvent.click(screen.getByRole('button', { name: 'Manual' }));
 }
 
-function openAgentTools() {
-  fireEvent.click(screen.getByRole('button', { name: 'More annotation tools' }));
-}
-
 function clickManualTool(testId: string) {
   openManualTools();
   fireEvent.click(screen.getByTestId(testId));
 }
 
 function clickAgentTool(testId: string) {
-  if (testId === 'board-mode-toggle') {
-    fireEvent.click(screen.getByTestId(testId));
-    return;
-  }
-  openAgentTools();
   fireEvent.click(screen.getByTestId(testId));
 }
 
@@ -497,10 +488,10 @@ describe('FileViewer SVG artifacts', () => {
       expect(activeFrame.getAttribute('data-od-render-mode')).toBe('srcdoc');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Code' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Code' }));
     expect(screen.queryByTestId('artifact-preview-frame')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Preview' }));
 
     const remountedFrame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
     const postMessageSpy = vi.spyOn(remountedFrame.contentWindow!, 'postMessage');
@@ -794,7 +785,7 @@ describe('FileViewer SVG artifacts', () => {
     openManualTools();
     expect(screen.getByTestId('palette-tweaks-toggle')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Code' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Code' }));
 
     await waitFor(() => {
       expect(container.querySelector('.deck-nav')).toBeNull();
@@ -1445,7 +1436,7 @@ describe('FileViewer tweaks toolbar', () => {
     });
   }
 
-  it('renders Comment as the primary element picker and keeps secondary annotation tools under More', () => {
+  it('renders Comment as the primary element picker and Sketch as a top-level annotation tool', () => {
     render(
       <FileViewer projectId="project-1" projectKind="prototype" file={htmlPreviewFile()}
         liveHtml='<html><body><main data-od-id="hero">Hero</main></body></html>'
@@ -1456,11 +1447,11 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.getByTestId('palette-tweaks-toggle')).toBeTruthy();
     expect(screen.getByTestId('inspect-mode-toggle')).toBeTruthy();
     expect(screen.getByTestId('board-mode-toggle')).toBeTruthy();
-    openAgentTools();
+    expect(screen.queryByRole('button', { name: 'More annotation tools' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Pick element' })).toBeNull();
-    expect(screen.getByRole('menuitem', { name: 'Region' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Region' })).toBeNull();
     expect(screen.getByTestId('draw-overlay-toggle')).toBeTruthy();
-    expect(screen.getByText('Sketch on screenshot')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sketch on screenshot' })).toBeTruthy();
     expect(screen.queryByPlaceholderText('Type anywhere to add a note')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Pods' })).toBeNull();
 
@@ -1820,9 +1811,8 @@ describe('FileViewer tweaks toolbar', () => {
       />,
     );
 
-    openAgentTools();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Region' }));
-    expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('false');
+    clickAgentTool('draw-overlay-toggle');
+    expect(screen.getByTestId('draw-overlay-toggle').getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(screen.getByTestId('comment-panel-toggle'));
 
@@ -1831,7 +1821,7 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('shows captured element style details while hovering before clicking', async () => {
+  it('shows an inspect style panel while hovering before clicking', async () => {
     render(
       <FileViewer
         projectId="project-1"
@@ -1864,11 +1854,10 @@ describe('FileViewer tweaks toolbar', () => {
       data: { ...target, type: 'od:comment-hover' },
     }));
 
-    const hover = await screen.findByTestId('annotation-hover-popover');
-    expect(hover.textContent).toContain('312x63');
-    expect(hover.textContent).toContain('#1A1916');
-    expect(hover.getAttribute('style')).toContain('214px');
-    expect(hover.getAttribute('style')).toContain('114px');
+    const panel = await screen.findByTestId('inspect-panel');
+    expect(panel.textContent).toContain('p');
+    expect((screen.getByTestId('inspect-color') as HTMLInputElement).value).toBe('#1a1916');
+    expect((screen.getByTestId('inspect-font-size') as HTMLInputElement).value).toBe('13.5');
     expect(screen.queryByTestId('comment-popover-input')).toBeNull();
 
     window.dispatchEvent(new MessageEvent('message', {
@@ -1882,6 +1871,7 @@ describe('FileViewer tweaks toolbar', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
     });
+    expect(screen.getByTestId('inspect-panel')).toBeTruthy();
   });
 
   it('closes an open saved-comment composer when that comment leaves the open state', async () => {

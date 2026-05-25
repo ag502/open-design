@@ -28,19 +28,12 @@ function openManualTools() {
   }
 }
 
-function openAgentTools() {
-  if (!screen.queryByRole('menu', { name: 'More annotation tools' })) {
-    fireEvent.click(screen.getByRole('button', { name: 'More annotation tools' }));
-  }
-}
-
 function clickManualTool(testId: string) {
   openManualTools();
   fireEvent.click(screen.getByTestId(testId));
 }
 
 function clickAgentTool(testId: string) {
-  openAgentTools();
   fireEvent.click(screen.getByTestId(testId));
 }
 
@@ -97,7 +90,6 @@ describe('FileViewer manual edit history regressions', () => {
     expect(savedSources[0]).toContain('rgb(239, 68, 68)');
     openManualTools();
     expect(screen.getByTestId('manual-edit-mode-toggle').getAttribute('aria-pressed')).toBe('true');
-    openAgentTools();
     expect(screen.getByTestId('draw-overlay-toggle').getAttribute('aria-pressed')).toBe('false');
 
     await act(async () => {
@@ -112,7 +104,6 @@ describe('FileViewer manual edit history regressions', () => {
       openManualTools();
       expect(screen.getByTestId('manual-edit-mode-toggle').getAttribute('aria-pressed')).toBe('false');
     });
-    openAgentTools();
     expect(screen.getByTestId('draw-overlay-toggle').getAttribute('aria-pressed')).toBe('true');
   });
 
