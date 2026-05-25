@@ -10,25 +10,46 @@ export interface TodoItem {
 
 export function parseTodoWriteInput(input: unknown): TodoItem[] {
   if (!input || typeof input !== 'object') return [];
-  const obj = input as { todos?: unknown };
-  if (!Array.isArray(obj.todos)) return [];
-  return obj.todos
+  const obj = input as { plan?: unknown; todos?: unknown };
+  const rawItems = Array.isArray(obj.todos)
+    ? obj.todos
+    : Array.isArray(obj.plan)
+      ? obj.plan
+      : [];
+  return rawItems
     .map((todo): TodoItem | null => {
       if (!todo || typeof todo !== 'object') return null;
       const record = todo as Record<string, unknown>;
-      const content = typeof record.content === 'string' ? record.content : '';
+      const content =
+        typeof record.content === 'string'
+          ? record.content
+          : typeof record.step === 'string'
+            ? record.step
+            : '';
       if (!content) return null;
-      const status =
-        record.status === 'completed' || record.status === 'in_progress' || record.status === 'stopped'
-          ? record.status
-          : 'pending';
+      const status = normalizeTodoStatus(record.status);
       return {
         content,
         status,
-        activeForm: typeof record.activeForm === 'string' ? record.activeForm : undefined,
+        activeForm:
+          typeof record.activeForm === 'string'
+            ? record.activeForm
+            : typeof record.active_form === 'string'
+              ? record.active_form
+              : undefined,
       };
     })
     .filter((todo): todo is TodoItem => todo !== null);
+}
+
+function normalizeTodoStatus(status: unknown): TodoStatus {
+  if (status === 'completed' || status === 'in_progress' || status === 'stopped') {
+    return status;
+  }
+  if (status === 'cancelled' || status === 'canceled' || status === 'failed') {
+    return 'stopped';
+  }
+  return 'pending';
 }
 
 export function latestTodosFromEvents(events: AgentEvent[] | undefined): TodoItem[] {
@@ -93,8 +114,13 @@ export function latestTodoWriteInputForPinnedCard<
   return null;
 }
 
-function isTodoWriteToolName(name: string): boolean {
-  return name === 'TodoWrite' || name === 'todowrite';
+export function isTodoWriteToolName(name: string): boolean {
+  return (
+    name === 'TodoWrite' ||
+    name === 'todowrite' ||
+    name === 'todo_write' ||
+    name === 'update_plan'
+  );
 }
 
 function hasTerminalRunEnded(
