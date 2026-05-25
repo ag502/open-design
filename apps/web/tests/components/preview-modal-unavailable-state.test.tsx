@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PreviewModal } from '../../src/components/PreviewModal';
 
@@ -19,6 +19,7 @@ const baseProps = {
 describe('PreviewModal unavailable state', () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it('renders the unavailable affordance for a non-html preview', () => {
@@ -72,7 +73,7 @@ describe('PreviewModal unavailable state', () => {
     expect(screen.getByText(/loading/i)).toBeTruthy();
   });
 
-  it('disables the Share menu when the active view is unavailable', () => {
+  it('disables the merged share menu when the active view is unavailable', () => {
     render(
       <PreviewModal
         {...baseProps}
@@ -89,11 +90,149 @@ describe('PreviewModal unavailable state', () => {
       />,
     );
 
-    // The Share menu trigger has no html to export, so it must be
-    // disabled — otherwise users would open the menu and find every
-    // export action no-ops.
+    // The preview has no html to export or share, so the merged trigger must
+    // stay disabled instead of opening a menu full of no-op actions.
     const share = screen.getByRole('button', { name: /share/i });
     expect((share as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('surfaces social sharing and file exports in one menu', () => {
+    render(
+      <PreviewModal
+        {...baseProps}
+        views={[
+          {
+            id: 'preview',
+            label: 'Preview',
+            html: '<!doctype html><p>Hello</p>',
+          },
+        ]}
+        shareTarget={{
+          title: 'Landing Template',
+          url: 'https://example.test/marketplace/landing',
+        }}
+        onView={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /share/i }));
+
+    const xShare = screen.getByRole('menuitem', { name: /X \/ Twitter/i });
+    const redditShare = screen.getByRole('menuitem', { name: /Reddit/i });
+    expect(xShare).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Reddit/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Facebook/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /LinkedIn/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Copy template link/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Export as PDF/i })).toBeTruthy();
+    expect(xShare.getAttribute('href')).toContain(
+      'https://twitter.com/intent/tweet?',
+    );
+    expect(redditShare.getAttribute('href')).toContain(
+      'https://www.reddit.com/submit?',
+    );
+    expect(redditShare.getAttribute('target')).toBeNull();
+    expect(xShare.getAttribute('href')).toContain(
+      'url=https%3A%2F%2Fexample.test%2Fmarketplace%2Flanding',
+    );
+    expect(new URL(xShare.getAttribute('href') ?? '').searchParams.get('text')).toBe(
+      'Open Design template: Landing Template',
+    );
+    expect(new URL(redditShare.getAttribute('href') ?? '').searchParams.get('title')).toBe(
+      'Open Design template: Landing Template',
+    );
+    expect(
+      new URL(
+        screen.getByRole('menuitem', { name: /Facebook/i }).getAttribute('href') ?? '',
+      ).searchParams.get('quote'),
+    ).toBe('Open Design template: Landing Template');
+  });
+
+  it('shows copied feedback when clipboard permissions require the fallback path', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('blocked'));
+    const execCommand = vi.fn((command: string) => command === 'copy');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    try {
+      render(
+        <PreviewModal
+          {...baseProps}
+          views={[
+            {
+              id: 'preview',
+              label: 'Preview',
+              html: '<!doctype html><p>Hello</p>',
+            },
+          ]}
+          shareTarget={{
+            title: 'Landing Template',
+            url: 'https://example.test/marketplace/landing',
+          }}
+          onView={() => {}}
+          onClose={() => {}}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /share/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /Copy template link/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('menuitem', { name: /Copied/i })).toBeTruthy();
+      });
+      expect(writeText).toHaveBeenCalledWith('https://example.test/marketplace/landing');
+      expect(execCommand).toHaveBeenCalledWith('copy');
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      Reflect.deleteProperty(document, 'execCommand');
+    }
+  });
+
+  it('copies a concise preset share caption with the product, template name, and link', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    try {
+      render(
+        <PreviewModal
+          {...baseProps}
+          views={[
+            {
+              id: 'preview',
+              label: 'Preview',
+              html: '<!doctype html><p>Hello</p>',
+            },
+          ]}
+          shareTarget={{
+            title: 'Landing Template',
+            url: 'https://example.test/marketplace/landing',
+          }}
+          onView={() => {}}
+          onClose={() => {}}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /share/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /Copy share text/i }));
+
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(
+          'Open Design template: Landing Template\nhttps://example.test/marketplace/landing',
+        );
+      });
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
   });
 
   it('does not call onView for an unavailable view (no fetch to retry)', () => {

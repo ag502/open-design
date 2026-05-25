@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
-// PluginShareMenu — share affordance contract.
+// PluginShareMenu — plugin actions affordance contract.
 //
-// Locks the share popover behaviour users expect from a "share
-// this plugin" button on a detail modal: copy install command /
-// plugin id / share link / markdown badge land on the clipboard,
-// and the popover surfaces source + homepage links when the
-// manifest carries them.
+// Locks the popover behaviour users expect from a plugin-specific
+// actions button on a detail modal: copy install command / plugin id /
+// README badge land on the clipboard, and the popover surfaces source +
+// homepage links when the manifest carries them.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
@@ -13,6 +12,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { InstalledPluginRecord } from '@open-design/contracts';
 
 import { PluginShareMenu } from '../../src/components/plugin-details/PluginShareMenu';
+import { I18nProvider, type Locale } from '../../src/i18n';
 
 interface MakeArgs {
   id: string;
@@ -82,17 +82,26 @@ describe('PluginShareMenu', () => {
     container.remove();
   });
 
-  function renderMenu(record: InstalledPluginRecord) {
+  function renderMenu(record: InstalledPluginRecord, locale?: Locale) {
     act(() => {
-      root.render(<PluginShareMenu record={record} />);
+      root.render(
+        locale ? (
+          <I18nProvider initial={locale}>
+            <PluginShareMenu record={record} />
+          </I18nProvider>
+        ) : (
+          <PluginShareMenu record={record} />
+        ),
+      );
     });
   }
 
-  function openPopover() {
+  function openPopover(expectedTriggerText = 'More') {
     const trigger = container.querySelector(
       '.plugin-share-trigger',
     ) as HTMLButtonElement;
     expect(trigger).toBeTruthy();
+    expect(trigger.textContent).toContain(expectedTriggerText);
     act(() => {
       trigger.click();
     });
@@ -139,12 +148,13 @@ describe('PluginShareMenu', () => {
     expect(writes).toContain('od plugin install github:owner/repo@main/sub');
   });
 
-  it('copies a fully qualified marketplace share link based on window.location.origin', async () => {
+  it('does not duplicate the template share link action', () => {
     renderMenu(make({ id: 'live-dashboard' }));
     openPopover();
-    clickItem('Copy share link');
-    await Promise.resolve();
-    expect(writes).toContain('https://example.test/marketplace/live-dashboard');
+    const labels = Array.from(
+      container.querySelectorAll('.plugin-share-item'),
+    ).map((item) => item.textContent ?? '');
+    expect(labels.some((label) => label.includes('Copy share link'))).toBe(false);
   });
 
   it('copies the bare plugin id for paste-into-yaml workflows', async () => {
@@ -153,6 +163,40 @@ describe('PluginShareMenu', () => {
     clickItem('Copy plugin ID');
     await Promise.resolve();
     expect(writes).toContain('agentic-ds');
+  });
+
+  it('copies a README badge that links back to the marketplace detail page', async () => {
+    renderMenu(make({ id: 'badge-plugin', title: 'Badge Plugin' }));
+    openPopover();
+    clickItem('Copy README badge');
+    await Promise.resolve();
+    expect(writes.some((value) => (
+      value.includes('Badge Plugin') &&
+      value.includes('https://example.test/marketplace/badge-plugin')
+    ))).toBe(true);
+  });
+
+  it('localizes the plugin action menu labels', () => {
+    renderMenu(
+      make({
+        id: 'zh-plugin',
+        sourceKind: 'github',
+        source: 'github:owner/repo',
+        homepage: 'https://example.test/plugin-home',
+      }),
+      'zh-CN',
+    );
+    openPopover('更多');
+    const labels = Array.from(
+      container.querySelectorAll('.plugin-share-item'),
+    ).map((item) => item.textContent ?? '');
+    expect(labels).toContain('复制安装命令');
+    expect(labels).toContain('复制插件 ID');
+    expect(labels).toContain('复制 README 徽章');
+    expect(labels).toContain('在 GitHub 打开源码');
+    expect(labels).toContain('打开项目主页');
+    expect(labels).toContain('在插件市场打开');
+    expect(labels.some((label) => label.includes('Copy install command'))).toBe(false);
   });
 
   it('exposes Open in marketplace as a navigable item even without external links', () => {
