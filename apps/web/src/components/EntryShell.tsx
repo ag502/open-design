@@ -896,6 +896,12 @@ function OnboardingView({
     };
   }, [amrAgent]);
 
+  useEffect(() => {
+    if (runtime === 'amr') return;
+    amrLoginPollCancelledRef.current = true;
+    setAmrLoginPending(false);
+  }, [runtime]);
+
   // Onboarding step exposure. Design-system intake used to live here
   // as step 3, but it is temporarily removed from first-run
   // onboarding and remains available from the app surfaces.
@@ -946,6 +952,7 @@ function OnboardingView({
   const onboardingStartedAtRef = useRef<number>(Date.now());
   const lifecycleReportedRef = useRef(false);
   function currentRuntimeType(): TrackingOnboardingRuntimeType {
+    if (runtime === 'amr') return 'amr_cloud';
     if (runtime === 'local') return 'local_cli';
     if (runtime === 'byok') return 'byok';
     return 'none';

@@ -64,10 +64,16 @@ function readConfigFile(): VelaConfigFileShape | null {
 
 export function readVelaLoginStatus(
   env: NodeJS.ProcessEnv = process.env,
+  configuredEnv: Record<string, string> = {},
 ): VelaLoginStatus {
   const profile = resolveAmrProfile(env);
   const configPath = velaConfigPath();
   const loginInFlight = isVelaLoginInFlight();
+  const configuredRuntimeKey = configuredEnv.VELA_RUNTIME_KEY?.trim() ?? '';
+  const configuredLinkUrl = configuredEnv.VELA_LINK_URL?.trim() ?? '';
+  if (configuredRuntimeKey && configuredLinkUrl) {
+    return { loggedIn: true, loginInFlight, profile, user: null, configPath };
+  }
   const file = readConfigFile();
   const stored = file?.profiles?.[profile];
   const runtimeKey = stored?.runtimeKey?.trim() ?? '';

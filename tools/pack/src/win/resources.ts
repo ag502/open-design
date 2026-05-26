@@ -10,7 +10,9 @@ import type { WinPaths, ResourceTreeCacheMetadata } from "./types.js";
 const RESOURCE_TREE_CACHE_SCHEMA_VERSION = 3;
 
 async function createResourceTreeCacheKey(config: ToolPackConfig): Promise<string> {
-  const velaCliBin = await resolveOptionalVelaCliBinary();
+  const velaCliBin = await resolveOptionalVelaCliBinary({
+    requireBundled: config.requireVelaCli,
+  });
   return hashJson({
     assetsCommunityPets: await hashPath(join(config.workspaceRoot, "assets", "community-pets")),
     assetsFrames: await hashPath(join(config.workspaceRoot, "assets", "frames")),
@@ -23,6 +25,7 @@ async function createResourceTreeCacheKey(config: ToolPackConfig): Promise<strin
     promptTemplates: await hashPath(join(config.workspaceRoot, "prompt-templates")),
     schemaVersion: RESOURCE_TREE_CACHE_SCHEMA_VERSION,
     skills: await hashPath(join(config.workspaceRoot, "skills")),
+    requireVelaCli: config.requireVelaCli,
     velaCliBin: velaCliBin ? await hashPath(velaCliBin) : null,
   });
 }
@@ -53,6 +56,7 @@ export async function prepareResourceTree(
       });
       await copyOptionalVelaCliBinary({
         platform: "win",
+        requireBundled: config.requireVelaCli,
         resourceRoot,
       });
       return { resourceName: "open-design" };

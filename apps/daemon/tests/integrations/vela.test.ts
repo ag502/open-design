@@ -91,6 +91,35 @@ describe('readVelaLoginStatus', () => {
     expect(status.configPath).toBe(velaConfigPath());
   });
 
+  it('treats configured AMR env credentials as logged in without a vela config file', () => {
+    const status = readVelaLoginStatus(
+      { OPEN_DESIGN_AMR_PROFILE: 'local' },
+      {
+        VELA_RUNTIME_KEY: 'rt-env-secret',
+        VELA_LINK_URL: 'https://openrouter.example/v1',
+      },
+    );
+    expect(status.loggedIn).toBe(true);
+    expect(status.user).toBeNull();
+    expect(status.profile).toBe('local');
+    expect(JSON.stringify(status)).not.toContain('rt-env-secret');
+  });
+
+  it('requires both env runtime key and link URL before reporting env-only login', () => {
+    expect(
+      readVelaLoginStatus(
+        { OPEN_DESIGN_AMR_PROFILE: 'local' },
+        { VELA_RUNTIME_KEY: 'rt-env-secret' },
+      ).loggedIn,
+    ).toBe(false);
+    expect(
+      readVelaLoginStatus(
+        { OPEN_DESIGN_AMR_PROFILE: 'local' },
+        { VELA_LINK_URL: 'https://openrouter.example/v1' },
+      ).loggedIn,
+    ).toBe(false);
+  });
+
   it('returns loggedIn=true with user info when the active profile has a runtimeKey', () => {
     writeConfig({
       profiles: {

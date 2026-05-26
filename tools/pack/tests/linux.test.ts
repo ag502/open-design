@@ -241,6 +241,18 @@ describe("buildDockerArgs", () => {
     expect(last).toMatch(/--portable/);
   });
 
+  it("forwards --require-vela-cli to the inner containerized build when strict packaging is requested", () => {
+    const args = buildDockerArgs({ ...makeConfig(), requireVelaCli: true }, { uid: 1000, gid: 1000 });
+    const last = args[args.length - 1];
+    expect(last).toMatch(/--require-vela-cli/);
+  });
+
+  it("omits --require-vela-cli from containerized builds by default", () => {
+    const args = buildDockerArgs(makeConfig(), { uid: 1000, gid: 1000 });
+    const last = args[args.length - 1];
+    expect(last).not.toMatch(/--require-vela-cli/);
+  });
+
   it("omits --portable when config.portable is false", () => {
     const args = buildDockerArgs(makeConfig(), { uid: 1000, gid: 1000 });
     const last = args[args.length - 1];

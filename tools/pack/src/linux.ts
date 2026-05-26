@@ -177,6 +177,9 @@ export function buildDockerArgs(
     `--namespace ${config.namespace}`,
     "--dir /tools-pack",
   ];
+  if (config.requireVelaCli) {
+    innerArgs.push("--require-vela-cli");
+  }
   if (config.portable) {
     innerArgs.push("--portable");
   }
@@ -437,6 +440,7 @@ async function copyResourceTree(config: ToolPackConfig, paths: LinuxPaths): Prom
   await chmod(join(paths.resourceRoot, "bin", "node"), 0o755);
   await copyOptionalVelaCliBinary({
     platform: "linux",
+    requireBundled: config.requireVelaCli,
     resourceRoot: paths.resourceRoot,
   });
 }

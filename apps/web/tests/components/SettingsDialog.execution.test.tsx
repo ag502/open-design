@@ -1296,7 +1296,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.getByRole('tab', { name: /BYOK.*API provider/i }).getAttribute('aria-selected')).toBe('true');
   });
 
-  it('does not render a Local CLI connection test for selected installed agents', () => {
+  it('renders a Local CLI connection test for selected installed agents', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === '/api/memory') {
@@ -1317,10 +1317,10 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*1 installed/i }));
 
     expect(screen.getByRole('button', { name: /Codex CLI/i })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Test' })).toBeTruthy();
   });
 
-  it('renders the AMR local agent without vela branding and without the Local CLI test action', async () => {
+  it('renders the AMR local agent without vela branding and with the Local CLI test action', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === '/api/memory') {
@@ -1356,7 +1356,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.queryByText(/vela/i)).toBeNull();
     expect(screen.queryByText(/Not signed in/i)).toBeNull();
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Test' })).toBeTruthy();
   });
 
   it('renders the signed-in AMR account state inside Settings without leaking vela branding', async () => {

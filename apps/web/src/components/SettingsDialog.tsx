@@ -11,6 +11,7 @@ import { useAnalytics } from '../analytics/provider';
 import {
   trackSettingsAppearanceClick,
   trackSettingsByokTestResult,
+  trackSettingsCliTestResult,
   trackSettingsByokFieldClick,
   trackSettingsByokProviderOptionClick,
   trackSettingsConnectorAuthResult,
@@ -73,7 +74,7 @@ import type {
   ProviderModelsResponse,
   SkillSummary,
 } from '../types';
-import { testApiProvider } from '../providers/connection-test';
+import { testAgent, testApiProvider } from '../providers/connection-test';
 import { fetchProviderModels } from '../providers/provider-models';
 import {
   fetchConnectors,
@@ -672,6 +673,24 @@ function apiModelOptionLabel(model: ProviderModelOption): string {
     : model.id;
 }
 
+function codexPathRepairState(
+  result: ConnectionTestResponse,
+): { detectedPath: string; canUseDetected: boolean } | null {
+  if (!result.ok) return null;
+  if (
+    result.usedExecutableSource !== 'fallback_invalid' &&
+    result.usedExecutableSource !== 'fallback_failed'
+  ) {
+    return null;
+  }
+  const detectedPath = result.detectedExecutablePath?.trim() || '';
+  if (!detectedPath) return null;
+  return {
+    detectedPath,
+    canUseDetected: true,
+  };
+}
+
 /**
  * Returns whether the modal's footer Save button should be enabled for the
  * currently active sidebar section.
@@ -831,6 +850,9 @@ export function SettingsDialog({
   const [agentRescanRunning, setAgentRescanRunning] = useState(false);
   const [agentRescanNotice, setAgentRescanNotice] =
     useState<RescanNotice | null>(null);
+  const [agentTestState, setAgentTestState] = useState<TestState>({
+    status: 'idle',
+  });
   const [providerTestState, setProviderTestState] = useState<TestState>({
     status: 'idle',
   });
@@ -862,9 +884,11 @@ export function SettingsDialog({
   const [providerModelsCache, setProviderModelsCache] = useState<
     Record<string, ProviderModelOption[]>
   >({});
+  const agentTestAbortRef = useRef<AbortController | null>(null);
   const providerTestAbortRef = useRef<AbortController | null>(null);
   const providerModelsAbortRef = useRef<AbortController | null>(null);
   const pendingAgentInstallRescanRef = useRef(false);
+  const agentTestRevisionRef = useRef(0);
   const providerTestRevisionRef = useRef(0);
   const providerModelsRevisionRef = useRef(0);
   const providerModelsFirstResetRef = useRef(true);
@@ -936,6 +960,21 @@ export function SettingsDialog({
       ?? selectedMemoryChatAgent?.models?.[0]?.id
       ?? null
     : null;
+  const agentChoiceForTest =
+    cfg.mode === 'daemon' && cfg.agentId
+      ? cfg.agentModels?.[cfg.agentId]
+      : null;
+  useEffect(() => {
+    agentTestRevisionRef.current += 1;
+    setAgentTestState((state) =>
+      state.status === 'running' ? state : { status: 'idle' },
+    );
+  }, [
+    cfg.agentId,
+    agentChoiceForTest?.model,
+    agentChoiceForTest?.reasoning,
+    cfg.agentCliEnv,
+  ]);
   // Rescan notices are list-level feedback for a one-shot action and
   // shouldn't linger in the content stream. After 6s, fade them out so
   // repeated Rescan clicks don't pile up; the next click resets the
@@ -980,6 +1019,7 @@ export function SettingsDialog({
   // unmount" warning if the dialog closes while a test is still running.
   useEffect(() => {
     return () => {
+      agentTestAbortRef.current?.abort();
       providerTestAbortRef.current?.abort();
       providerModelsAbortRef.current?.abort();
     };
@@ -1053,6 +1093,79 @@ export function SettingsDialog({
       window.removeEventListener('focus', handleReturnToSettings);
     };
   }, [agentRescanRunning, handleRefreshAgents]);
+
+  const handleTestAgent = async () => {
+    if (agentTestState.status === 'running') {
+      return;
+    }
+    const selected = agents.find((a) => a.id === cfg.agentId && a.available);
+    if (!selected) return;
+    const choice = cfg.agentModels?.[selected.id] ?? {};
+    const controller = new AbortController();
+    const revision = agentTestRevisionRef.current;
+    agentTestAbortRef.current = controller;
+    setAgentTestState({ status: 'running' });
+    const startedAt = performance.now();
+    const cliProviderId = agentIdToTracking(selected.id);
+    const clearIfStale = () => {
+      if (agentTestAbortRef.current === controller) {
+        setAgentTestState({ status: 'idle' });
+      }
+    };
+    try {
+      const result = await testAgent(
+        {
+          agentId: selected.id,
+          model: choice.model || undefined,
+          reasoning: choice.reasoning || undefined,
+          agentCliEnv: cfg.agentCliEnv ?? {},
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      if (agentTestRevisionRef.current !== revision) {
+        clearIfStale();
+        return;
+      }
+      setAgentTestState({ status: 'done', result });
+      trackSettingsCliTestResult(analytics.track, {
+        page_name: 'settings',
+        area: 'configure_execution_mode',
+        cli_provider_id: cliProviderId,
+        result: result.ok ? 'success' : 'failed',
+        ...(result.ok ? {} : { error_code: result.kind || 'UNKNOWN' }),
+        duration_ms: Math.round(performance.now() - startedAt),
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (agentTestRevisionRef.current !== revision) {
+        clearIfStale();
+        return;
+      }
+      setAgentTestState({
+        status: 'done',
+        result: {
+          ok: false,
+          kind: 'unknown',
+          latencyMs: 0,
+          model: choice.model || 'default',
+          detail: err instanceof Error ? err.message : 'Test request failed',
+        },
+      });
+      trackSettingsCliTestResult(analytics.track, {
+        page_name: 'settings',
+        area: 'configure_execution_mode',
+        cli_provider_id: cliProviderId,
+        result: 'failed',
+        error_code: err instanceof Error ? err.name : 'UNKNOWN',
+        duration_ms: Math.round(performance.now() - startedAt),
+      });
+    } finally {
+      if (agentTestAbortRef.current === controller) {
+        agentTestAbortRef.current = null;
+      }
+    }
+  };
 
   const handleTestProvider = async (
     options: { silentPreconditions?: boolean } = {},
@@ -1361,6 +1474,16 @@ export function SettingsDialog({
       default:
         return t('settings.testUnknown', { detail: result.detail ?? '' });
     }
+  };
+
+  const applyCodexDetectedPath = (detectedPath: string) => {
+    setCfg((c) => updateAgentCliEnvValue(c, 'codex', 'CODEX_BIN', detectedPath));
+    setAgentTestState({ status: 'idle' });
+  };
+
+  const clearCodexCustomPath = () => {
+    setCfg((c) => updateAgentCliEnvValue(c, 'codex', 'CODEX_BIN', ''));
+    setAgentTestState({ status: 'idle' });
   };
 
   const apiProtocol = cfg.apiProtocol ?? 'anthropic';
@@ -2225,13 +2348,15 @@ export function SettingsDialog({
                       <div className="agent-grid agent-grid-installed">
                         {installedAgents.map((a) => {
                           const active = cfg.agentId === a.id;
+                          const running =
+                            active && agentTestState.status === 'running';
                           const description = AGENT_SHORT_DESCRIPTIONS[a.id];
                           const agentName = displayAgentName(a);
                           const versionLabel = cleanAgentVersionLabel(
                             a.name,
                             a.version,
                           );
-                          return (
+                          const cardEl = (
                             <div
                               key={a.id}
                               className={
@@ -2299,8 +2424,122 @@ export function SettingsDialog({
                                   hideSignedOutStatus
                                 />
                               ) : null}
+                              {active ? (
+                                <button
+                                  type="button"
+                                  className={
+                                    'ghost icon-btn settings-test-btn agent-card-test-btn' +
+                                    (running ? ' loading' : '')
+                                  }
+                                  onClick={() => void handleTestAgent()}
+                                  disabled={running}
+                                  title={t('settings.testTitle')}
+                                >
+                                  {running ? (
+                                    <>
+                                      <Icon
+                                        name="spinner"
+                                        size={13}
+                                        className="icon-spin"
+                                      />
+                                      <span>{t('settings.test')}</span>
+                                    </>
+                                  ) : (
+                                    t('settings.test')
+                                  )}
+                                </button>
+                              ) : null}
                             </div>
                           );
+                          if (active && agentTestState.status !== 'idle') {
+                            const resultRow = (
+                              <div
+                                key={`${a.id}__test-result`}
+                                className="agent-test-result-row"
+                              >
+                                {agentTestState.status === 'running' ? (
+                                  <p
+                                    className="settings-test-status running"
+                                    role="status"
+                                    aria-live="polite"
+                                  >
+                                    {t('settings.testRunning')}
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p
+                                      className={
+                                        'settings-test-status ' +
+                                        testStatusVariant(agentTestState.result)
+                                      }
+                                      role={
+                                        agentTestState.result.ok
+                                          ? 'status'
+                                          : 'alert'
+                                      }
+                                    >
+                                      {renderTestMessage(
+                                        agentTestState.result,
+                                        'cli',
+                                      )}
+                                    </p>
+                                    {!agentTestState.result.ok ? (
+                                      <div className="settings-test-actions">
+                                        <div className="settings-test-actions-row">
+                                          <button
+                                            type="button"
+                                            className="ghost icon-btn settings-test-btn"
+                                            onClick={() => void handleTestAgent()}
+                                          >
+                                            <Icon name="reload" size={13} />
+                                            <span>{t('settings.testRetry')}</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                    {cfg.agentId === 'codex' && (() => {
+                                      const repair = codexPathRepairState(
+                                        agentTestState.result,
+                                      );
+                                      if (!repair) return null;
+                                      const codexStrings = codexPathStrings(locale);
+                                      return (
+                                        <div className="settings-test-actions">
+                                          <span className="settings-test-actions-hint">
+                                            {codexStrings.repairHint}
+                                          </span>
+                                          <div className="settings-test-actions-row">
+                                            {repair.canUseDetected ? (
+                                              <button
+                                                type="button"
+                                                className="settings-test-btn"
+                                                onClick={() =>
+                                                  applyCodexDetectedPath(
+                                                    repair.detectedPath,
+                                                  )
+                                                }
+                                              >
+                                                {codexStrings.useDetected}
+                                              </button>
+                                            ) : null}
+                                            <button
+                                              type="button"
+                                              className="ghost icon-btn settings-rescan-btn"
+                                              onClick={clearCodexCustomPath}
+                                            >
+                                              {codexStrings.clearCustom}
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </>
+                                )}
+                              </div>
+                            );
+                            return [cardEl, resultRow];
+                          }
+                          return [cardEl];
                         })}
                       </div>
                     ) : (

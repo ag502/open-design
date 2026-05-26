@@ -194,6 +194,34 @@ describe('EntryShell onboarding AMR Cloud runtime', () => {
     expect(screen.getByText('Connect')).toBeTruthy();
   });
 
+  it('clears AMR login pending when the user switches to another runtime', async () => {
+    const fetchMock = vi.fn(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/integrations/vela/status')) {
+        return jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' });
+      }
+      if (url.endsWith('/api/integrations/vela/login') && init?.method === 'POST') {
+        return jsonResponse({ pid: 123 }, 202);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    renderOnboarding();
+
+    const signIn = await screen.findByRole('button', { name: /Sign in to continue/i });
+    vi.useFakeTimers();
+    fireEvent.click(signIn);
+    await act(async () => {});
+    expect(screen.getByText('Signing in…')).toBeTruthy();
+    expect(signIn.hasAttribute('disabled')).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: /Local coding agent/i }));
+    await act(async () => {});
+
+    expect(screen.queryByText('Signing in…')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Continue$/i }).hasAttribute('disabled')).toBe(false);
+  });
+
   it('cancels AMR login and re-enables onboarding after the login timeout', async () => {
     let loginStarted = false;
     const fetchMock = vi.fn(async (input, init) => {

@@ -139,6 +139,35 @@ describe('GET /api/integrations/vela/status', () => {
     expect(body.configPath.startsWith(tmpHome)).toBe(true);
   });
 
+  it('reports Settings-configured AMR env credentials as logged in', async () => {
+    const dataDir = process.env.OD_DATA_DIR as string;
+    const previous = await readAppConfig(dataDir);
+    await writeAppConfig(dataDir, {
+      ...previous,
+      agentCliEnv: {
+        ...(previous.agentCliEnv ?? {}),
+        amr: {
+          ...((previous.agentCliEnv?.amr as Record<string, string>) ?? {}),
+          VELA_BIN: FAKE_VELA,
+          VELA_RUNTIME_KEY: 'rt-env-secret',
+          VELA_LINK_URL: 'https://openrouter.example/v1',
+        },
+      },
+    });
+    try {
+      const { status, body } = await getJson<{
+        loggedIn: boolean;
+        user: { email?: string } | null;
+      }>(`${baseUrl}/api/integrations/vela/status`);
+      expect(status).toBe(200);
+      expect(body.loggedIn).toBe(true);
+      expect(body.user).toBeNull();
+      expect(JSON.stringify(body)).not.toContain('rt-env-secret');
+    } finally {
+      await writeAppConfig(dataDir, previous);
+    }
+  });
+
   it('reports loggedIn=true with the surfaced user fields when the active profile has a runtimeKey', async () => {
     seedLogin('local', {
       user: {

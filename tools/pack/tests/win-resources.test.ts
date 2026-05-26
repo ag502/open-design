@@ -129,4 +129,29 @@ describe("prepareResourceTree", () => {
       await rm(root, { force: true, recursive: true });
     }
   });
+
+  it("fails strict Windows resource preparation when configured Vela CLI is missing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-win-vela-strict-"));
+    const workspaceRoot = join(root, "workspace");
+    const resourceRoot = join(root, "materialized", "open-design");
+    const cache = new ToolPackCache(join(root, "cache"));
+    const config = {
+      workspaceRoot,
+      requireVelaCli: true,
+    } as ToolPackConfig;
+    const paths = { resourceRoot } as WinPaths;
+    const originalVelaBin = process.env.OPEN_DESIGN_VELA_CLI_BIN;
+
+    try {
+      await createWorkspaceFixture(workspaceRoot);
+      process.env.OPEN_DESIGN_VELA_CLI_BIN = join(root, "missing", "vela.exe");
+      await expect(
+        prepareResourceTree(config, paths, cache, { materialize: true }),
+      ).rejects.toThrow();
+    } finally {
+      if (originalVelaBin == null) delete process.env.OPEN_DESIGN_VELA_CLI_BIN;
+      else process.env.OPEN_DESIGN_VELA_CLI_BIN = originalVelaBin;
+      await rm(root, { force: true, recursive: true });
+    }
+  });
 });

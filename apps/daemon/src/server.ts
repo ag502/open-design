@@ -5594,9 +5594,11 @@ export async function startServer({
   // The vela CLI owns the device-authorization UX (URL + code + browser open);
   // these routes only surface enough state for Open Design's Settings card to
   // show login status and trigger a login from a button.
-  app.get('/api/integrations/vela/status', (_req, res) => {
+  app.get('/api/integrations/vela/status', async (_req, res) => {
     try {
-      res.json(readVelaLoginStatus());
+      const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
+      const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
+      res.json(readVelaLoginStatus(process.env, configuredEnv));
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
