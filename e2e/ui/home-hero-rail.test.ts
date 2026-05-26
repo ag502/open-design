@@ -117,6 +117,58 @@ const HOME_PLUGINS = [
     },
   },
   {
+    id: 'od-media-generation',
+    title: 'Media generation',
+    version: '0.1.0',
+    trust: 'bundled',
+    sourceKind: 'bundled',
+    source: '/tmp/media-generation',
+    fsPath: '/tmp/media-generation',
+    capabilitiesGranted: ['prompt:inject'],
+    installedAt: 0,
+    updatedAt: 0,
+    manifest: {
+      name: 'od-media-generation',
+      title: 'Media generation',
+      version: '0.1.0',
+      description: 'Create image, video, and audio assets.',
+      od: {
+        kind: 'scenario',
+        taskKind: 'new-generation',
+        useCase: {
+          query: 'Create media.',
+        },
+        inputs: [],
+      },
+    },
+  },
+  {
+    id: 'example-hyperframes',
+    title: 'HyperFrames',
+    version: '0.1.0',
+    trust: 'bundled',
+    sourceKind: 'bundled',
+    source: '/tmp/example-hyperframes',
+    fsPath: '/tmp/example-hyperframes',
+    capabilitiesGranted: ['prompt:inject'],
+    installedAt: 0,
+    updatedAt: 0,
+    manifest: {
+      name: 'example-hyperframes',
+      title: 'HyperFrames',
+      version: '0.1.0',
+      description: 'Create HyperFrames motion content.',
+      od: {
+        kind: 'scenario',
+        taskKind: 'new-generation',
+        useCase: {
+          query: 'Create hyperframes media.',
+        },
+        inputs: [],
+      },
+    },
+  },
+  {
     id: 'image-template-notion-team-dashboard-live-artifact',
     title: 'Notion live artifact',
     version: '0.1.0',
@@ -176,6 +228,39 @@ const APPLY_RESPONSES: Record<string, unknown> = {
   },
 };
 
+const PROMPT_TEMPLATES = [
+  {
+    id: 'image-product',
+    surface: 'image',
+    title: 'Image product concept',
+    summary: 'A polished product image prompt.',
+    category: 'product',
+    model: 'gpt-image-2',
+    aspect: '16:9',
+    source: { repo: 'open-design/image-prompts', license: 'MIT' },
+  },
+  {
+    id: 'video-reveal',
+    surface: 'video',
+    title: 'Video reveal',
+    summary: 'A short reveal video prompt.',
+    category: 'product',
+    model: 'doubao-seedance-2-0-260128',
+    aspect: '16:9',
+    source: { repo: 'open-design/video-prompts', license: 'MIT' },
+  },
+  {
+    id: 'hyperframes-caption',
+    surface: 'video',
+    title: 'HyperFrames captions',
+    summary: 'A caption-led HyperFrames prompt.',
+    category: 'motion',
+    model: 'hyperframes-html',
+    aspect: '16:9',
+    source: { repo: 'heygen-com/hyperframes', license: 'MIT' },
+  },
+];
+
 async function waitForLoadingToClear(page: Page) {
   await expect(page.getByText('Loading Open Design…')).toHaveCount(0, { timeout: 15_000 });
 }
@@ -200,7 +285,11 @@ async function gotoEntryHome(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await seedBrowserConfig(page, HOME_CONFIG);
+  await page.addInitScript(({ key, value }) => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }, { key: STORAGE_KEY, value: HOME_CONFIG });
 
   await page.route('https://api.github.com/repos/nexu-io/open-design', async (route) => {
     await route.fulfill({
@@ -255,6 +344,13 @@ test.beforeEach(async ({ page }) => {
     }
     await route.continue();
   });
+  await page.route('**/api/prompt-templates', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ promptTemplates: PROMPT_TEMPLATES }),
+    });
+  });
   await page.route('**/api/plugins', async (route) => {
     await route.fulfill({
       status: 200,
@@ -291,10 +387,10 @@ test('home hero rail shows the current creation chips and More shortcuts', async
   }
 });
 
-test('home hero rail switches modes and updates the footer options for media surfaces', async ({ page }) => {
+test('home hero rail switches non-media modes without surfacing media-only footer options', async ({ page }) => {
   await gotoEntryHome(page);
 
-  await expect(page.getByTestId('home-hero-active-type-chip')).toHaveCount(0);
+  await expect(page.getByTestId('home-hero-type-tabs')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-audioType')).toHaveCount(0);
 
@@ -314,18 +410,18 @@ test('home hero rail switches modes and updates the footer options for media sur
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-audioType')).toHaveCount(0);
   await clearActiveChip(page);
+});
+
+test('home hero rail exposes media footer options for image, video, hyperframes, and audio', async ({ page }) => {
+  await gotoEntryHome(page);
 
   await expectChipSelection(page, 'image', 'Image');
-  await expect(page.getByTestId('home-hero-footer-option-model')).toBeVisible();
-  await expect(page.getByTestId('home-hero-footer-option-designSystem')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-ratio')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-resolution')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
   await clearActiveChip(page);
 
   await expectChipSelection(page, 'video', 'Video');
-  await expect(page.getByTestId('home-hero-footer-option-model')).toBeVisible();
-  await expect(page.getByTestId('home-hero-footer-option-designSystem')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-ratio')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-resolution')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-duration')).toBeVisible();
@@ -334,24 +430,24 @@ test('home hero rail switches modes and updates the footer options for media sur
   await expectChipSelection(page, 'hyperframes', 'HyperFrames');
   await expect(page.getByTestId('home-hero-footer-option-ratio')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-duration')).toBeVisible();
-  await expect(page.getByTestId('home-hero-footer-option-model')).toHaveCount(0);
   await clearActiveChip(page);
 
   await expectChipSelection(page, 'audio', 'Audio');
   await expect(page.getByTestId('home-hero-footer-option-audioType')).toBeVisible();
-  await expect(page.getByTestId('home-hero-footer-option-model')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-duration')).toBeVisible();
 });
 
-test('home hero example presets update the composer input for supported modes', async ({ page }) => {
+test('home hero example presets update the composer input for prototype and live artifact', async ({ page }) => {
   await gotoEntryHome(page);
 
-  const input = page.getByTestId('chat-composer-input');
+  const input = page.getByTestId('home-hero-input');
   await expect(input).toHaveValue('');
 
   await page.getByTestId('home-hero-rail-prototype').click();
   await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
-  await page.getByTestId('home-hero-plugin-preset').first().click();
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="example-web-prototype"]')
+    .click();
   await expect(input).toHaveValue(
     'Build a high-fidelity web prototype for product evaluators using the active project design system from the bundled web prototype seed.',
   );
@@ -363,21 +459,122 @@ test('home hero example presets update the composer input for supported modes', 
     .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="image-template-notion-team-dashboard-live-artifact"]')
     .click();
   await expect(input).toHaveValue('Create a refreshable Notion dashboard live artifact.');
-
-  await clearActiveChip(page);
-  await page.getByTestId('home-hero-rail-deck').click();
-  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
-  await page.getByTestId('home-hero-plugin-preset').first().click();
-  await expect(input).toHaveValue('Draft a quarterly review deck.');
 });
 
-async function expectChipSelection(page: Page, chipId: string, label: string) {
-  await page.getByTestId(`home-hero-rail-${chipId}`).click();
-  const activeChip = page.getByTestId('home-hero-active-type-chip');
-  await expect(activeChip).toBeVisible();
-  await expect(activeChip).toHaveAttribute('data-chip-id', chipId);
-  await expect(activeChip).toContainText(label);
-  await expect(page.getByTestId('home-hero-type-tabs')).toHaveCount(0);
+test('home hero deck example preset updates the composer input', async ({ page }) => {
+  await gotoEntryHome(page);
+
+  const input = page.getByTestId('home-hero-input');
+  await expect(input).toHaveValue('');
+
+  await page.getByTestId('home-hero-rail-deck').click();
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="example-simple-deck"]')
+    .click();
+  await expect(input).toHaveValue(
+    'Create a pitch deck for decision makers about quarterly review with 10-15 pages. Speaker notes: include speaker notes. Use the active project design system.',
+  );
+});
+
+test('clearing the active hero chip restores the rail and clears preset chrome', async ({ page }) => {
+  await gotoEntryHome(page);
+
+  await page.getByTestId('home-hero-rail-prototype').click();
+  await expect(page.getByTestId('home-hero-active-type-chip')).toBeVisible();
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await expect(page.getByTestId('home-hero-footer-option-designSystem')).toBeVisible();
+
+  await clearActiveChip(page);
+
+  await expect(page.getByTestId('home-hero-plugin-presets')).toHaveCount(0);
+  await expect(page.getByTestId('home-hero-footer-option-designSystem')).toHaveCount(0);
+  await expect(page.getByTestId('home-hero-footer-option-ratio')).toHaveCount(0);
+  await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
+  await expect(page.getByTestId('home-hero-type-tabs')).toBeVisible();
+  await expect(page.getByTestId('home-hero-rail-live-artifact')).toBeVisible();
+});
+
+test('after clearing one mode, selecting another example updates the composer without leaking prior mode state', async ({ page }) => {
+  await gotoEntryHome(page);
+
+  const input = page.getByTestId('home-hero-input');
+
+  await page.getByTestId('home-hero-rail-prototype').click();
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="example-web-prototype"]')
+    .click();
+  await expect(input).toHaveValue(
+    'Build a high-fidelity web prototype for product evaluators using the active project design system from the bundled web prototype seed.',
+  );
+
+  await clearActiveChip(page);
+
+  await page.getByTestId('home-hero-rail-live-artifact').click();
+  await expect(page.getByTestId('home-hero-active-type-chip')).toBeVisible();
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await expect(page.getByTestId('home-hero-footer-option-designSystem')).toHaveCount(0);
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="image-template-notion-team-dashboard-live-artifact"]')
+    .click();
+  await expect(input).toHaveValue('Create a refreshable Notion dashboard live artifact.');
+});
+
+test('closing the selected example chip clears the example state while preserving the current mode chip', async ({ page }) => {
+  await gotoEntryHome(page);
+
+  const input = page.getByTestId('home-hero-input');
+
+  await page.getByTestId('home-hero-rail-live-artifact').click();
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="image-template-notion-team-dashboard-live-artifact"]')
+    .click();
+
+  const exampleChip = page.getByTestId('home-hero-active-example');
+  await expect(exampleChip).toBeVisible();
+  await expect(exampleChip).toContainText(/示例提示词|Example prompts/i);
+  await expect(input).toHaveValue('Create a refreshable Notion dashboard live artifact.');
+  await expect(page.getByTestId('home-hero-active-type-chip')).toContainText(/实时制品|Live artifact/i);
+
+  await exampleChip.getByRole('button', { name: /关闭|close/i }).click();
+
+  await expect(page.getByTestId('home-hero-active-example')).toHaveCount(0);
+  await expect(page.getByTestId('home-hero-active-type-chip')).toBeVisible();
+  await expect(page.getByTestId('home-hero-active-type-chip')).toContainText(/实时制品|Live artifact/i);
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await expect(input).toHaveValue('Create a refreshable Notion dashboard live artifact.');
+});
+
+test('after closing one example chip, selecting another example updates the composer input', async ({ page }) => {
+  await gotoEntryHome(page);
+
+  const input = page.getByTestId('home-hero-input');
+
+  await page.getByTestId('home-hero-rail-live-artifact').click();
+  await expect(page.getByTestId('home-hero-plugin-presets')).toBeVisible();
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="image-template-notion-team-dashboard-live-artifact"]')
+    .click();
+
+  const exampleChip = page.getByTestId('home-hero-active-example');
+  await expect(exampleChip).toBeVisible();
+  await exampleChip.getByRole('button', { name: /关闭|close/i }).click();
+  await expect(page.getByTestId('home-hero-active-example')).toHaveCount(0);
+
+  await page
+    .locator('[data-testid="home-hero-plugin-preset"][data-plugin-id="example-live-artifact"]')
+    .click();
+  await expect(page.getByTestId('home-hero-active-example')).toBeVisible();
+  await expect(input).toHaveValue('Create refreshable, auditable Open Design artifacts backed by connector or local data.');
+});
+
+async function expectChipSelection(page: Page, chipId: string, _label: string) {
+  const chip = page.getByTestId(`home-hero-rail-${chipId}`);
+  await expect(chip).toBeEnabled();
+  await chip.click();
+  await expect(page.getByTestId('home-hero-active-type-chip')).toBeVisible();
 }
 
 async function clearActiveChip(page: Page) {
