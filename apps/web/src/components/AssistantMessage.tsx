@@ -18,7 +18,10 @@ import {
   trackAssistantFeedbackReasonSubmitClick,
   trackAssistantFeedbackReasonView,
   trackFeedbackSubmitResult,
+  trackRunFailedToastSurfaceView,
+  trackRunFailedToastGoAmrClick,
 } from "../analytics/events";
+import { AMR_GUIDANCE_URL, isAmrGuidanceErrorCode } from "../runtime/amr-guidance";
 import {
   normalizeCustomReason,
   type TrackingFeedbackReasonCode,
@@ -184,6 +187,18 @@ export function AssistantMessage({
     ),
   );
   const fileOps = useMemo(() => deriveFileOps(events), [events]);
+  // Error code from the latest error status event, when it qualifies for the
+  // hosted-AMR nudge (non-AMR agent + model/auth/quota failure). Drives the
+  // <AmrGuidance> nudge rendered under the error pill.
+  const amrGuidanceErrorCode = useMemo(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const ev = events[i];
+      if (ev?.kind === "status" && ev.label === "error") {
+        return isAmrGuidanceErrorCode(ev.code, message.agentId) ? ev.code ?? null : null;
+      }
+    }
+    return null;
+  }, [events, message.agentId]);
   const produced = message.producedFiles ?? [];
   const displayedProduced = useMemo(
     () =>
@@ -382,6 +397,16 @@ export function AssistantMessage({
             return <StatusPill key={i} label={b.label} detail={b.detail} />;
           return null;
         })}
+        {amrGuidanceErrorCode ? (
+          <AmrGuidance
+            errorCode={amrGuidanceErrorCode}
+            projectId={projectId ?? ""}
+            projectKind={projectKind ?? null}
+            conversationId={conversationId ?? null}
+            assistantMessageId={message.id}
+            runId={message.runId ?? null}
+          />
+        ) : null}
         {!streaming && displayedProduced.length > 0 && projectId ? (
           <ProducedFiles
             files={displayedProduced}
@@ -1632,6 +1657,74 @@ function StatusPill({
     <div className="status-pill">
       <span className="status-label">{label}</span>
       {detail ? <span className="status-detail">{detail}</span> : null}
+    </div>
+  );
+}
+
+// Inline nudge rendered under a failed run's error pill for non-AMR agents
+// whose failure is a model/auth/quota error. Fires `surface_view` once on
+// mount and `ui_click` when the user follows the link to the hosted AMR
+// gateway. `useAnalytics()` returns a no-op stub outside the provider, so
+// this stays safe to render in isolated tests.
+function AmrGuidance({
+  errorCode,
+  projectId,
+  projectKind,
+  conversationId,
+  assistantMessageId,
+  runId,
+}: {
+  errorCode: string;
+  projectId: string;
+  projectKind: TrackingProjectKind | null;
+  conversationId: string | null;
+  assistantMessageId: string;
+  runId: string | null;
+}) {
+  const t = useT();
+  const analytics = useAnalytics();
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    trackRunFailedToastSurfaceView(analytics.track, {
+      page_name: "chat_panel",
+      area: "chat_panel",
+      element: "run_failed_toast",
+      error_code: errorCode,
+      project_id: projectId,
+      project_kind: projectKind,
+      conversation_id: conversationId,
+      assistant_message_id: assistantMessageId,
+      run_id: runId,
+    });
+  }, [
+    analytics.track,
+    errorCode,
+    projectId,
+    projectKind,
+    conversationId,
+    assistantMessageId,
+    runId,
+  ]);
+  return (
+    <div className="amr-guidance" data-testid="amr-guidance">
+      <span className="amr-guidance__text">{t("chat.amrErrorGuidance")}</span>
+      <a
+        className="amr-guidance__cta"
+        href={AMR_GUIDANCE_URL}
+        target="_blank"
+        rel="noreferrer noopener"
+        onClick={() =>
+          trackRunFailedToastGoAmrClick(analytics.track, {
+            page_name: "chat_panel",
+            area: "chat_panel",
+            element: "go_amr",
+          })
+        }
+      >
+        {t("chat.amrErrorGuidanceCta")}
+      </a>
     </div>
   );
 }

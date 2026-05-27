@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const de: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Ein Modelldienst ohne Einrichtung? Das offizielle AMR von Open Design führt deine Agenten über ein verwaltetes Gateway aus.",
+  'chat.amrErrorGuidanceCta': "Open Design AMR ausprobieren",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

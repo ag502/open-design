@@ -1,6 +1,9 @@
 import type { Dict } from '../types';
 
 export const en: Dict = {
+  'chat.amrErrorGuidance':
+    "Want a model service without the setup? Open Design's official AMR runs your agents on a managed gateway.",
+  'chat.amrErrorGuidanceCta': 'Try Open Design AMR',
   'common.cancel': 'Cancel',
   'common.save': 'Save',
   'common.close': 'Close',

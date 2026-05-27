@@ -3,6 +3,8 @@ import type { Dict } from '../types';
 
 export const tr: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Kurulum gerektirmeyen bir model hizmeti mi istiyorsunuz? Open Design'ın resmi AMR'si aracılarınızı yönetilen bir ağ geçidinde çalıştırır.",
+  'chat.amrErrorGuidanceCta': "Open Design AMR'yi deneyin",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

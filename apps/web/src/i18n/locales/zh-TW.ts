@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const zhTW: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "想要免設定的模型服務？Open Design 官方 AMR 在代管閘道上運行你的 agent。",
+  'chat.amrErrorGuidanceCta': "試試 Open Design AMR",
   'workingDirPicker.title': "目錄",
   'workingDirPicker.homeTitle': "選擇專案要放在哪個目錄下",
   'workingDirPicker.processing': "處理中…",

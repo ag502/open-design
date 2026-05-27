@@ -76,6 +76,46 @@ export function classifyAgentAuthFailure(
   return null;
 }
 
+// Model-service failure classes that map a CLI agent's raw error text to a
+// structured API error code. `classifyAgentAuthFailure` only covers the two
+// agents (cursor-agent, deepseek) that ship a tailored sign-in hint; every
+// other CLI agent (Claude Code, codex, …) used to collapse auth / quota /
+// upstream failures into the generic `AGENT_EXECUTION_FAILED`. This agent-
+// agnostic, text-based classifier recovers the specific class so the chat
+// shows an accurate reason — and so the hosted-AMR nudge can key off it.
+export type AgentServiceFailureCode =
+  | 'AGENT_AUTH_REQUIRED'
+  | 'RATE_LIMITED'
+  | 'UPSTREAM_UNAVAILABLE';
+
+// Authentication / authorization: a missing, invalid, or expired credential.
+const AGENT_AUTH_FAILURE_RE =
+  /(\b(401|unauthor(?:ized|ised)|authenticat(?:e|ed|ion)|invalid[ _-]?(?:api[ _-]?)?key|incorrect api key|x-api-key|not (?:authenticated|logged[ _-]?in)|please (?:sign|log)[ _-]?in|oauth token (?:has )?expired|session expired|credentials? (?:are )?(?:missing|invalid|required))\b|\/login\b)/i;
+
+// Quota / rate limit / billing balance — the wall the hosted gateway avoids.
+const AGENT_RATE_FAILURE_RE =
+  /\b(429|rate[ _-]?limit|too many requests|quota|insufficient[ _-]?(?:quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|usage limit|billing (?:hard )?limit)\b/i;
+
+// Upstream model/provider problems: overloaded, 5xx, temporarily unavailable.
+const AGENT_UPSTREAM_FAILURE_RE =
+  /\b(overloaded(?:_error)?|529|503|502|500|service (?:temporarily )?unavailable|bad gateway|internal server error|upstream (?:error|unavailable)|provider error|temporarily unavailable|model is currently overloaded)\b/i;
+
+// Returns the model-service failure class implied by an agent's combined
+// stdout/stderr/error text, or null when the text looks like an ordinary
+// process failure. Auth is checked before rate/upstream so a `401` is never
+// misread as a `5xx`. Pure text match — no agent-specific assumptions — so it
+// applies uniformly to any CLI agent.
+export function classifyAgentServiceFailure(
+  text: string,
+): AgentServiceFailureCode | null {
+  const value = String(text || '');
+  if (!value.trim()) return null;
+  if (AGENT_AUTH_FAILURE_RE.test(value)) return 'AGENT_AUTH_REQUIRED';
+  if (AGENT_RATE_FAILURE_RE.test(value)) return 'RATE_LIMITED';
+  if (AGENT_UPSTREAM_FAILURE_RE.test(value)) return 'UPSTREAM_UNAVAILABLE';
+  return null;
+}
+
 // Tail length matches the smoke-test sink so the diagnostics block
 // stays compact when it folds probe output back into its overrides.
 const PROBE_TAIL_BYTES = 400;

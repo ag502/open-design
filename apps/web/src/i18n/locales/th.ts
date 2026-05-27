@@ -3,6 +3,8 @@ import type { Dict } from '../types';
 
 export const th: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "ต้องการบริการโมเดลแบบไม่ต้องตั้งค่าใช่ไหม Open Design AMR อย่างเป็นทางการรันเอเจนต์ของคุณบนเกตเวย์แบบมีการจัดการ",
+  'chat.amrErrorGuidanceCta': "ลองใช้ Open Design AMR",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

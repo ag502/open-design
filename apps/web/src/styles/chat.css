@@ -342,6 +342,29 @@
   padding: 4px 10px;
 }
 
+/* Hosted-AMR nudge under a failed run's error pill. */
+.amr-guidance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.amr-guidance__cta {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.amr-guidance__cta:hover {
+  color: var(--accent-hover, var(--accent));
+  text-decoration: underline;
+}
+
 /* -------- Composer -------------------------------------------------- */
 .composer {
   border-top: 1px solid var(--border);

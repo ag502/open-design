@@ -1666,6 +1666,8 @@ export interface Dict {
   'project.instructionsActive': string;
   'project.resizeChatPanel': string;
   'chat.tabChat': string;
+  'chat.amrErrorGuidance': string;
+  'chat.amrErrorGuidanceCta': string;
   'chat.tabComments': string;
   'chat.commentsSoon': string;
   'chat.comments.attached': string;

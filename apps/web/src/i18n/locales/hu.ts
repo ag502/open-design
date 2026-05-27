@@ -3,6 +3,8 @@ import type { Dict } from '../types';
 
 export const hu: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Beállítás nélküli modellszolgáltatásra vágysz? Az Open Design hivatalos AMR-je felügyelt átjárón futtatja az ügynökeidet.",
+  'chat.amrErrorGuidanceCta': "Próbáld ki az Open Design AMR-t",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

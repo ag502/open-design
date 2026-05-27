@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const esES: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "¿Quieres un servicio de modelos sin configuración? El AMR oficial de Open Design ejecuta tus agentes en una pasarela gestionada.",
+  'chat.amrErrorGuidanceCta': "Prueba Open Design AMR",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

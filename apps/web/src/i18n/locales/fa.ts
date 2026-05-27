@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const fa: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "سرویس مدلی بدون پیکربندی می‌خواهید؟ AMR رسمی Open Design عامل‌های شما را روی یک دروازهٔ مدیریت‌شده اجرا می‌کند.",
+  'chat.amrErrorGuidanceCta': "Open Design AMR را امتحان کنید",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

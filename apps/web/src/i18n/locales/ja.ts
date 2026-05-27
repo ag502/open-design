@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const ja: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "設定不要のモデルサービスをお探しですか？Open Design 公式の AMR が、マネージドゲートウェイでエージェントを実行します。",
+  'chat.amrErrorGuidanceCta': "Open Design AMR を試す",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

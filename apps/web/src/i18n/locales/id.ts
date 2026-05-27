@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const id: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Ingin layanan model tanpa pengaturan? AMR resmi Open Design menjalankan agen Anda di gateway terkelola.",
+  'chat.amrErrorGuidanceCta': "Coba Open Design AMR",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

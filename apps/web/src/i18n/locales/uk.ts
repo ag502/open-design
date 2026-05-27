@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const uk: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Потрібен модельний сервіс без налаштування? Офіційний AMR від Open Design запускає ваших агентів через керований шлюз.",
+  'chat.amrErrorGuidanceCta': "Спробувати Open Design AMR",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

@@ -3,6 +3,8 @@ import { en } from './en';
 
 export const ptBR: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Quer um serviço de modelos sem configuração? O AMR oficial do Open Design executa seus agentes em um gateway gerenciado.",
+  'chat.amrErrorGuidanceCta': "Experimente o Open Design AMR",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

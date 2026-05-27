@@ -3,6 +3,8 @@ import type { Dict } from '../types';
 
 export const ko: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "설정 없이 쓰는 모델 서비스를 찾고 있나요? Open Design 공식 AMR이 관리형 게이트웨이에서 에이전트를 실행합니다.",
+  'chat.amrErrorGuidanceCta': "Open Design AMR 사용해 보기",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

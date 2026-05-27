@@ -198,7 +198,11 @@ import {
 import { narrowProjectCritiqueOverride } from './critique/spawn-inputs.js';
 import { createCopilotStreamHandler } from './copilot-stream.js';
 import { createJsonEventStreamHandler } from './json-event-stream.js';
-import { classifyAgentAuthFailure, cursorAuthGuidance } from './runtimes/auth.js';
+import {
+  classifyAgentAuthFailure,
+  classifyAgentServiceFailure,
+  cursorAuthGuidance,
+} from './runtimes/auth.js';
 import { createQoderStreamHandler } from './qoder-stream.js';
 import { subscribe as subscribeFileEvents } from './project-watchers.js';
 import { renderDesignSystemPreview } from './design-system-preview.js';
@@ -11224,21 +11228,31 @@ export async function startServer({
         if (agentStreamError) return;
         agentStreamError = String(ev.message || 'Agent stream error');
         clearInactivityWatchdog();
-        const authFailure = classifyAgentAuthFailure(
-          agentId,
-          [
-            agentStreamError,
-            typeof ev.raw === 'string' ? ev.raw : '',
-            agentStdoutTail,
-            agentStderrTail,
-          ].join('\n'),
-        );
+        const failureText = [
+          agentStreamError,
+          typeof ev.raw === 'string' ? ev.raw : '',
+          agentStdoutTail,
+          agentStderrTail,
+        ].join('\n');
+        const authFailure = classifyAgentAuthFailure(agentId, failureText);
         if (authFailure?.status === 'missing') {
           send('error', createSseErrorPayload(
             'AGENT_AUTH_REQUIRED',
             authFailure.message ?? cursorAuthGuidance(),
             { retryable: true },
           ));
+          return;
+        }
+        // Recover the specific model-service failure class (auth / quota /
+        // upstream) for agents without a tailored probe (Claude Code, codex,
+        // …), so the chat shows an accurate reason instead of the generic
+        // execution-failed bucket.
+        const serviceCode = classifyAgentServiceFailure(failureText);
+        if (serviceCode) {
+          send('error', createSseErrorPayload(serviceCode, agentStreamError, {
+            details: ev.raw ? { raw: ev.raw } : undefined,
+            retryable: true,
+          }));
           return;
         }
         send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', agentStreamError, {
@@ -11519,11 +11533,25 @@ export async function startServer({
           stdoutTail: agentStdoutTail,
           env: spawnedAgentEnv,
         });
+        // A non-zero exit whose output reads as an auth / quota / upstream
+        // problem (typical of Claude Code, codex, …) gets the specific code
+        // rather than the generic execution-failed bucket; the human-readable
+        // message still prefers the richer CLI diagnostic when we have one.
+        const serviceCode = classifyAgentServiceFailure(
+          `${agentStderrTail}\n${agentStdoutTail}`,
+        );
         if (diagnostic) {
           send('error', createSseErrorPayload(
-            'AGENT_EXECUTION_FAILED',
+            serviceCode ?? 'AGENT_EXECUTION_FAILED',
             diagnostic.message,
             { retryable: diagnostic.retryable, details: { detail: diagnostic.detail } },
+          ));
+        } else if (serviceCode) {
+          const detail = (agentStderrTail || agentStdoutTail || '').trim();
+          send('error', createSseErrorPayload(
+            serviceCode,
+            detail || 'The model service returned an error.',
+            { retryable: true },
           ));
         }
       }

@@ -3,6 +3,8 @@ import type { Dict } from '../types';
 
 export const pl: Dict = {
   ...en,
+  'chat.amrErrorGuidance': "Chcesz usługę modeli bez konfiguracji? Oficjalny AMR od Open Design uruchamia twoich agentów przez zarządzaną bramę.",
+  'chat.amrErrorGuidanceCta': "Wypróbuj Open Design AMR",
   'workingDirPicker.title': "Folder",
   'workingDirPicker.homeTitle': "Choose where this project should live",
   'workingDirPicker.processing': "Processing…",

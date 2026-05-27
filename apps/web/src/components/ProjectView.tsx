@@ -1670,12 +1670,15 @@ export function ProjectView({
     [updateMessageById, activeConversationId, project.id],
   );
 
+  // `code` is the structured API error code (e.g. AGENT_AUTH_REQUIRED); it
+  // rides along on the error status event so AssistantMessage can render the
+  // hosted-AMR nudge for model/auth/quota failures on non-AMR agents.
   const appendAssistantErrorEvent = useCallback(
-    (messageId: string, message: string) => {
+    (messageId: string, message: string, code?: string) => {
       if (!message) return;
       updateMessageById(
         messageId,
-        (prev) => appendErrorStatusEvent(prev, message),
+        (prev) => appendErrorStatusEvent(prev, message, code),
         true,
       );
     },
@@ -2072,11 +2075,12 @@ export function ProjectView({
             },
             onError: (err) => {
               const amrFailureText = amrAccountFailureText(err);
+              const errorCode = (err as Error & { code?: string }).code;
               textBuffer.flush();
               textBuffer.cancel();
               unregisterTextBuffer();
               setError(amrFailureText ?? err.message);
-              appendAssistantErrorEvent(message.id, amrFailureText ?? err.message);
+              appendAssistantErrorEvent(message.id, amrFailureText ?? err.message, errorCode);
               updateMessageById(
                 message.id,
                 (prev) => ({
@@ -2632,11 +2636,12 @@ export function ProjectView({
         onError: (err: Error) => {
           const endedAt = Date.now();
           const amrFailureText = amrAccountFailureText(err);
+          const errorCode = (err as Error & { code?: string }).code;
           textBuffer.flush();
           textBuffer.cancel();
           cancelSendTextBuffer();
           setError(amrFailureText ?? err.message);
-          appendAssistantErrorEvent(assistantId, amrFailureText ?? err.message);
+          appendAssistantErrorEvent(assistantId, amrFailureText ?? err.message, errorCode);
           updateAssistant((prev) => ({
             ...prev,
             endedAt,

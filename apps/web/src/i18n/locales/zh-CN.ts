@@ -1,6 +1,8 @@
 import type { Dict } from '../types';
 
 export const zhCN: Dict = {
+  'chat.amrErrorGuidance': '想要免配置的模型服务？Open Design 官方 AMR 在托管网关上运行你的 agent。',
+  'chat.amrErrorGuidanceCta': '试试 Open Design AMR',
   'common.cancel': '取消',
   'common.save': '保存',
   'common.close': '关闭',
