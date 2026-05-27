@@ -1034,7 +1034,6 @@ export const zhTW: Dict = {
   'preview.shareToLinkedIn': 'LinkedIn',
   'preview.shareToInstagram': 'Instagram',
   'preview.shareToXiaohongshu': '小红书',
-  'preview.shareToBilibili': 'Bilibili',
   'preview.copyTemplateLink': '複製範本連結',
   'preview.copyShareText': '複製分享文案',
   'preview.shareSocialGroup': '分享到社群',

@@ -731,7 +731,6 @@ export const de: Dict = {
   'preview.shareToLinkedIn': 'LinkedIn',
   'preview.shareToInstagram': 'Instagram',
   'preview.shareToXiaohongshu': '小红书',
-  'preview.shareToBilibili': 'Bilibili',
   'preview.copyTemplateLink': 'Copy template link',
   'preview.copyShareText': 'Copy share text',
   'preview.shareSocialGroup': 'Share to social',

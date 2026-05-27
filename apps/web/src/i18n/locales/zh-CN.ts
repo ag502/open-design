@@ -1420,7 +1420,6 @@ export const zhCN: Dict = {
   'preview.shareToLinkedIn': 'LinkedIn',
   'preview.shareToInstagram': 'Instagram',
   'preview.shareToXiaohongshu': '小红书',
-  'preview.shareToBilibili': 'Bilibili',
   'preview.copyTemplateLink': '复制模板链接',
   'preview.copyShareText': '复制分享文案',
   'preview.shareSocialGroup': '分享到社媒',

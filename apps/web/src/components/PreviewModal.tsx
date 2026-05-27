@@ -87,8 +87,7 @@ type SocialSharePlatform =
   | 'facebook'
   | 'linkedin'
   | 'instagram'
-  | 'xiaohongshu'
-  | 'bilibili';
+  | 'xiaohongshu';
 
 const SOCIAL_SHARE_PLATFORMS: Array<{
   platform: SocialSharePlatform;
@@ -98,8 +97,7 @@ const SOCIAL_SHARE_PLATFORMS: Array<{
     | 'preview.shareToFacebook'
     | 'preview.shareToLinkedIn'
     | 'preview.shareToInstagram'
-    | 'preview.shareToXiaohongshu'
-    | 'preview.shareToBilibili';
+    | 'preview.shareToXiaohongshu';
   mark: string;
   mode: 'intent' | 'copy-open';
   entryUrl?: string;
@@ -121,13 +119,6 @@ const SOCIAL_SHARE_PLATFORMS: Array<{
     mark: '小',
     mode: 'copy-open',
     entryUrl: 'https://www.xiaohongshu.com/',
-  },
-  {
-    platform: 'bilibili',
-    labelKey: 'preview.shareToBilibili',
-    mark: 'B',
-    mode: 'copy-open',
-    entryUrl: 'https://www.bilibili.com/',
   },
 ];
 
@@ -154,7 +145,6 @@ function buildSocialShareUrl(
       return `https://www.linkedin.com/sharing/share-offsite/?${params.toString()}`;
     case 'instagram':
     case 'xiaohongshu':
-    case 'bilibili':
       return null;
   }
   const exhaustive: never = platform;

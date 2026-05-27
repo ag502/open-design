@@ -1739,7 +1739,6 @@ export interface Dict {
   'preview.shareToLinkedIn': string;
   'preview.shareToInstagram': string;
   'preview.shareToXiaohongshu': string;
-  'preview.shareToBilibili': string;
   'preview.copyTemplateLink': string;
   'preview.copyShareText': string;
   'preview.shareSocialGroup': string;
