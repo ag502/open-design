@@ -1437,26 +1437,22 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.queryByRole('menuitem', { name: 'Pick element' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Region' })).toBeNull();
     expect(screen.getByTestId('draw-overlay-toggle')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Draw' })).toBeTruthy();
-    expect(screen.getByTestId('screenshot-capture-toggle')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Screenshot' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark' })).toBeTruthy();
+    expect(screen.queryByTestId('screenshot-capture-toggle')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Screenshot' })).toBeNull();
     expect(screen.queryByPlaceholderText('Add a note for this annotation')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Pods' })).toBeNull();
 
     fireEvent.click(screen.getByTestId('draw-overlay-toggle'));
     expect(screen.getByPlaceholderText('Add a note for this annotation')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Box select' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pen' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Click' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Redo' })).toBeTruthy();
 
     clickAgentTool('draw-overlay-toggle');
     expect(screen.queryByPlaceholderText('Add a note for this annotation')).toBeNull();
-
-    fireEvent.click(screen.getByTestId('screenshot-capture-toggle'));
-    expect(screen.queryByPlaceholderText('Add a note for this annotation')).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('Copying screenshot');
-    expect(screen.getByTestId('screenshot-capture-toggle').getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByTestId('draw-overlay-toggle').getAttribute('aria-pressed')).toBe('false');
   });
 
   it('keeps the Draw bar open after queueing an annotation', () => {
@@ -1626,7 +1622,7 @@ describe('FileViewer tweaks toolbar', () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      screen.getByTestId('screenshot-capture-toggle').compareDocumentPosition(commentsButton) &
+      screen.getByTestId('manual-edit-mode-toggle').compareDocumentPosition(commentsButton) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });

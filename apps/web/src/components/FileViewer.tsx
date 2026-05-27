@@ -63,8 +63,6 @@ import {
   exportReactComponentAsZip,
   openSandboxedPreviewInNewTab,
   requestPreviewSnapshot,
-  requestPreviewSnapshotResult,
-  type PreviewSnapshotResult,
 } from '../runtime/exports';
 import { buildReactComponentSrcdoc } from '../runtime/react-component';
 import { findHtmlEntriesReferencing } from '../runtime/jsx-module-refs';
@@ -543,51 +541,6 @@ function manualEditPreviewShellStyle(
     };
   }
   return previewScaleShellStyle(viewport, previewScale);
-}
-
-async function previewSnapshotDataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const response = await fetch(dataUrl);
-  return response.blob();
-}
-
-async function previewSnapshotBlobFromIframes(
-  iframes: Array<HTMLIFrameElement | null>,
-  t: (key: keyof Dict, vars?: Record<string, string | number>) => string,
-): Promise<{ blob: Blob; fallback?: PreviewSnapshotResult }> {
-  let fallback: PreviewSnapshotResult | undefined;
-  for (const iframe of iframes) {
-    if (!iframe) {
-      fallback ??= { ok: false, reason: 'loading' };
-      continue;
-    }
-    const result = await requestPreviewSnapshotResult(iframe);
-    if (result.ok) {
-      return { blob: await previewSnapshotDataUrlToBlob(result.snapshot.dataUrl), fallback };
-    }
-    fallback ??= result;
-  }
-  throw new Error(snapshotFailureMessage(fallback, t));
-}
-
-function snapshotFailureMessage(
-  result: PreviewSnapshotResult | undefined,
-  t: (key: keyof Dict, vars?: Record<string, string | number>) => string,
-): string {
-  if (!result) return t('fileViewer.screenshotCaptureFailed');
-  if (!result.ok && result.reason === 'loading') return t('fileViewer.screenshotPreviewLoading');
-  return t('fileViewer.screenshotCaptureFailed');
-}
-
-function clipboardFailureMessage(
-  err: unknown,
-  t: (key: keyof Dict, vars?: Record<string, string | number>) => string,
-): string {
-  const message = err instanceof Error ? err.message : String(err || '');
-  if (/clipboard|notallowed|permission|denied|write/i.test(message)) {
-    return t('fileViewer.screenshotClipboardDenied');
-  }
-  if (message === t('fileViewer.screenshotPreviewLoading')) return message;
-  return message || t('fileViewer.screenshotCaptureFailed');
 }
 
 function manualEditFloatingPanelStyle(
@@ -3945,9 +3898,6 @@ function HtmlViewer({
   const [inspectMode, setInspectMode] = useState(false);
   const [agentToolsOpen, setAgentToolsOpen] = useState(false);
   const [drawOverlayOpen, setDrawOverlayOpen] = useState(false);
-  const [drawOverlayIntent, setDrawOverlayIntent] = useState<'draw' | 'screenshot'>('draw');
-  const [screenshotCaptureActive, setScreenshotCaptureActive] = useState(false);
-  const [screenshotToast, setScreenshotToast] = useState<string | null>(null);
   // for hint managing hint box state
   const [openHintBox, setOpenHintBox] = useState(true);
   const [manualEditMode, setManualEditModeRaw] = useState(false);
@@ -4404,7 +4354,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     editMode: manualEditMode,
     urlModeBridge,
     inspectMode,
-    drawMode: drawOverlayOpen || screenshotCaptureActive,
+    drawMode: drawOverlayOpen,
     forceInline: forceInline || needsSandboxShim,
     needsFocusGuard,
   });
@@ -5859,7 +5809,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
 
   function activateDrawTool() {
     fireArtifactToolbarClick('draw');
-    const next = !(drawOverlayOpen && drawOverlayIntent === 'draw');
+    const next = !drawOverlayOpen;
     if (!next) {
       setDrawOverlayOpen(false);
       setAgentToolsOpen(false);
@@ -5871,7 +5821,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       setBoardMode(false);
       clearBoardComposer();
       setInspectMode(false);
-      setDrawOverlayIntent('draw');
       setMode('preview');
       setDrawOverlayOpen(true);
       closeArtifactToolMenus();
@@ -5883,55 +5832,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       return;
     }
     activateDraw();
-  }
-
-  function activateScreenshotTool() {
-    fireArtifactToolbarClick('draw');
-    const activateScreenshot = async () => {
-      setCommentPanelOpen(false);
-      setCommentCreateMode(false);
-      setBoardMode(false);
-      clearBoardComposer();
-      setInspectMode(false);
-      setDrawOverlayIntent('screenshot');
-      setMode('preview');
-      setScreenshotToast(t('fileViewer.screenshotCopying'));
-      setDrawOverlayOpen(false);
-      closeArtifactToolMenus();
-      setScreenshotCaptureActive(true);
-      try {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-        const srcDocIframe = srcDocPreviewIframeRef.current;
-        if (srcDocIframe) {
-          activateLoadedSrcDocTransport(srcDocIframe) || activateSrcDocTransport(srcDocIframe);
-        }
-        if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
-          setScreenshotToast(t('fileViewer.screenshotClipboardDenied'));
-          return;
-        }
-        const activeIframe = iframeRef.current;
-        const { blob } = await previewSnapshotBlobFromIframes([
-          srcDocIframe,
-          activeIframe === srcDocIframe ? null : activeIframe,
-        ], t);
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob }),
-        ]);
-        setScreenshotToast(t('fileViewer.screenshotCopied'));
-      } catch (err) {
-        console.warn('[screenshot] failed to copy preview snapshot:', err);
-        setScreenshotToast(clipboardFailureMessage(err, t));
-      } finally {
-        setScreenshotCaptureActive(false);
-      }
-    };
-    if (manualEditMode) {
-      void exitManualEditModeAfterFlush().then((ok) => {
-        if (ok) void activateScreenshot();
-      });
-      return;
-    }
-    void activateScreenshot();
   }
 
   function activateCommentTool() {
@@ -5949,7 +5849,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       setCommentCreateMode(false);
       clearBoardComposer();
       setInspectMode(false);
-      setDrawOverlayIntent('draw');
       setDrawOverlayOpen(false);
       setMode('preview');
       activateBoard('inspect');
@@ -5981,7 +5880,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       setCommentCreateMode(true);
       clearBoardComposer();
       setInspectMode(false);
-      setDrawOverlayIntent('draw');
       setDrawOverlayOpen(false);
       setMode('preview');
       activateBoard('inspect');
@@ -6005,7 +5903,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       setBoardMode(false);
       clearBoardComposer();
       setInspectMode(false);
-      setDrawOverlayIntent('draw');
       setDrawOverlayOpen(false);
       setMode('preview');
       setManualEditViewportWidth(previewBodyRef.current?.clientWidth ?? null);
@@ -6096,12 +5993,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       setSendingBoardBatch(false);
     }
   }
-
-  useEffect(() => {
-    if (!screenshotToast) return;
-    const id = window.setTimeout(() => setScreenshotToast(null), 2200);
-    return () => window.clearTimeout(id);
-  }, [screenshotToast]);
 
   const showPresent = source !== null;
   const canShare = source !== null;
@@ -6488,6 +6379,19 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 </button>
               </div>
               <button
+                className={`viewer-action viewer-action-icon${drawOverlayOpen ? ' active' : ''}`}
+                type="button"
+                data-testid="draw-overlay-toggle"
+                data-tooltip="Mark"
+                title="Mark"
+                aria-label="Mark"
+                aria-pressed={drawOverlayOpen}
+                onClick={activateDrawTool}
+              >
+                <RemixIcon name="mark-pen-line" size={15} />
+              </button>
+              <span className="viewer-toolbar-tool-divider" aria-hidden />
+              <button
                 className={`viewer-action viewer-action-icon${manualEditMode ? ' active' : ''}`}
                 type="button"
                 data-testid="manual-edit-mode-toggle"
@@ -6498,30 +6402,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 onClick={activateManualEditTool}
               >
                 <RemixIcon name="edit-line" size={15} />
-              </button>
-              <button
-                className={`viewer-action viewer-action-icon${drawOverlayOpen && drawOverlayIntent === 'draw' ? ' active' : ''}`}
-                type="button"
-                data-testid="draw-overlay-toggle"
-                data-tooltip="Draw"
-                title="Draw"
-                aria-label="Draw"
-                aria-pressed={drawOverlayOpen && drawOverlayIntent === 'draw'}
-                onClick={activateDrawTool}
-              >
-                <RemixIcon name="mark-pen-line" size={15} />
-              </button>
-              <button
-                className={`viewer-action viewer-action-icon${drawOverlayOpen && drawOverlayIntent === 'screenshot' ? ' active' : ''}`}
-                type="button"
-                data-testid="screenshot-capture-toggle"
-                data-tooltip="Screenshot"
-                title="Screenshot"
-                aria-label="Screenshot"
-                aria-pressed={drawOverlayOpen && drawOverlayIntent === 'screenshot'}
-                onClick={activateScreenshotTool}
-              >
-                <RemixIcon name="screenshot-2-line" size={15} />
               </button>
               <span className="viewer-toolbar-tool-divider" aria-hidden />
               <button
@@ -6888,7 +6768,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
               >
                 <PreviewDrawOverlay
                   active={drawOverlayOpen}
-                  captureViewport={drawOverlayIntent === 'screenshot'}
                   onActiveChange={setDrawOverlayOpen}
                   captureTarget={null}
                   filePath={file.name}
@@ -7022,21 +6901,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                   ttlMs={2200}
                   onDismiss={() => setTemplateSavedToast(null)}
                 />
-              </div>
-            ) : null}
-            {screenshotToast ? (
-              <div className="screenshot-toast-anchor">
-                <div className="screenshot-toast" role="status" aria-live="polite">
-                  <RemixIcon name="checkbox-circle-line" size={16} />
-                  <span>{screenshotToast}</span>
-                  <button
-                    type="button"
-                    aria-label={t('common.close')}
-                    onClick={() => setScreenshotToast(null)}
-                  >
-                    <RemixIcon name="close-line" size={16} />
-                  </button>
-                </div>
               </div>
             ) : null}
             {commentComposer}
