@@ -88,17 +88,31 @@ export type AgentServiceFailureCode =
   | 'RATE_LIMITED'
   | 'UPSTREAM_UNAVAILABLE';
 
+// A bare HTTP status number (`500`, `429`, …) is too noisy to trust on its own
+// — agent stderr is full of unrelated numbers (`line 500`, `read 502 bytes`,
+// `took 503ms`, `exit code 401`). Only treat a status number as a signal when
+// it carries explicit status context (`HTTP 500`, `status 429`, `code: 401`,
+// `server error 503`) so ordinary numeric output is not misread as a provider
+// outage / auth wall. Matches the phrasing requested in review on #3083.
+const STATUS_CTX = '(?:\\bhttp(?:[ /]?\\d(?:\\.\\d)?)?\\b|\\bstatus(?:[ _-]?code)?\\b|\\bcode\\b|\\b(?:server|http)[ _-]?error\\b)[\\s:=#-]*';
+
 // Authentication / authorization: a missing, invalid, or expired credential.
-const AGENT_AUTH_FAILURE_RE =
-  /(\b(401|unauthor(?:ized|ised)|authenticat(?:e|ed|ion)|invalid[ _-]?(?:api[ _-]?)?key|incorrect api key|x-api-key|not (?:authenticated|logged[ _-]?in)|please (?:sign|log)[ _-]?in|oauth token (?:has )?expired|session expired|credentials? (?:are )?(?:missing|invalid|required))\b|\/login\b)/i;
+const AGENT_AUTH_FAILURE_RE = new RegExp(
+  `(\\b(unauthor(?:ized|ised)|authenticat(?:e|ed|ion)|invalid[ _-]?(?:api[ _-]?)?key|incorrect api key|x-api-key|not (?:authenticated|logged[ _-]?in)|please (?:sign|log)[ _-]?in|oauth token (?:has )?expired|session expired|credentials? (?:are )?(?:missing|invalid|required))\\b|\\/login\\b|${STATUS_CTX}401\\b)`,
+  'i',
+);
 
 // Quota / rate limit / billing balance — the wall the hosted gateway avoids.
-const AGENT_RATE_FAILURE_RE =
-  /\b(429|rate[ _-]?limit|too many requests|quota|insufficient[ _-]?(?:quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|usage limit|billing (?:hard )?limit)\b/i;
+const AGENT_RATE_FAILURE_RE = new RegExp(
+  `(\\b(rate[ _-]?limit|too many requests|quota|insufficient[ _-]?(?:quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|usage limit|billing (?:hard )?limit)\\b|${STATUS_CTX}429\\b)`,
+  'i',
+);
 
 // Upstream model/provider problems: overloaded, 5xx, temporarily unavailable.
-const AGENT_UPSTREAM_FAILURE_RE =
-  /\b(overloaded(?:_error)?|529|503|502|500|service (?:temporarily )?unavailable|bad gateway|internal server error|upstream (?:error|unavailable)|provider error|temporarily unavailable|model is currently overloaded)\b/i;
+const AGENT_UPSTREAM_FAILURE_RE = new RegExp(
+  `(\\b(overloaded(?:_error)?|service (?:is )?(?:temporarily )?unavailable|bad gateway|gateway timeout|internal server error|upstream (?:error|unavailable)|provider (?:error|unavailable)|temporarily unavailable|model is currently overloaded|5xx)\\b|${STATUS_CTX}5\\d\\d\\b|\\b5\\d\\d\\s+(?:bad gateway|service unavailable|internal server error|gateway timeout))`,
+  'i',
+);
 
 // Returns the model-service failure class implied by an agent's combined
 // stdout/stderr/error text, or null when the text looks like an ordinary

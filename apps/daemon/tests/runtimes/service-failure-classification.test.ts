@@ -36,6 +36,22 @@ describe('classifyAgentServiceFailure', () => {
     }
   });
 
+  it('classifies a 5xx only with status context, not a bare number', () => {
+    for (const text of [
+      'HTTP 500 from provider',
+      'status 503',
+      'server error 502',
+      '502 Bad Gateway',
+    ]) {
+      expect(classifyAgentServiceFailure(text)).toBe('UPSTREAM_UNAVAILABLE');
+    }
+  });
+
+  it('requires status context for auth/rate numbers too', () => {
+    expect(classifyAgentServiceFailure('HTTP 401 Unauthorized')).toBe('AGENT_AUTH_REQUIRED');
+    expect(classifyAgentServiceFailure('status code 429')).toBe('RATE_LIMITED');
+  });
+
   it('checks auth before rate/upstream so a 401 is never misread', () => {
     expect(
       classifyAgentServiceFailure('401 unauthorized — also saw a 503 earlier'),
@@ -51,5 +67,16 @@ describe('classifyAgentServiceFailure', () => {
     expect(
       classifyAgentServiceFailure('TypeError: cannot read properties of undefined'),
     ).toBeNull();
+  });
+
+  it('does not misread unrelated numbers (line/size/duration) as a provider outage', () => {
+    for (const text of [
+      'Compiled 500 modules in 503ms; read 502 bytes at line 529',
+      'Build failed at line 500 (exit code 1)',
+      'Processed 4290 rows, 401 skipped, took 4290ms',
+      'wrote 502 files',
+    ]) {
+      expect(classifyAgentServiceFailure(text)).toBeNull();
+    }
   });
 });
