@@ -5733,16 +5733,6 @@ export async function startServer({
     res.json({ ok: true });
   });
 
-  app.get('/api/agents', async (_req, res) => {
-    try {
-      const config = await readAppConfig(RUNTIME_DATA_DIR);
-      const list = await detectAgents(config.agentCliEnv ?? {});
-      res.json({ agents: list });
-    } catch (err) {
-      res.status(500).json({ error: String(err) });
-    }
-  });
-
   // AMR (vela) login integration — see `apps/daemon/src/integrations/vela.ts`.
   // The vela CLI owns the device-authorization UX (URL + code + browser open);
   // these routes only surface enough state for Open Design's Settings card to
