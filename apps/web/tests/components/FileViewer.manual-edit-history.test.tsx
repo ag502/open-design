@@ -131,7 +131,7 @@ describe('FileViewer manual edit history regressions', () => {
     );
 
     clickManualTool('manual-edit-mode-toggle');
-    await waitFor(() => expect(panelState.props).not.toBeNull());
+    await hoverManualEditTarget();
 
     const editFrame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
     expect(editFrame.getAttribute('data-od-render-mode')).toBe('srcdoc');
