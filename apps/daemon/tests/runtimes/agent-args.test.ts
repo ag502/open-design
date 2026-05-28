@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import {
-  aider, assert, claude, codex, copilot, cursorAgent, deepseek, devin, detectAgents, gemini, join, kilo, kiro, mkdtempSync, opencode, pi, qoder, qwen, rmSync, spawnEnvForAgent, tmpdir, vibe, writeFileSync, chmodSync,
+  aider, antigravity, assert, claude, codex, copilot, cursorAgent, deepseek, devin, detectAgents, gemini, join, kilo, kiro, mkdtempSync, opencode, pi, qoder, qwen, rmSync, spawnEnvForAgent, tmpdir, vibe, writeFileSync, chmodSync,
 } from './helpers/test-helpers.js';
 import type { TestAgentDef } from './helpers/test-helpers.js';
 
@@ -448,6 +448,47 @@ test('qwen args check promptViaStdin, base args, model args and exclude `-` sent
 
   assert.deepEqual(withModel, ['--yolo', '--model', 'qwen3-coder-plus']);
   assert.equal(withModel.includes('-'), false);
+});
+
+// `agy` v1.0.3 takes the prompt as the value of `-p` (the flag is named
+// `--print` / `--prompt`, accepts a string, and rejects with `flag needs
+// an argument: -p` when omitted). There is no `--model` flag yet
+// (upstream issue #35), no stdin sentinel, and no JSON output mode
+// (issue #119) — the daemon ships antigravity as a `plain` runtime
+// until those land. Pin the argv shape so a future upstream redesign
+// (e.g. renaming `-p` back to a boolean, adding `--model`) surfaces
+// here and forces an explicit re-review of the integration.
+test('antigravity args put the prompt on argv as the value of -p', () => {
+  assert.equal(antigravity.bin, 'agy');
+  assert.equal(antigravity.streamFormat, 'plain');
+  assert.equal(antigravity.promptViaStdin, undefined);
+
+  const args = antigravity.buildArgs('write hello world', [], [], {});
+  assert.deepEqual(args, ['-p', 'write hello world']);
+
+  // No model flag — picking a model in the UI must not silently inject
+  // an unsupported `--model` arg that would fail with `flag provided
+  // but not defined`. Revisit when upstream ships issue #35.
+  const withModel = antigravity.buildArgs('hi', [], [], { model: 'gemini-3-pro' });
+  assert.equal(withModel.includes('--model'), false);
+  assert.deepEqual(withModel, ['-p', 'hi']);
+
+  // Prompt rides on argv (no `-` stdin sentinel), so a maxPromptArgBytes
+  // budget must exist so the spawn pipeline can fail fast on oversized
+  // composed prompts before hitting CreateProcess/E2BIG.
+  assert.ok(
+    typeof antigravity.maxPromptArgBytes === 'number'
+      && antigravity.maxPromptArgBytes > 0
+      && antigravity.maxPromptArgBytes < 32_768,
+    `antigravity must declare maxPromptArgBytes under Windows' ~32 KB CreateProcess limit; got ${antigravity.maxPromptArgBytes}`,
+  );
+
+  // Model picker must surface as "no real choice" until upstream wires
+  // `--model`. Only the synthetic default option ships.
+  assert.deepEqual(
+    antigravity.fallbackModels.map((m) => m.id),
+    ['default'],
+  );
 });
 
 test('kiro fetchModels falls back to fallbackModels when detection fails', async () => {
