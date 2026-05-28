@@ -11967,6 +11967,27 @@ export async function startServer({
         console.warn('[runs] mcp conversation fallback failed', err);
       }
     }
+    // MCP / SDK callers may omit agentId. Resolve it from the saved
+    // app-config agent (the user's configured default) or the first
+    // available CLI so the run does not immediately fail with
+    // "unknown agent: undefined" inside startChatRun.
+    if (typeof meta.agentId !== 'string' || !meta.agentId) {
+      try {
+        const appCfg = await readAppConfig(RUNTIME_DATA_DIR);
+        const cfgAgent = typeof appCfg.agentId === 'string' && appCfg.agentId
+          ? appCfg.agentId
+          : null;
+        if (cfgAgent) {
+          meta.agentId = cfgAgent;
+        } else {
+          const agents = await detectAgents(appCfg.agentCliEnv ?? {}).catch(() => []);
+          const firstAvailable = agents.find((a) => a.available)?.id ?? null;
+          if (firstAvailable) meta.agentId = firstAvailable;
+        }
+      } catch (err) {
+        console.warn('[runs] agent id fallback failed', err);
+      }
+    }
     const run = design.runs.create(meta);
     try {
       pinAssistantMessageOnRunCreate(db, run);

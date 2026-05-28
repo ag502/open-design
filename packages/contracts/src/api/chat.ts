@@ -109,6 +109,22 @@ export interface ChatRunCreateRequest extends ChatRequest {
   clientRequestId: string;
 }
 
+/**
+ * Minimal POST /api/runs shape accepted from MCP / SDK callers that do not
+ * manage conversation state client-side. Only `projectId` is required;
+ * `message` and `agentId` are optional — the daemon resolves `agentId` from
+ * the saved app-config when it is omitted.
+ */
+export interface McpRunCreateRequest {
+  projectId: string;
+  message?: string;
+  agentId?: string;
+  skillId?: string;
+  pluginId?: string;
+  model?: string;
+  pluginInputs?: Record<string, unknown>;
+}
+
 export type ChatRunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
 
 export type ChatMessageFeedbackRating = 'positive' | 'negative';

@@ -113,6 +113,34 @@ describe('public MCP discovery + generation tools', () => {
     expect(JSON.parse(firstText(result))).toMatchObject({ runId: 'run-55' });
   });
 
+  it('start_run omits agentId from POST body when agent arg is not provided', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/api/active')) {
+        return new Response(JSON.stringify({ active: true, projectId: 'proj-a', projectName: 'A', fileName: null }), { status: 200 });
+      }
+      if (url.endsWith('/api/mcp/install-info')) {
+        return new Response(JSON.stringify({ webBaseUrl: null }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ runId: 'run-no-agent' }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await handleMcpToolCall('http://127.0.0.1:17456', 'start_run', {
+      prompt: 'make a banner',
+      // agent intentionally omitted — daemon resolves from app-config or first available
+    });
+
+    const runsCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url).endsWith('/api/runs') && (init as RequestInit)?.method === 'POST',
+    );
+    const postBody = JSON.parse(String(runsCall?.[1]?.body));
+    // agentId must NOT be present in the MCP wrapper's POST body when omitted;
+    // the daemon handler resolves it from app-config / first available CLI.
+    expect(postBody).not.toHaveProperty('agentId');
+    expect(postBody).toMatchObject({ message: 'make a banner' });
+    expect(JSON.parse(firstText(result))).toMatchObject({ runId: 'run-no-agent' });
+  });
+
   it('start_run rejects non-object inputs before posting', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.endsWith('/api/projects')) {
