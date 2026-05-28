@@ -6,6 +6,7 @@ import { promises as dnsPromises } from 'node:dns';
 import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Socks5ProxyAgent } from 'undici';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as platform from '@open-design/platform';
 import {
@@ -1597,6 +1598,51 @@ describe('POST /api/test/connection provider mode', () => {
       expect(requestInit.dispatcher).toBeDefined();
       await expect(close()).resolves.toBeUndefined();
     } finally {
+      proxySpy.mockRestore();
+    }
+  });
+
+  it('forwards timeout options through SOCKS dispatches', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
+    const dispatchSpy = vi
+      .spyOn(Socks5ProxyAgent.prototype, 'dispatch')
+      .mockReturnValue(true as ReturnType<typeof Socks5ProxyAgent.prototype.dispatch>);
+
+    try {
+      const { close, requestInit } = proxyDispatcherRequestInit(
+        {
+          ALL_PROXY: 'socks5://system-socks:1080',
+        },
+        {
+          headersTimeout: 1234,
+          bodyTimeout: 5678,
+        },
+      );
+
+      const dispatcher = requestInit.dispatcher as unknown as {
+        dispatch(options: { origin: string; path: string; method: string }, handler: unknown): boolean;
+      };
+      expect(dispatcher).toBeDefined();
+      dispatcher.dispatch(
+        {
+          origin: 'https://api.openai.com',
+          path: '/v1/chat/completions',
+          method: 'POST',
+        },
+        {},
+      );
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          origin: 'https://api.openai.com',
+          path: '/v1/chat/completions',
+          headersTimeout: 1234,
+          bodyTimeout: 5678,
+        }),
+        expect.anything(),
+      );
+      await expect(close()).resolves.toBeUndefined();
+    } finally {
+      dispatchSpy.mockRestore();
       proxySpy.mockRestore();
     }
   });

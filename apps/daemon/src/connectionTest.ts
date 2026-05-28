@@ -22,7 +22,7 @@ import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Agent, EnvHttpProxyAgent, Socks5ProxyAgent } from 'undici';
-import type { Dispatcher } from 'undici';
+import type { Dispatcher, Pool } from 'undici';
 import {
   applyAgentLaunchEnv,
   getAgentDef,
@@ -288,18 +288,35 @@ function shouldBypassProxyForUrl(target: string | URL, noProxy: string | null): 
   return noProxy.split(/[\s,]+/).some((token) => noProxyTokenMatchesUrl(token, url));
 }
 
+function socksProxyAgentOptions(
+  options: Pool.Options,
+): ConstructorParameters<typeof Socks5ProxyAgent>[1] {
+  return {
+    ...(options.bodyTimeout === undefined ? {} : { bodyTimeout: options.bodyTimeout }),
+    ...(options.headersTimeout === undefined ? {} : { headersTimeout: options.headersTimeout }),
+  };
+}
+
 class NoProxyAwareSocksProxyAgent {
   private readonly directAgent: Agent;
 
   private readonly socksAgent: Socks5ProxyAgent;
 
+  private readonly socksDispatchTimeouts: Pick<Dispatcher.DispatchOptions, 'bodyTimeout' | 'headersTimeout'>;
+
   constructor(
     private readonly noProxy: string | null,
     socksProxy: string,
-    options: ConstructorParameters<typeof EnvHttpProxyAgent>[0],
+    options: Pool.Options,
   ) {
     this.directAgent = new Agent(options as ConstructorParameters<typeof Agent>[0]);
-    this.socksAgent = new Socks5ProxyAgent(socksProxy);
+    this.socksAgent = new Socks5ProxyAgent(socksProxy, socksProxyAgentOptions(options));
+    this.socksDispatchTimeouts = {
+      ...(options.bodyTimeout === undefined ? {} : { bodyTimeout: options.bodyTimeout }),
+      ...(options.headersTimeout === undefined
+        ? {}
+        : { headersTimeout: options.headersTimeout }),
+    };
   }
 
   dispatch(options: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandler): boolean {
@@ -312,7 +329,10 @@ class NoProxyAwareSocksProxyAgent {
       targetUrl && shouldBypassProxyForUrl(targetUrl, this.noProxy)
         ? this.directAgent
         : this.socksAgent;
-    return dispatcher.dispatch(options, handler);
+    return dispatcher.dispatch(
+      dispatcher === this.socksAgent ? { ...this.socksDispatchTimeouts, ...options } : options,
+      handler,
+    );
   }
 
   async close(): Promise<void> {
@@ -329,7 +349,7 @@ class NoProxyAwareSocksProxyAgent {
 
 function buildConnectionTestProxyDispatcher(
   env: NodeJS.ProcessEnv = process.env,
-  options: ConstructorParameters<typeof EnvHttpProxyAgent>[0] = {},
+  options: Pool.Options = {},
 ): EnvHttpProxyAgent | NoProxyAwareSocksProxyAgent | null {
   const proxyEnv = mergeProxyAwareEnv(
     process.platform,
@@ -378,7 +398,7 @@ function socksProxyUrl(proxyUrl: string | undefined): string | undefined {
 
 export function proxyDispatcherRequestInit(
   env: NodeJS.ProcessEnv = process.env,
-  options: ConstructorParameters<typeof EnvHttpProxyAgent>[0] = {},
+  options: Pool.Options = {},
 ): {
   close(): Promise<void>;
   requestInit: Pick<RequestInit, 'dispatcher'>;
