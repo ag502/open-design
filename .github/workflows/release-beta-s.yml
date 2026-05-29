@@ -26,12 +26,12 @@ on:
         default: ""
       update_metadata_url:
         description: "Optional external updater metadata URL for full Windows smoke."
-        required: true
+        required: false
         type: string
         default: ""
       update_target_version:
         description: "Optional external updater target version expected by full Windows smoke."
-        required: true
+        required: false
         type: string
         default: ""
       smoke_mode:

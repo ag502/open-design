@@ -895,7 +895,7 @@ async function runRealUpdateInstallerAcceptance(options: {
   if (entry == null) throw new Error(`expected one registry entry for ${installIdentity.displayName}`);
   expect(entry.keyPath).toContain(`Open Design-${installIdentity.namespaceToken}`);
   expect(entry.displayVersion).toBe(downloaded.update?.availableVersion);
-  await options.startDesktop('start after real public update install');
+      await options.startDesktop('start after real update install');
   await waitForHealthyDesktop();
   return {
     downloadedPath,
