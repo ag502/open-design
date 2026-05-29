@@ -1,3 +1,5 @@
+<h1 align="center">Open Design</h1>
+
 > [!IMPORTANT]
 > ### 🔥 Open Design 0.8.0 已发布
 >
