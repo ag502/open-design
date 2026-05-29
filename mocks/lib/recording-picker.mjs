@@ -1,13 +1,13 @@
 // Pick which recording to play back, driven by env vars.
 //
 // Priority order:
-//   1. SYNCLO_EXPLORE_MOCK_TRACE                → fixed trace id (or prefix)
-//   2. SYNCLO_EXPLORE_MOCK_BY_PROMPT_HASH=1     → hash(prompt) → trace
-//   3. SYNCLO_EXPLORE_MOCK_POOL=<tag>           → random within tag pool
+//   1. OD_MOCKS_TRACE                → fixed trace id (or prefix)
+//   2. OD_MOCKS_BY_PROMPT_HASH=1     → hash(prompt) → trace
+//   3. OD_MOCKS_POOL=<tag>           → random within tag pool
 //   4. (default)                                → random across all
 //
-// SYNCLO_EXPLORE_MOCK_SEED gives reproducible "random" selection.
-// SYNCLO_EXPLORE_MOCK_RECORDINGS_DIR overrides the default recordings dir
+// OD_MOCKS_SEED gives reproducible "random" selection.
+// OD_MOCKS_RECORDINGS_DIR overrides the default recordings dir
 // (defaults to ../recordings/ relative to this file).
 
 import { readdir, readFile, stat } from 'node:fs/promises';
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_RECORDINGS_DIR =
-  process.env.SYNCLO_EXPLORE_MOCK_RECORDINGS_DIR ||
+  process.env.OD_MOCKS_RECORDINGS_DIR ||
   join(HERE, '..', 'recordings');
 
 async function listRecordings(dir) {
@@ -54,20 +54,20 @@ export async function pickRecording({ prompt } = {}) {
   if (all.length === 0) return null;
 
   // 1. fixed
-  const fixed = process.env.SYNCLO_EXPLORE_MOCK_TRACE;
+  const fixed = process.env.OD_MOCKS_TRACE;
   if (fixed) {
     const hit = all.find(id => id === fixed) ?? all.find(id => id.startsWith(fixed));
     if (hit) return { traceId: hit, path: join(dir, `${hit}.jsonl`), method: 'fixed' };
   }
 
   // 2. prompt-hash
-  if (process.env.SYNCLO_EXPLORE_MOCK_BY_PROMPT_HASH === '1' && prompt) {
+  if (process.env.OD_MOCKS_BY_PROMPT_HASH === '1' && prompt) {
     const picked = pickRandom(all, prompt);
     if (picked) return { traceId: picked, path: join(dir, `${picked}.jsonl`), method: 'hash' };
   }
 
   // 3. pool by tag
-  const pool = process.env.SYNCLO_EXPLORE_MOCK_POOL;
+  const pool = process.env.OD_MOCKS_POOL;
   if (pool) {
     const candidates = [];
     for (const id of all) {
@@ -83,13 +83,13 @@ export async function pickRecording({ prompt } = {}) {
       }
     }
     if (candidates.length > 0) {
-      const picked = pickRandom(candidates, process.env.SYNCLO_EXPLORE_MOCK_SEED);
+      const picked = pickRandom(candidates, process.env.OD_MOCKS_SEED);
       if (picked) return { traceId: picked, path: join(dir, `${picked}.jsonl`), method: 'pool', pool };
     }
   }
 
   // 4. random
-  const picked = pickRandom(all, process.env.SYNCLO_EXPLORE_MOCK_SEED);
+  const picked = pickRandom(all, process.env.OD_MOCKS_SEED);
   if (!picked) return null;
   return { traceId: picked, path: join(dir, `${picked}.jsonl`), method: 'random' };
 }

@@ -10,7 +10,7 @@
  * the CLOUDFLARE_R2_MOCKS_AK / _SK repo secrets). R2_S3_ENDPOINT must
  * also be set. If you need to test the upload path locally, configure
  * those env vars yourself AND set
- * env SYNCLO_OD_MOCKS_I_KNOW_WHAT_IM_DOING=1 to bypass the safety gate.
+ * env OD_MOCKS_ALLOW_LOCAL_UPLOAD=1 to bypass the safety gate.
  *
  * Why not wrangler: wrangler 4.x calls /memberships before any R2
  * action, which requires user:read scope. R2 "Object Read & Write"
@@ -48,11 +48,11 @@ const CONCURRENCY = 4;
 
 function checkEnv() {
   const isCi = process.env.GITHUB_ACTIONS === 'true';
-  const hasOverride = process.env.SYNCLO_OD_MOCKS_I_KNOW_WHAT_IM_DOING === '1';
+  const hasOverride = process.env.OD_MOCKS_ALLOW_LOCAL_UPLOAD === '1';
   if (!isCi && !hasOverride) {
     console.error('✗ upload-to-r2.mjs is intended for the GitHub Action.');
     console.error('  To upload from your laptop you must explicitly opt-in:');
-    console.error('    SYNCLO_OD_MOCKS_I_KNOW_WHAT_IM_DOING=1 node mocks/scripts/upload-to-r2.mjs');
+    console.error('    OD_MOCKS_ALLOW_LOCAL_UPLOAD=1 node mocks/scripts/upload-to-r2.mjs');
     process.exit(2);
   }
   for (const k of ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'R2_S3_ENDPOINT']) {

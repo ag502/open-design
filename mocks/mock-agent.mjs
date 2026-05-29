@@ -37,13 +37,13 @@ function parseArgs(argv) {
     // Anything left is a positional — used by vela subcommand dispatch.
     opts.positionals.push(a);
   }
-  if (process.env.SYNCLO_EXPLORE_MOCK_NO_DELAY === '1') opts.noDelay = true;
+  if (process.env.OD_MOCKS_NO_DELAY === '1') opts.noDelay = true;
   // Fall through to REPORT_FILE env when --report-file wasn't supplied.
-  // Harnesses that spawn us (e.g. synclo-explore's orchestrator at
-  // nexu-io/agent-pr-explore) set REPORT_FILE as env but expect the
-  // agent to write there autonomously — real opencode/claude do via
-  // their Write tool, but the mock needs to project the recording's
-  // final assistant text to that path so the harness sees a report.
+  // Some harnesses (e.g. the agent-pr-explore orchestrator) set
+  // REPORT_FILE as env but expect the agent to write there
+  // autonomously — real opencode/claude do via their Write tool, but
+  // the mock needs to project the recording's final assistant text to
+  // that path so the harness sees a report.
   if (!opts.reportFile && process.env.REPORT_FILE) {
     opts.reportFile = process.env.REPORT_FILE;
   }
@@ -89,7 +89,7 @@ async function main() {
 
   // ACP agents read JSON-RPC messages off stdin one line at a time, so the
   // bulk-prompt buffering logic below doesn't apply — pickRecording sees no
-  // prompt for hash-mode (use SYNCLO_EXPLORE_MOCK_TRACE or _POOL instead).
+  // prompt for hash-mode (use OD_MOCKS_TRACE or _POOL instead).
   const ACP_AGENTS = new Set(['devin', 'hermes', 'kilo', 'kimi', 'kiro', 'vibe', 'vela']);
   const isAcp = ACP_AGENTS.has(opts.as);
   const prompt = isAcp ? '' : await readStdinIfPiped();
@@ -103,7 +103,7 @@ async function main() {
       '  bash mocks/scripts/fetch-recordings.sh             # all 179 (~30s, 4.5MB)\n' +
       '  bash mocks/scripts/fetch-recordings.sh --agent claude   # subset\n' +
       '\n' +
-      'Or set SYNCLO_EXPLORE_MOCK_RECORDINGS_DIR if you stashed them elsewhere.\n',
+      'Or set OD_MOCKS_RECORDINGS_DIR if you stashed them elsewhere.\n',
     );
     process.exit(3);
   }

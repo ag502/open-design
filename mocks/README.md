@@ -35,10 +35,10 @@ bash mocks/scripts/fetch-recordings.sh
 export PATH="$PWD/mocks/bin:$PATH"
 
 # Pick any recording to play back (8-char prefix OK):
-export SYNCLO_EXPLORE_MOCK_TRACE=04097377
+export OD_MOCKS_TRACE=04097377
 
 # Speed up replay (skip inter-event sleeps):
-export SYNCLO_EXPLORE_MOCK_NO_DELAY=1
+export OD_MOCKS_NO_DELAY=1
 
 # Now anything that spawns opencode/claude/codex gets the recording:
 echo "any prompt body" | opencode run
@@ -154,12 +154,12 @@ Driven by env vars, in priority order:
 
 | Env | Behavior |
 |---|---|
-| `SYNCLO_EXPLORE_MOCK_TRACE=<id>` | Always play this trace. 8-char prefix OK. |
-| `SYNCLO_EXPLORE_MOCK_BY_PROMPT_HASH=1` + stdin prompt | Deterministic by `sha256(prompt) % len(all)`. Same prompt → same trace. Useful for "stable answer per question" tests. |
-| `SYNCLO_EXPLORE_MOCK_POOL=<tag>` | Random within the tag pool. Examples: `agent:claude`, `skill:agent-browser`, `outcome:failed`. |
-| `SYNCLO_EXPLORE_MOCK_SEED=<str>` | Makes "random" picks reproducible across runs. |
-| `SYNCLO_EXPLORE_MOCK_NO_DELAY=1` | Skip inter-event waits. |
-| `SYNCLO_EXPLORE_MOCK_RECORDINGS_DIR=<path>` | Override the recordings dir. |
+| `OD_MOCKS_TRACE=<id>` | Always play this trace. 8-char prefix OK. |
+| `OD_MOCKS_BY_PROMPT_HASH=1` + stdin prompt | Deterministic by `sha256(prompt) % len(all)`. Same prompt → same trace. Useful for "stable answer per question" tests. |
+| `OD_MOCKS_POOL=<tag>` | Random within the tag pool. Examples: `agent:claude`, `skill:agent-browser`, `outcome:failed`. |
+| `OD_MOCKS_SEED=<str>` | Makes "random" picks reproducible across runs. |
+| `OD_MOCKS_NO_DELAY=1` | Skip inter-event waits. |
+| `OD_MOCKS_RECORDINGS_DIR=<path>` | Override the recordings dir. |
 
 If none are set, a uniformly random recording is played each invocation.
 
@@ -243,9 +243,8 @@ User-specific data has been scrubbed from every recording:
 
 The anonymizer is idempotent. Tool input/output payloads (HTML, code,
 etc.) are preserved verbatim — they're templated UI without cell-level
-PII; if a future audit finds otherwise, add specific scrubs in
-`apps/daemon/src/mocks/anonymize.ts` (in the synclo-explore source) and
-re-run.
+PII; if a future audit finds otherwise, add specific scrubs in the
+harvester repo (see "Adding more recordings" below) and re-run.
 
 ---
 
@@ -257,28 +256,17 @@ GitHub Action does. This means a stray `mocks/scripts/...` invocation
 can't corrupt prod data, and every new recording lands in a PR diff for
 review first.
 
-### Step 1 — produce the .jsonl from your raw trace
+### Step 1 — produce an anonymized .jsonl
 
-The exporter that produced the current 179-trace set lives in
-[nexu-io/agent-pr-explore](https://github.com/nexu-io/agent-pr-explore)
-under `cli/src/local/orchestrator/langfuse-import.ts`:
+The harvester that produced the current 179-trace set lives in a
+separate repo, [nexu-io/agent-pr-explore][harvester]. See its README
+for how to authenticate against your trace store, filter by skill /
+agent / outcome, and anonymize the result.
 
-```bash
-cd ~/Documents/agent-pr-explore
-export LANGFUSE_BASE_URL=https://us.cloud.langfuse.com
-export LANGFUSE_PUBLIC_KEY=pk-lf-...
-export LANGFUSE_SECRET_KEY=sk-lf-...
+The output is one `<trace-id>.jsonl` file per recording; copy that
+into a scratch dir of your choice, then continue with step 2.
 
-# Examples:
-synclo-explore local langfuse-import \
-  --tag skill:data-report --limit 30
-
-synclo-explore local langfuse-import \
-  --min-tool-calls 8 --min-turns-in-session 3 --limit 50
-
-# Anonymize + write to a temp dir:
-synclo-explore local recordings anonymize --out-dir /tmp/new-recordings
-```
+[harvester]: https://github.com/nexu-io/agent-pr-explore
 
 ### Step 2 — stage in this repo, open a PR
 
@@ -328,7 +316,7 @@ can't race on the manifest.
 
 If you absolutely need to push from your laptop (e.g. backfilling an old
 trace the Action somehow lost), set
-`SYNCLO_OD_MOCKS_I_KNOW_WHAT_IM_DOING=1` and run `upload-to-r2.mjs` with
+`OD_MOCKS_ALLOW_LOCAL_UPLOAD=1` and run `upload-to-r2.mjs` with
 your own wrangler login. Not recommended; consider opening a PR instead.
 
 ---
@@ -348,8 +336,8 @@ it('parses an opencode session with 4 tool calls into 4 UI events', async () => 
     env: {
       ...process.env,
       PATH: `${MOCK_BIN}:${process.env.PATH}`,
-      SYNCLO_EXPLORE_MOCK_TRACE: '06a9324a',   // 4-tool claude session
-      SYNCLO_EXPLORE_MOCK_NO_DELAY: '1',
+      OD_MOCKS_TRACE: '06a9324a',   // 4-tool claude session
+      OD_MOCKS_NO_DELAY: '1',
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -364,8 +352,8 @@ it('parses an opencode session with 4 tool calls into 4 UI events', async () => 
 ```bash
 # See what claude's 17-tool "delete v2" session emits to OD:
 export PATH=$(git rev-parse --show-toplevel)/mocks/bin:$PATH
-export SYNCLO_EXPLORE_MOCK_TRACE=04097377
-export SYNCLO_EXPLORE_MOCK_NO_DELAY=1
+export OD_MOCKS_TRACE=04097377
+export OD_MOCKS_NO_DELAY=1
 echo "anything" | claude -p --output-format=stream-json | jq .type | uniq -c
 ```
 
@@ -435,6 +423,6 @@ telemetry when they installed the desktop client. The anonymizer
 removed user-identifying paths and project UUIDs before checking in.
 
 If you find a recording that includes content that should be redacted,
-delete the file (`rm mocks/recordings/<id>.jsonl`) and regenerate the
-index (`jq` will skip missing entries; for a fresh index, rerun the
-exporter from synclo-explore).
+open a PR removing it from `mocks/recordings-staging/` (or, if already
+synced, file an issue — manifest regeneration after a delete needs to
+run against R2 manually and is not automated yet).
