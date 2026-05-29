@@ -114,11 +114,23 @@ export const antigravityAgentDef = {
         runtimeContext.antigravitySettingsPath,
       );
     }
-    const args: string[] = ['chat'];
+    // We invoke agy via `-p -` (print mode + stdin sentinel), NOT
+    // `chat -`. Verified against `agy --help` on v1.0.3 — the
+    // `Available subcommands` list is `changelog / help / install /
+    // plugin / update`, and `chat` is NOT among them. `-p` is the
+    // documented print-mode flag (`Short alias for --print`) and
+    // `agy -p -` reads the prompt from stdin. The looper reviewer
+    // bot's environment runs a different agy build that may have
+    // renamed the entry point; until upstream confirms a stable
+    // headless subcommand (see google-antigravity/antigravity-cli#119)
+    // and the change actually ships in the auto-update channel that
+    // packaged OD users get, `-p -` is the contract that actually
+    // produces a print-mode reply on the installed CLI.
+    const args: string[] = ['-p'];
     // Always opt into `--log-file` when the daemon supplied a path so
-    // it can post-exit grep for the actual upstream failure shape (auth
-    // missing vs quota reached vs upstream error) — without it the
-    // chat surfaces a generic "empty response" because print mode
+    // it can post-exit grep for the actual upstream failure shape
+    // (auth missing vs quota reached vs upstream error) — without it
+    // the chat surfaces a generic "empty response" because print mode
     // never echoes those errors on stdout. See server.ts empty-output
     // guard for the consumer.
     if (runtimeContext.agentLogFilePath) {
