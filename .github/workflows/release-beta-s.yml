@@ -106,7 +106,7 @@ jobs:
 
       - name: Probe published beta candidate public read
         if: ${{ inputs.publish }}
-        shell: pwsh
+        shell: powershell
         env:
           PUBLISHED_METADATA_URL: ${{ steps.publish.outputs.metadata_url }}
         run: |
