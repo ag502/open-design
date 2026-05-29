@@ -51,7 +51,7 @@ import type {
   SkillSummary,
 } from '../types';
 import { inlineMentionToken } from '../utils/inlineMentions';
-import { HomeHero } from './HomeHero';
+import { HomeHero, type ExamplePromptInfo } from './HomeHero';
 import { findChip, HOME_HERO_CHIPS, type HomeHeroChip } from './home-hero/chips';
 import {
   buildHomeMediaComposer,
@@ -240,11 +240,9 @@ export function HomeView({
   const [mcpLoading, setMcpLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
   const [promptEditedByUser, setPromptEditedByUser] = useState(false);
-  const [isUnmodifiedExample, setIsUnmodifiedExample] = useState(false);
-  const examplePromptTextRef = useRef<string | null>(null);
-  const handleExamplePromptStatusChange = useCallback((isExample: boolean) => {
-    setIsUnmodifiedExample(isExample);
-    if (!isExample) examplePromptTextRef.current = null;
+  const examplePromptInfoRef = useRef<ExamplePromptInfo | null>(null);
+  const handleExamplePromptStatusChange = useCallback((info: ExamplePromptInfo | null) => {
+    examplePromptInfoRef.current = info;
   }, []);
   const [error, setError] = useState<string | null>(null);
   const [designSystemLogoById, setDesignSystemLogoById] = useState<Record<string, string>>({});
@@ -878,7 +876,6 @@ export function HomeView({
     setError(null);
     setPrompt(promptText);
     setPromptEditedByUser(false);
-    examplePromptTextRef.current = promptText;
     focusPromptAtEnd();
   }
 
@@ -894,7 +891,7 @@ export function HomeView({
   function handlePromptChange(nextPrompt: string) {
     setPrompt(nextPrompt);
     setPromptEditedByUser(true);
-    examplePromptTextRef.current = null;
+    examplePromptInfoRef.current = null;
     if (!active?.queryTemplate) return;
     const extracted = extractPluginInputsFromPrompt(
       active.queryTemplate,
@@ -1279,9 +1276,13 @@ export function HomeView({
       contextMcpServers,
       contextConnectors,
       attachments: stagedFiles,
-      ...(isUnmodifiedExample || (examplePromptTextRef.current !== null && trimmed === examplePromptTextRef.current.trim())
-        ? { skipDiscoveryBrief: true }
-        : {}),
+      ...(() => {
+        if (!examplePromptInfoRef.current) return {};
+        const key = 'od:example-prompt-used';
+        if (localStorage.getItem(key)) return {};
+        localStorage.setItem(key, '1');
+        return { examplePromptContext: examplePromptInfoRef.current };
+      })(),
     });
   }
 
