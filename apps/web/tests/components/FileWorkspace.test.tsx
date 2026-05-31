@@ -864,11 +864,11 @@ describe('FileWorkspace add-module menu', () => {
 
     // The tab strip is a scroll container (overflow-x: auto turns it into one
     // that also clips vertically), so a menu nested inside it would be clipped
-    // out of view — the bug that made the + button look dead. The menu must be
+    // out of view. The + button belongs with the tabs, but the menu must be
     // portaled out of the clipping bar to stay visible.
     const tabsBar = document.querySelector('.ws-tabs-bar');
     expect(tabsBar).not.toBeNull();
-    expect(tabsBar!.contains(addButton)).toBe(false);
+    expect(tabsBar!.contains(addButton)).toBe(true);
     expect(tabsBar!.contains(menu)).toBe(false);
   });
 
@@ -914,5 +914,37 @@ describe('FileWorkspace add-module menu', () => {
     expect(browserPanels[0]!.className).not.toContain('active');
     expect(browserPanels[1]!.className).not.toContain('active');
     expect(browserPanels[2]!.className).toContain('active');
+  });
+
+  it('inserts a new browser tab after the active workspace tab', () => {
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[workspaceFile('analysis.html')]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: ['analysis.html'], active: 'analysis.html' }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    const addButton = screen.getByRole('button', { name: 'Add workspace module' });
+    act(() => {
+      fireEvent.click(addButton);
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: /Browser/ }));
+    });
+
+    const tabLabels = screen
+      .getAllByRole('tab')
+      .map((tab) => tab.textContent?.trim() ?? '');
+    const fileIndex = tabLabels.findIndex((label) => label.includes('analysis.html'));
+    const browserIndex = tabLabels.findIndex((label) => label === 'Browser');
+
+    expect(fileIndex).toBeGreaterThanOrEqual(0);
+    expect(browserIndex).toBe(fileIndex + 1);
   });
 });

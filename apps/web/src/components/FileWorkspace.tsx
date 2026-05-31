@@ -135,10 +135,14 @@ type TabDropEdge = 'before' | 'after';
 interface BrowserWorkspaceTab {
   iconUrl?: string;
   id: string;
+  insertAfter?: string | null;
   label: string;
   title?: string;
   url?: string;
 }
+type WorkspaceOrderedTab =
+  | { id: string; kind: 'browser'; browserTab: BrowserWorkspaceTab }
+  | { id: string; kind: 'file'; name: string };
 type DesignSystemReviewDecision =
   NonNullable<ProjectMetadata['designSystemReview']>[string]['decision'];
 type DesignSystemReviewEntry = NonNullable<ProjectMetadata['designSystemReview']>[string];
@@ -386,6 +390,7 @@ export function FileWorkspace({
     browserTabSequenceRef.current = nextIndex;
     const nextTab: BrowserWorkspaceTab = {
       id: `${BROWSER_TAB_PREFIX}${nextIndex}`,
+      insertAfter: activeTab,
       label: nextIndex === 1 ? 'Browser' : `Browser ${nextIndex}`,
     };
     setBrowserTabs((current) => [...current, nextTab]);
@@ -964,6 +969,11 @@ export function FileWorkspace({
     return [...persistedTabs, ...extras];
   }, [persistedTabs, sketches]);
 
+  const orderedWorkspaceTabs = useMemo(
+    () => orderWorkspaceTabs(tabNames, browserTabs),
+    [browserTabs, tabNames],
+  );
+
   useEffect(() => {
     const tabBar = tabsBarRef.current;
     if (!tabBar) return;
@@ -1062,26 +1072,28 @@ export function FileWorkspace({
             </span>
             <span className="ws-tab-label">{t('workspace.designFiles')}</span>
           </button>
-          {browserTabs.map((browserTab) => {
-            const browserUrl = browserTab.url?.trim() ?? '';
-            const browserTitle = browserUrl
-              ? browserTab.title?.trim() || labelFromUrl(browserUrl)
-              : browserTab.label;
-            const browserMeta = browserUrl ? formatBrowserTabUrl(browserUrl) : undefined;
-            return (
-              <Tab
-                key={browserTab.id}
-                label={browserTitle}
-                meta={browserMeta}
-                title={browserUrl ? `${browserTitle}\n${browserUrl}` : browserTitle}
-                active={activeTab === browserTab.id}
-                onActivate={() => setActiveTab(browserTab.id)}
-                onClose={() => closeBrowserTab(browserTab.id)}
-                kind="browser"
-              />
-            );
-          })}
-          {tabNames.map((name) => {
+          {orderedWorkspaceTabs.map((entry) => {
+            if (entry.kind === 'browser') {
+              const browserTab = entry.browserTab;
+              const browserUrl = browserTab.url?.trim() ?? '';
+              const browserTitle = browserUrl
+                ? browserTab.title?.trim() || labelFromUrl(browserUrl)
+                : browserTab.label;
+              const browserMeta = browserUrl ? formatBrowserTabUrl(browserUrl) : undefined;
+              return (
+                <Tab
+                  key={browserTab.id}
+                  label={browserTitle}
+                  meta={browserMeta}
+                  title={browserUrl ? `${browserTitle}\n${browserUrl}` : browserTitle}
+                  active={activeTab === browserTab.id}
+                  onActivate={() => setActiveTab(browserTab.id)}
+                  onClose={() => closeBrowserTab(browserTab.id)}
+                  kind="browser"
+                />
+              );
+            }
+            const name = entry.name;
             const sketchEntry = sketches[name];
             const dirtyMark =
               sketchEntry && (sketchEntry.dirty || !sketchEntry.persisted) ? ' •' : '';
@@ -2889,6 +2901,38 @@ function kindIconName(
 
 function isBrowserTabId(tabId: string): boolean {
   return tabId.startsWith(BROWSER_TAB_PREFIX);
+}
+
+function orderWorkspaceTabs(
+  fileTabNames: string[],
+  browserTabs: BrowserWorkspaceTab[],
+): WorkspaceOrderedTab[] {
+  const ordered: WorkspaceOrderedTab[] = fileTabNames.map((name) => ({
+    id: name,
+    kind: 'file',
+    name,
+  }));
+
+  for (const browserTab of browserTabs) {
+    const entry: WorkspaceOrderedTab = {
+      id: browserTab.id,
+      kind: 'browser',
+      browserTab,
+    };
+    const anchor = browserTab.insertAfter;
+    if (!anchor || anchor === DESIGN_FILES_TAB || anchor === DESIGN_SYSTEM_TAB) {
+      ordered.unshift(entry);
+      continue;
+    }
+    const anchorIndex = ordered.findIndex((candidate) => candidate.id === anchor);
+    if (anchorIndex === -1) {
+      ordered.push(entry);
+      continue;
+    }
+    ordered.splice(anchorIndex + 1, 0, entry);
+  }
+
+  return ordered;
 }
 
 function isSketchName(name: string): boolean {

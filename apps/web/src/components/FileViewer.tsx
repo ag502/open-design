@@ -363,6 +363,22 @@ function deployResultState(status?: string): 'ready' | 'delayed' | 'protected' |
   return 'ready';
 }
 
+function publicShareUrlForDeployment(deployment?: WebDeploymentInfo | null): string {
+  if (!deployment) return '';
+  const cloudflare = deployment.cloudflarePages;
+  const customDomainUrl = cloudflare?.customDomain?.status === 'ready'
+    ? cloudflare.customDomain.url?.trim()
+    : '';
+  if (customDomainUrl) return customDomainUrl;
+  const pagesDevUrl = cloudflare?.pagesDev?.status === 'ready'
+    ? cloudflare.pagesDev.url?.trim()
+    : '';
+  if (pagesDevUrl) return pagesDevUrl;
+  return deployResultState(deployment.status) === 'ready'
+    ? deployment.url?.trim() || ''
+    : '';
+}
+
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -5853,6 +5869,13 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     await loadDeployProvider(nextProviderId, { fallbackToExisting: true });
   }
 
+  async function openSocialShareFlow() {
+    const providerWithDeployment = DEPLOY_PROVIDER_OPTIONS.find(
+      (option) => deploymentsByProvider[option.id]?.url?.trim(),
+    )?.id;
+    await openDeployModal(providerWithDeployment ?? deployProviderId);
+  }
+
   async function changeDeployProvider(nextProviderId: WebDeployProviderId) {
     if (nextProviderId === deployProviderId) return;
     setDeployError(null);
@@ -6466,9 +6489,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
   })).filter((item) => item.url);
   const shareableDeploymentUrl =
     DEPLOY_PROVIDER_OPTIONS.map((option) => deploymentsByProvider[option.id])
-      .find((item) => item?.url?.trim() && deployResultState(item.status) === 'ready')
-      ?.url
-      ?.trim() ?? '';
+      .map((item) => publicShareUrlForDeployment(item))
+      .find(Boolean) ?? '';
   const projectSocialShareRequest = useMemo<SocialShareRequest | null>(() => {
     if (!shareableDeploymentUrl) return null;
     const title = t('socialShare.projectTitle', { title: exportTitle });
@@ -6992,25 +7014,26 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                   <div className="share-menu-section-label" role="presentation">
                     {t('socialShare.projectSection')}
                   </div>
-                  {activeProjectSocialShare ? (
-                    <SocialShareGrid
-                      share={activeProjectSocialShare}
-                      className="share-menu-social-grid"
-                      onAfterShare={() => setShareMenuOpen(false)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="share-menu-item"
-                      role="menuitem"
-                      onClick={() => {
-                        fireShareExport('vercel', () => openDeployModal());
-                      }}
-                    >
-                      <span className="share-menu-icon"><RemixIcon name="upload-cloud-line" size={15} /></span>
-                      <span>{t('socialShare.deployFirst')}</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="share-menu-item"
+                    role="menuitem"
+                    onClick={() => {
+                      fireShareExport('vercel', () => openSocialShareFlow());
+                    }}
+                  >
+                    <span className="share-menu-icon">
+                      <RemixIcon
+                        name={activeProjectSocialShare ? 'share-forward-line' : 'upload-cloud-line'}
+                        size={15}
+                      />
+                    </span>
+                    <span>
+                      {activeProjectSocialShare
+                        ? t('socialShare.projectSection')
+                        : t('socialShare.deployFirst')}
+                    </span>
+                  </button>
                   <div className="share-menu-divider" />
                   <div className="share-menu-section-label" role="presentation">
                     {t('fileViewer.shareMenuPublishOnline')}
@@ -7644,6 +7667,31 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
               <p className="subtitle">{t('fileViewer.deployModalSubtitle')}</p>
             </div>
             <div className="deploy-form">
+              <div className={`deploy-social-share${activeProjectSocialShare ? '' : ' is-locked'}`}>
+                <div className="deploy-social-share__head">
+                  <div className="deploy-social-share__label">
+                    {t('socialShare.projectSection')}
+                  </div>
+                  {shareableDeploymentUrl ? (
+                    <a
+                      className="deploy-social-share__url"
+                      href={shareableDeploymentUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      {shareableDeploymentUrl}
+                    </a>
+                  ) : null}
+                </div>
+                {activeProjectSocialShare ? (
+                  <SocialShareGrid
+                    share={activeProjectSocialShare}
+                    onAfterShare={() => setDeployModalOpen(false)}
+                  />
+                ) : (
+                  <p className="hint">{t('socialShare.deployFirst')}</p>
+                )}
+              </div>
               <label className="deploy-provider-field">
                 <span>{t('fileViewer.deployProviderLabel')}</span>
                 <select
@@ -7871,14 +7919,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                       })}
                     </div>
                   </div>
-                </div>
-              ) : null}
-              {activeProjectSocialShare ? (
-                <div className="deploy-social-share">
-                  <div className="deploy-social-share__label">
-                    {t('socialShare.projectSection')}
-                  </div>
-                  <SocialShareGrid share={activeProjectSocialShare} />
                 </div>
               ) : null}
             </div>

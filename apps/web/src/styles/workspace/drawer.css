@@ -1540,12 +1540,8 @@
   position: sticky;
   right: 0;
   padding-left: 4px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--bg-panel) 16px,
-    var(--bg-panel)
-  );
+  background: var(--bg-panel);
+  box-shadow: -8px 0 10px -9px color-mix(in srgb, var(--text) 30%, transparent);
 }
 .ws-tab-add {
   width: 28px;

@@ -1301,11 +1301,17 @@
 }
 .app .df-controls-row {
   margin: 0 0 14px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: flex-start;
+  gap: 10px 14px;
+}
+.app .df-controls-primary {
+  grid-template-columns: 31px minmax(220px, 340px) minmax(0, auto);
   gap: 10px;
-  flex-wrap: wrap;
+}
+.app .df-controls-toggles {
+  gap: 8px;
 }
 .app .df-refresh-control {
   width: 31px;
@@ -1321,8 +1327,7 @@
   border-color: var(--border-strong);
 }
 .app .df-controls-row .df-actions {
-  flex: 0 0 auto;
-  margin-left: auto;
+  margin-left: 0;
   gap: 8px;
 }
 .app .df-controls-row .df-actions button {
@@ -1357,6 +1362,19 @@
 .app .df-group-toggle button.active {
   background: var(--bg-panel);
   box-shadow: none;
+}
+@media (max-width: 1180px) {
+  .app .df-controls-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app .df-controls-primary {
+    grid-template-columns: 31px minmax(180px, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .app .df-controls-primary {
+    grid-template-columns: 31px minmax(0, 1fr);
+  }
 }
 .app .df-pagination {
   gap: 8px;

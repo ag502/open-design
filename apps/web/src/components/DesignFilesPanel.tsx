@@ -703,14 +703,20 @@ export function DesignFilesPanel({
 
   async function handleCreateFolder() {
     if (!onCreateFolder) return;
-    const rawName = window.prompt('New folder name');
-    const folderName = rawName?.trim();
-    if (!folderName) return;
-    const targetPath = currentDir === '' ? folderName : `${currentDir}/${folderName}`;
+    const suggestedPath = nextAvailableFolderPath(currentDir, folderPathSet, files);
+    const rawName = window.prompt('New folder name', basenameForProjectPath(suggestedPath));
+    if (rawName === null) return;
+    const cleanName = rawName.trim().replace(/^\/+|\/+$/g, '');
+    if (!cleanName) return;
+    const targetPath =
+      currentDir && !cleanName.startsWith(`${currentDir}/`)
+        ? joinProjectPath(currentDir, cleanName)
+        : cleanName;
     const folder = await onCreateFolder(targetPath);
-    if (folder?.path) {
+    const createdPath = folder?.path || targetPath;
+    if (createdPath) {
       setSearchQuery('');
-      setCurrentDir(folder.path);
+      setCurrentDir(createdPath);
     }
   }
 
@@ -1361,19 +1367,25 @@ export function DesignFilesPanel({
             </div>
           ) : null}
           <div className="df-controls-row">
-            {refreshControl}
-            <label className="df-search-control">
-              <Icon name="search" size={13} />
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder={t('designFiles.searchPlaceholder')}
-                aria-label={t('designFiles.searchPlaceholder')}
-              />
-            </label>
-            {groupToggle}
-            {kindFilterControl}
-            {fileActions}
+            <div className="df-controls-primary">
+              {refreshControl}
+              <label className="df-search-control">
+                <Icon name="search" size={13} />
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={t('designFiles.searchPlaceholder')}
+                  aria-label={t('designFiles.searchPlaceholder')}
+                />
+              </label>
+              <div className="df-controls-toggles">
+                {groupToggle}
+                {kindFilterControl}
+              </div>
+            </div>
+            <div className="df-controls-actions">
+              {fileActions}
+            </div>
           </div>
           {currentDir !== '' ? (
             <nav className="df-breadcrumbs" aria-label={t('designFiles.crumbs')}>
@@ -1918,8 +1930,34 @@ function joinProjectPath(dir: string, basename: string): string {
   return cleanDir ? `${cleanDir}/${basename}` : basename;
 }
 
+function nextAvailableFolderPath(
+  currentDir: string,
+  folderPathSet: ReadonlySet<string>,
+  files: ProjectFile[],
+): string {
+  const baseName = 'untitled-folder';
+  const cleanDir = currentDir.trim().replace(/^\/+|\/+$/g, '');
+  let suffix = 0;
+  while (suffix < 1000) {
+    const basename = suffix === 0 ? baseName : `${baseName}-${suffix + 1}`;
+    const candidate = joinProjectPath(cleanDir, basename);
+    const prefix = `${candidate}/`;
+    const exists =
+      folderPathSet.has(candidate)
+      || files.some((file) => file.name === candidate || file.name.startsWith(prefix));
+    if (!exists) return candidate;
+    suffix += 1;
+  }
+  return joinProjectPath(cleanDir, `${baseName}-${Date.now().toString(36)}`);
+}
+
 function hasNativeFiles(dataTransfer: DataTransfer): boolean {
-  return Array.from(dataTransfer.types ?? []).includes('Files');
+  if (Array.from(dataTransfer.types ?? []).includes('Files')) return true;
+  if ((dataTransfer.files?.length ?? 0) > 0) return true;
+  return Array.from(dataTransfer.items ?? []).some((item) => {
+    if (item.kind === 'file') return true;
+    return typeof (item as DataTransferItemWithEntry).webkitGetAsEntry === 'function';
+  });
 }
 
 function hasInternalFileDrag(dataTransfer: DataTransfer): boolean {

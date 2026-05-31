@@ -39,6 +39,8 @@ type ReferenceSite = {
 };
 
 type ReferenceGroup = {
+  /** Stable key used for the category filter (lowercase, no spaces). */
+  id: string;
   title: string;
   sites: ReferenceSite[];
 };
@@ -101,8 +103,36 @@ const HISTORY_LIMIT = 80;
 const HISTORY_SUGGESTION_LIMIT = 20;
 const warmedOrigins = new Set<string>();
 
-const REFERENCE_GROUPS: ReferenceGroup[] = [
+// The Reference Board catalogue. Order is intentional: the categories a working
+// designer reaches for most often (inspiration, real product UI) lead, followed
+// by motion/color/type/asset references, then systems/guidelines/tooling.
+// Adding a group here automatically adds its filter chip and address-bar
+// suggestions — `id` is the stable filter key, `title` is the display label.
+export const REFERENCE_GROUPS: ReferenceGroup[] = [
   {
+    id: 'inspiration',
+    title: 'Inspiration',
+    sites: [
+      { label: 'Dribbble', url: 'https://dribbble.com/', detail: 'Design shots and UI inspiration.' },
+      { label: 'Behance', url: 'https://www.behance.net/', detail: 'Creative portfolios and case studies.' },
+      { label: 'Awwwards', url: 'https://www.awwwards.com/', detail: 'Award-winning website design.' },
+      { label: 'Godly', url: 'https://godly.website/', detail: 'Curated modern web design.' },
+      { label: 'Land-book', url: 'https://land-book.com/', detail: 'Landing page gallery and patterns.' },
+    ],
+  },
+  {
+    id: 'interfaces',
+    title: 'Real Interfaces',
+    sites: [
+      { label: 'Mobbin', url: 'https://mobbin.com/', detail: 'Real app screens and UI patterns.' },
+      { label: 'Screenlane', url: 'https://screenlane.com/', detail: 'Latest UI design patterns from apps.' },
+      { label: 'Page Flows', url: 'https://pageflows.com/', detail: 'Real product user flows and onboarding.' },
+      { label: 'UI Sources', url: 'https://www.uisources.com/', detail: 'Interaction patterns from top apps.' },
+      { label: 'Collect UI', url: 'https://collectui.com/', detail: 'Daily UI collection by category.' },
+    ],
+  },
+  {
+    id: 'motion',
     title: 'Motion',
     sites: [
       { label: 'GSAP', url: 'https://gsap.com/', detail: 'Production animation engine and examples.' },
@@ -113,26 +143,145 @@ const REFERENCE_GROUPS: ReferenceGroup[] = [
     ],
   },
   {
-    title: 'Assets',
+    id: 'color',
+    title: 'Color',
     sites: [
-      { label: 'The SVG', url: 'https://thesvg.org/', detail: 'SVG assets and vector references.' },
-      { label: 'Unsplash', url: 'https://unsplash.com/', detail: 'Photography for visual direction.' },
-      { label: 'Google Fonts', url: 'https://fonts.google.com/', detail: 'Typography exploration and pairing.' },
-      { label: 'Whirrls', url: 'https://www.whirrls.com/', detail: 'Hand-drawn image references.' },
-      { label: 'World in Dots', url: 'https://www.worldindots.com/', detail: 'Dot-map and data visualization references.' },
+      { label: 'Coolors', url: 'https://coolors.co/', detail: 'Fast color palette generator.' },
+      { label: 'Color Hunt', url: 'https://colorhunt.co/', detail: 'Curated color palettes.' },
+      { label: 'Realtime Colors', url: 'https://www.realtimecolors.com/', detail: 'Preview palettes on a real UI.' },
+      { label: 'Adobe Color', url: 'https://color.adobe.com/', detail: 'Color wheel and harmony rules.' },
+      { label: 'Happy Hues', url: 'https://www.happyhues.co/', detail: 'Palettes shown in real context.' },
     ],
   },
   {
-    title: 'Systems',
+    id: 'type',
+    title: 'Typography',
+    sites: [
+      { label: 'Google Fonts', url: 'https://fonts.google.com/', detail: 'Open-source font library.' },
+      { label: 'Fontshare', url: 'https://www.fontshare.com/', detail: 'Quality fonts free for commercial use.' },
+      { label: 'Typewolf', url: 'https://www.typewolf.com/', detail: 'Fonts in use and pairing guidance.' },
+      { label: 'Fontpair', url: 'https://www.fontpair.co/', detail: 'Font pairing suggestions.' },
+      { label: 'Fonts In Use', url: 'https://fontsinuse.com/', detail: 'Typography in real-world design.' },
+    ],
+  },
+  {
+    id: 'icons',
+    title: 'Icons',
+    sites: [
+      { label: 'The SVG', url: 'https://thesvg.org/', detail: 'SVG assets and vector references.' },
+      { label: 'Iconify', url: 'https://icon-sets.iconify.design/', detail: '200k+ open-source icons in one place.' },
+      { label: 'Lucide', url: 'https://lucide.dev/', detail: 'Clean, consistent open icon set.' },
+      { label: 'Heroicons', url: 'https://heroicons.com/', detail: 'Tailwind-made SVG icons.' },
+      { label: 'SVG Repo', url: 'https://www.svgrepo.com/', detail: 'Free SVG vectors and icons.' },
+    ],
+  },
+  {
+    id: 'illustration',
+    title: 'Illustration',
+    sites: [
+      { label: 'Storyset', url: 'https://storyset.com/', detail: 'Customizable vector illustrations.' },
+      { label: 'unDraw', url: 'https://undraw.co/', detail: 'Open-source MIT illustrations.' },
+      { label: 'Blush', url: 'https://blush.design/', detail: 'Mix-and-match illustrations.' },
+      { label: 'Lummi', url: 'https://www.lummi.ai/', detail: 'Free AI-generated visuals.' },
+      { label: 'Whirrls', url: 'https://www.whirrls.com/', detail: 'Hand-drawn image references.' },
+      { label: 'World in Dots', url: 'https://www.worldindots.com/', detail: 'Dot-map and data-viz references.' },
+    ],
+  },
+  {
+    id: 'photography',
+    title: 'Photography',
+    sites: [
+      { label: 'Unsplash', url: 'https://unsplash.com/', detail: 'Free high-resolution photos.' },
+      { label: 'Pexels', url: 'https://www.pexels.com/', detail: 'Free stock photos and video.' },
+      { label: 'Pixabay', url: 'https://pixabay.com/', detail: 'Royalty-free images and media.' },
+      { label: 'Cosmos', url: 'https://www.cosmos.so/', detail: 'Visual discovery and mood boards.' },
+    ],
+  },
+  {
+    id: '3d',
+    title: '3D & Graphics',
+    sites: [
+      { label: 'Spline', url: 'https://spline.design/', detail: 'Browser-based 3D design.' },
+      { label: 'Three.js Examples', url: 'https://threejs.org/examples/', detail: 'WebGL 3D references and demos.' },
+      { label: 'Womp', url: 'https://womp.com/', detail: 'Easy in-browser 3D creation.' },
+      { label: 'Pixcap', url: 'https://pixcap.com/', detail: '3D icons, mockups, and scenes.' },
+    ],
+  },
+  {
+    id: 'mockups',
+    title: 'Mockups',
+    sites: [
+      { label: 'Shots', url: 'https://shots.so/', detail: 'Device and browser mockups.' },
+      { label: 'Mockuuups Studio', url: 'https://mockuuups.studio/', detail: 'Drag-and-drop device mockups.' },
+      { label: 'Angle', url: 'https://angle.sh/', detail: '3D device mockup library.' },
+      { label: 'Rotato', url: 'https://rotato.app/', detail: 'Animated 3D product mockups.' },
+    ],
+  },
+  {
+    id: 'systems',
+    title: 'Design Systems',
     sites: [
       { label: 'Styles Refero', url: 'https://styles.refero.design/', detail: 'Design style references and visual systems.' },
-      { label: 'Brandfetch', url: 'https://brandfetch.com/', detail: 'Brand assets, logos, and company identity.' },
-      { label: 'Toolfolio', url: 'https://toolfolio.io/', detail: 'Design tools, resources, and collections.' },
-      { label: 'GetDesign', url: 'https://getdesign.md/', detail: 'Design resources and curated references.' },
+      { label: 'Brandfetch', url: 'https://brandfetch.com/', detail: 'Brand assets, logos, and identity.' },
+      { label: 'Design Systems Repo', url: 'https://designsystemsrepo.com/', detail: 'Gallery of public design systems.' },
       { label: 'Startups Gallery', url: 'https://startups.gallery/', detail: 'Top startup product and brand references.' },
     ],
   },
+  {
+    id: 'guidelines',
+    title: 'Guidelines & A11y',
+    sites: [
+      { label: 'Apple HIG', url: 'https://developer.apple.com/design/human-interface-guidelines', detail: 'Apple platform design guidelines.' },
+      { label: 'Material Design', url: 'https://m3.material.io/', detail: "Google's Material Design 3." },
+      { label: 'Laws of UX', url: 'https://lawsofux.com/', detail: 'UX principles and heuristics.' },
+      { label: 'WebAIM Contrast', url: 'https://webaim.org/resources/contrastchecker/', detail: 'Color contrast checker.' },
+      { label: 'The A11y Project', url: 'https://www.a11yproject.com/', detail: 'Accessibility checklist and patterns.' },
+    ],
+  },
+  {
+    id: 'tools',
+    title: 'Tools & Resources',
+    sites: [
+      { label: 'Toolfolio', url: 'https://toolfolio.io/', detail: 'Design tools, resources, and collections.' },
+      { label: 'GetDesign', url: 'https://getdesign.md/', detail: 'Curated design resources.' },
+      { label: 'UI Goodies', url: 'https://www.uigoodies.com/', detail: 'Hand-picked design resources.' },
+      { label: 'Sidebar', url: 'https://sidebar.io/', detail: 'Five design links, every day.' },
+    ],
+  },
 ];
+
+/** Total number of curated references across every category (drives the "All" chip badge). */
+export const REFERENCE_TOTAL = REFERENCE_GROUPS.reduce((sum, group) => sum + group.sites.length, 0);
+
+/**
+ * Filter the reference catalogue by an active category and a free-text query.
+ *
+ * `category` is either the sentinel `'all'` or a {@link ReferenceGroup.id}. The
+ * query matches a site's label, hostname, or detail, OR the owning group's
+ * title (so searching "color" surfaces the whole Color group). Groups with no
+ * surviving sites are dropped, so the result is always ready to render as-is.
+ */
+export function filterReferenceGroups(
+  groups: ReferenceGroup[],
+  category: string,
+  query: string,
+): ReferenceGroup[] {
+  const needle = query.trim().toLocaleLowerCase();
+  return groups
+    .filter((group) => category === 'all' || group.id === category)
+    .map((group) => {
+      if (!needle) return group;
+      if (group.title.toLocaleLowerCase().includes(needle)) return group;
+      const sites = group.sites.filter(
+        (site) =>
+          site.label.toLocaleLowerCase().includes(needle) ||
+          site.detail.toLocaleLowerCase().includes(needle) ||
+          hostnameFromUrl(site.url).toLocaleLowerCase().includes(needle),
+      );
+      return { ...group, sites };
+    })
+    .filter((group) => group.sites.length > 0);
+}
 
 const PAGE_BRIEF_SCRIPT = `(() => {
   const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -526,7 +675,10 @@ export function DesignBrowserPanel({
   const pageHistoryEntry = history.find((entry) => sameUrl(entry.url, currentUrl));
   const pageTitle = pageHistoryEntry?.title || labelFromUrl(currentUrl);
   const pageIconUrl = pageHistoryEntry?.iconUrl || faviconUrl(currentUrl);
-  const shownAddressValue = addressEditing ? addressValue : formatAddressDisplay(currentUrl, pageTitle);
+  const addressDisplayParts = addressEditing
+    ? { url: '' }
+    : formatAddressDisplayParts(currentUrl, pageTitle);
+  const shownAddressValue = addressEditing ? addressValue : '';
   // Drive the start-page/webview branch off the load target, not the committed
   // URL, so a transient about:blank navigation event can't unmount the webview.
   const isBlank = loadUrl === EMPTY_URL;
@@ -744,30 +896,43 @@ export function DesignBrowserPanel({
             fallback="globe"
             iconUrl={isBlank ? undefined : pageIconUrl}
           />
-          <input
-            ref={addressInputRef}
-            value={shownAddressValue}
-            onChange={(event) => {
-              setAddressEditing(true);
-              setAddressValue(event.target.value);
-              setSuggestionsOpen(true);
-            }}
-            onFocus={(event) => {
-              setAddressEditing(true);
-              setAddressValue(isBlank ? '' : currentUrl);
-              setSuggestionsOpen(true);
-              const input = event.currentTarget;
-              window.requestAnimationFrame(() => input.select());
-            }}
-            onBlur={(event) => {
-              if (event.currentTarget.form?.contains(event.relatedTarget as Node | null)) return;
-              window.setTimeout(() => setAddressEditing(false), 80);
-            }}
-            placeholder="Enter URL or search..."
-            aria-label="Browser address"
-            autoComplete="off"
-            spellCheck={false}
-          />
+          <div className="db-address-field">
+            <input
+              ref={addressInputRef}
+              value={shownAddressValue}
+              onChange={(event) => {
+                setAddressEditing(true);
+                setAddressValue(event.target.value);
+                setSuggestionsOpen(true);
+              }}
+              onFocus={(event) => {
+                setAddressEditing(true);
+                setAddressValue(isBlank ? '' : currentUrl);
+                setSuggestionsOpen(true);
+                const input = event.currentTarget;
+                window.requestAnimationFrame(() => input.select());
+              }}
+              onBlur={(event) => {
+                if (event.currentTarget.form?.contains(event.relatedTarget as Node | null)) return;
+                window.setTimeout(() => setAddressEditing(false), 80);
+              }}
+              placeholder={addressDisplayParts.url ? '' : 'Enter URL or search...'}
+              aria-label="Browser address"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {addressDisplayParts.url ? (
+              <span className="db-address-display" aria-hidden>
+                <span className="db-address-url">{addressDisplayParts.url}</span>
+                {addressDisplayParts.title ? (
+                  <>
+                    <span className="db-address-separator">/</span>
+                    <span className="db-address-title">{addressDisplayParts.title}</span>
+                  </>
+                ) : null}
+              </span>
+            ) : null}
+          </div>
           {suggestionsOpen && suggestions.length > 0 ? (
             <div className="db-suggestions" role="listbox">
               {suggestions.map((item) => (
@@ -911,6 +1076,8 @@ function IconTooltipButton({
   );
 }
 
+const REFERENCE_ALL_CATEGORY = 'all';
+
 function DesignBrowserStart({
   onNavigate,
   onSaveHarnessTask,
@@ -920,6 +1087,23 @@ function DesignBrowserStart({
   onSaveHarnessTask: (url: string) => Promise<void>;
   savingTask: boolean;
 }) {
+  const [activeCategory, setActiveCategory] = useState<string>(REFERENCE_ALL_CATEGORY);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  const visibleGroups = useMemo(
+    () => filterReferenceGroups(REFERENCE_GROUPS, activeCategory, query),
+    [activeCategory, query],
+  );
+  const trimmedQuery = query.trim();
+  const hasQuery = trimmedQuery.length > 0;
+
+  const resetFilters = () => {
+    setQuery('');
+    setActiveCategory(REFERENCE_ALL_CATEGORY);
+    searchRef.current?.focus();
+  };
+
   return (
     <div className="db-start">
       <div className="db-start-hero">
@@ -927,8 +1111,9 @@ function DesignBrowserStart({
           <div className="db-kicker">Open Design browser</div>
           <h2>Reference Board</h2>
           <p className="db-start-sub">
-            A curated set of motion, asset, and design-system references. Open one to
-            browse it live, or hand it to the Browser Harness agent to extract its
+            A curated set of references across inspiration, real product UI,
+            motion, color, type, assets, and design systems. Open one to browse
+            it live, or hand it to the Browser Harness agent to extract its
             design language.
           </p>
         </div>
@@ -939,49 +1124,133 @@ function DesignBrowserStart({
           </div>
         </div>
       </div>
-      <div className="db-reference-grid">
-        {REFERENCE_GROUPS.map((group) => (
-          <section key={group.title} className="db-reference-group">
-            <h3>{group.title}</h3>
-            <div className="db-reference-list">
-              {group.sites.map((site) => (
-                <article
-                  key={site.url}
-                  className="db-reference-card"
-                  onPointerEnter={() => warmBrowserOrigin(site.url)}
-                >
-                  <button type="button" onClick={() => onNavigate(site.url)}>
-                    <BrowserSiteIcon
-                      className="db-reference-icon"
-                      fallback="globe"
-                      iconUrl={faviconUrl(site.url)}
-                    />
-                    <span className="db-reference-title">
-                      <span>{site.label}</span>
-                      <small>{hostnameFromUrl(site.url)}</small>
-                    </span>
-                  </button>
-                  <p>{site.detail}</p>
-                  <div className="db-reference-actions">
-                    <button type="button" onClick={() => onNavigate(site.url)}>
-                      <Icon name="globe" size={13} />
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onSaveHarnessTask(site.url)}
-                      disabled={savingTask}
-                    >
-                      <Icon name="sparkles" size={13} />
-                      Task
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
+
+      <div className="db-reference-toolbar">
+        <div
+          className="db-reference-chips"
+          role="tablist"
+          aria-label="Reference category"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeCategory === REFERENCE_ALL_CATEGORY}
+            className={`db-reference-chip${activeCategory === REFERENCE_ALL_CATEGORY ? ' is-active' : ''}`}
+            onClick={() => setActiveCategory(REFERENCE_ALL_CATEGORY)}
+          >
+            All
+            <span className="db-reference-chip-count">{REFERENCE_TOTAL}</span>
+          </button>
+          {REFERENCE_GROUPS.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              role="tab"
+              aria-selected={activeCategory === group.id}
+              className={`db-reference-chip${activeCategory === group.id ? ' is-active' : ''}`}
+              onClick={() => setActiveCategory(group.id)}
+            >
+              {group.title}
+              <span className="db-reference-chip-count">{group.sites.length}</span>
+            </button>
+          ))}
+        </div>
+        <div className="db-reference-search">
+          <span className="db-reference-search-icon" aria-hidden>
+            <Icon name="search" size={13} />
+          </span>
+          <input
+            ref={searchRef}
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && query) {
+                event.preventDefault();
+                event.stopPropagation();
+                setQuery('');
+              }
+            }}
+            placeholder="Search references…"
+            aria-label="Search references"
+          />
+          {hasQuery ? (
+            <button
+              type="button"
+              className="db-reference-search-clear"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery('');
+                searchRef.current?.focus();
+              }}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {visibleGroups.length === 0 ? (
+        <div className="db-reference-empty" role="status">
+          <p className="db-reference-empty-title">
+            No references match “{trimmedQuery}”.
+          </p>
+          <button
+            type="button"
+            className="db-reference-empty-action"
+            onClick={resetFilters}
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <div className="db-reference-board">
+          {visibleGroups.map((group) => (
+            <section key={group.id} className="db-reference-group">
+              <h3>
+                {group.title}
+                <span className="db-reference-group-count">{group.sites.length}</span>
+              </h3>
+              <div className="db-reference-list">
+                {group.sites.map((site) => (
+                  <article
+                    key={site.url}
+                    className="db-reference-card"
+                    onPointerEnter={() => warmBrowserOrigin(site.url)}
+                  >
+                    <button type="button" onClick={() => onNavigate(site.url)}>
+                      <BrowserSiteIcon
+                        className="db-reference-icon"
+                        fallback="globe"
+                        iconUrl={faviconUrl(site.url)}
+                      />
+                      <span className="db-reference-title">
+                        <span>{site.label}</span>
+                        <small>{hostnameFromUrl(site.url)}</small>
+                      </span>
+                    </button>
+                    <p>{site.detail}</p>
+                    <div className="db-reference-actions">
+                      <button type="button" onClick={() => onNavigate(site.url)}>
+                        <Icon name="globe" size={13} />
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onSaveHarnessTask(site.url)}
+                        disabled={savingTask}
+                      >
+                        <Icon name="sparkles" size={13} />
+                        Task
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

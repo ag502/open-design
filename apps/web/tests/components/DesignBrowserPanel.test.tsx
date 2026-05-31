@@ -3,9 +3,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  REFERENCE_GROUPS,
+  REFERENCE_TOTAL,
   browserFileName,
   browserHarnessTaskMarkdown,
   faviconUrl,
+  filterReferenceGroups,
   formatAddressDisplay,
   formatAddressDisplayParts,
   hostnameFromUrl,
@@ -308,5 +311,94 @@ describe('loadHistory / saveHistory round-trip', () => {
     }));
     saveHistory(projectId, many);
     expect(loadHistory(projectId)).toHaveLength(80);
+  });
+});
+
+describe('REFERENCE_GROUPS catalogue', () => {
+  it('exposes every documented designer reference category', () => {
+    const ids = REFERENCE_GROUPS.map((group) => group.id);
+    expect(ids).toEqual([
+      'inspiration',
+      'interfaces',
+      'motion',
+      'color',
+      'type',
+      'icons',
+      'illustration',
+      'photography',
+      '3d',
+      'mockups',
+      'systems',
+      'guidelines',
+      'tools',
+    ]);
+  });
+
+  it('gives every group a title and at least one absolute https/http site', () => {
+    for (const group of REFERENCE_GROUPS) {
+      expect(group.title.length).toBeGreaterThan(0);
+      expect(group.sites.length).toBeGreaterThan(0);
+      for (const site of group.sites) {
+        expect(site.label.length).toBeGreaterThan(0);
+        expect(site.detail.length).toBeGreaterThan(0);
+        expect(site.url).toMatch(/^https?:\/\//);
+      }
+    }
+  });
+
+  it('uses unique category ids and unique site urls', () => {
+    const ids = REFERENCE_GROUPS.map((group) => group.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const urls = REFERENCE_GROUPS.flatMap((group) => group.sites.map((site) => site.url));
+    expect(new Set(urls).size).toBe(urls.length);
+  });
+
+  it('keeps REFERENCE_TOTAL in sync with the catalogue', () => {
+    const counted = REFERENCE_GROUPS.reduce((sum, group) => sum + group.sites.length, 0);
+    expect(REFERENCE_TOTAL).toBe(counted);
+  });
+});
+
+describe('filterReferenceGroups', () => {
+  it('returns every group untouched for the "all" category and an empty query', () => {
+    const result = filterReferenceGroups(REFERENCE_GROUPS, 'all', '');
+    expect(result.map((group) => group.id)).toEqual(REFERENCE_GROUPS.map((group) => group.id));
+    expect(result).toEqual(REFERENCE_GROUPS);
+  });
+
+  it('narrows to a single group when a category id is active', () => {
+    const result = filterReferenceGroups(REFERENCE_GROUPS, 'motion', '');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe('motion');
+    expect(result[0]?.sites.length).toBeGreaterThan(0);
+  });
+
+  it('matches sites by label, hostname, or detail across all categories', () => {
+    const byLabel = filterReferenceGroups(REFERENCE_GROUPS, 'all', 'dribbble');
+    expect(byLabel.flatMap((group) => group.sites.map((site) => site.label))).toContain('Dribbble');
+
+    const byHostname = filterReferenceGroups(REFERENCE_GROUPS, 'all', 'unsplash.com');
+    expect(byHostname.flatMap((group) => group.sites.map((site) => site.label))).toContain('Unsplash');
+
+    const byDetail = filterReferenceGroups(REFERENCE_GROUPS, 'all', 'contrast');
+    expect(byDetail.flatMap((group) => group.sites.map((site) => site.label))).toContain('WebAIM Contrast');
+  });
+
+  it('keeps an entire group when the query matches its title', () => {
+    const color = REFERENCE_GROUPS.find((group) => group.id === 'color');
+    const result = filterReferenceGroups(REFERENCE_GROUPS, 'all', 'color');
+    const matchedColor = result.find((group) => group.id === 'color');
+    expect(matchedColor?.sites).toEqual(color?.sites);
+  });
+
+  it('drops groups with no surviving sites and is case-insensitive', () => {
+    const result = filterReferenceGroups(REFERENCE_GROUPS, 'all', 'COOLORS');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe('color');
+    expect(result[0]?.sites.map((site) => site.label)).toEqual(['Coolors']);
+  });
+
+  it('returns an empty array when nothing matches', () => {
+    expect(filterReferenceGroups(REFERENCE_GROUPS, 'all', 'zzz-no-such-reference')).toEqual([]);
   });
 });

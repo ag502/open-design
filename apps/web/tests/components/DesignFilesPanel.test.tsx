@@ -651,10 +651,12 @@ describe('DesignFilesPanel directory navigation', () => {
   });
 
   it('creates a folder in the current directory', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('icons');
+    const promptSpy = vi.spyOn(window, 'prompt').mockImplementation(() => {
+      throw new Error('prompt should not be used for folder creation');
+    });
     const onCreateFolder = vi.fn(async () => ({
-      name: 'assets/icons',
-      path: 'assets/icons',
+      name: 'assets/untitled-folder',
+      path: 'assets/untitled-folder',
       type: 'dir' as const,
       size: 0 as const,
       mtime: Date.now(),
@@ -665,8 +667,10 @@ describe('DesignFilesPanel directory navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Folder' }));
 
     await waitFor(() => {
-      expect(onCreateFolder).toHaveBeenCalledWith('assets/icons');
+      expect(onCreateFolder).toHaveBeenCalledWith('assets/untitled-folder');
     });
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(document.querySelector('.df-breadcrumb-current')?.textContent).toBe('untitled-folder');
     promptSpy.mockRestore();
   });
 
