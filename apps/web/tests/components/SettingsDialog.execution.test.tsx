@@ -1999,6 +1999,65 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     });
   });
 
+  // Ping-pong regression: an earlier fix resynced on focus by re-publishing the
+  // `od:amr-login-status-change` event, which restarts the pill's poll/pending
+  // machine. While the external browser steals and returns focus during a
+  // login, that kicked the action back and forth between "Signing in…" and
+  // "Authorize". Focus must do a passive status read only — never re-emit the
+  // login-state event.
+  it('does not re-publish the AMR login-state event on window focus', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/api/memory') {
+        return new Response(
+          JSON.stringify({ enabled: true, memories: [], extraction: null }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url === '/api/integrations/vela/status') {
+        return new Response(
+          JSON.stringify({
+            loggedIn: true,
+            loginInFlight: false,
+            profile: 'local',
+            user: { id: 'u1', email: 'amr@example.com' },
+            configPath: '/Users/test/.amr/config.json',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'amr' },
+      { agents: [amrAgent] },
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*1 installed/i }));
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeTruthy();
+
+    const loginEventSpy = vi.fn();
+    window.addEventListener('od:amr-login-status-change', loginEventSpy);
+    const statusReadsBefore = fetchMock.mock.calls.filter(
+      ([input]) => input?.toString() === '/api/integrations/vela/status',
+    ).length;
+
+    window.dispatchEvent(new Event('focus'));
+
+    // The focus handler does a passive status read…
+    await waitFor(() => {
+      const statusReadsAfter = fetchMock.mock.calls.filter(
+        ([input]) => input?.toString() === '/api/integrations/vela/status',
+      ).length;
+      expect(statusReadsAfter).toBeGreaterThan(statusReadsBefore);
+    });
+    // …but must NOT re-publish the login-state machine event.
+    expect(loginEventSpy).not.toHaveBeenCalled();
+    window.removeEventListener('od:amr-login-status-change', loginEventSpy);
+  });
+
   // First-install repro: the agent list is last detected while signed out, so
   // AMR comes back with an empty (fail-closed) model list. The live `vela
   // models` catalog only becomes fetchable AFTER the credential lands, so when

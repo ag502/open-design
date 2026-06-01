@@ -28,7 +28,6 @@ import type { Locale } from '../i18n';
 import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { AmrLoginPill } from './AmrLoginPill';
-import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
 import {
   fetchVelaLoginStatus,
   type VelaLoginStatus,
@@ -950,17 +949,14 @@ export function SettingsDialog({
     const hasAmrAgent = agents.some((agent) => agent.id === 'amr' && agent.available);
     if (!hasAmrAgent) return;
     let cancelled = false;
+    // Passive read only. Push the daemon's current status down into the card;
+    // the pill mirrors it via `initialStatus` (and clears any stale login error
+    // when it sees a signed-in status). Do NOT republish the login-state-change
+    // event here — that restarts the pill's poll/pending machine on every focus
+    // and, while the external browser is stealing and returning focus during a
+    // login, ping-pongs the action between "Signing in…" and "Authorize".
     const resyncAmrStatus = () => {
       if (document.visibilityState === 'hidden') return;
-      // Drive any mounted AMR pill to reconcile through its own listener. This
-      // is the only path that clears a stale `errorMessage` left behind when
-      // the in-pill poll gave up early (the `loginInFlight:false` "stopped"
-      // outcome of vela's redirect/wallet hand-off) — the pill ranks
-      // `errorMessage` above `loggedIn`, so pushing a fresh signed-in status in
-      // alone would leave it stuck on Authorize.
-      notifyAmrLoginStatusChanged('status-changed');
-      // Also refresh card-level status directly so the parent stays fresh when
-      // the AMR card isn't the active selection and its pill is unmounted.
       void fetchVelaLoginStatus().then((next) => {
         if (cancelled || !next) return;
         setAmrCardStatus(next);

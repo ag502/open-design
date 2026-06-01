@@ -221,7 +221,20 @@ export function AmrLoginPill({
 
   useEffect(() => {
     setStatus(initialStatus);
-  }, [initialStatus]);
+    // A signed-in status pushed in from the host (e.g. the Settings card
+    // refetching on window focus after an out-of-band login) is authoritative:
+    // clear any stale login error/pending the early-stopped poll left behind so
+    // `accountStatus`, which ranks `errorMessage` above `loggedIn`, doesn't keep
+    // the pill stuck on Authorize.
+    if (initialStatus?.loggedIn) {
+      stopPolling();
+      loginStartedAtRef.current = null;
+      loginPendingRef.current = false;
+      setErrorMessage(null);
+      setPending(null);
+      setCanceledVisible(false);
+    }
+  }, [initialStatus, stopPolling]);
 
   useEffect(() => {
     if (!canceledVisible) return;
