@@ -52,7 +52,7 @@ foreach ($def in $platformDefs) {
   if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
     $releaseVersion = [string]$manifest.releaseVersion
     $signed = [bool]$manifest.signed
-    $assetVersionSuffix = if ($signed) { "" } else { ".unsigned" }
+    $assetVersionSuffix = if ($signed) { ".signed" } else { ".unsigned" }
     $githubInfo = $manifest.github
   } elseif ($releaseVersion -ne [string]$manifest.releaseVersion) {
     throw "manifest releaseVersion mismatch: expected $releaseVersion but got $($manifest.releaseVersion)"

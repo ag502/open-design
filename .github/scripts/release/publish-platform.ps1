@@ -45,7 +45,7 @@ $manifestDir = Join-Path $stageRoot "manifests"
 New-Item -ItemType Directory -Force -Path $releaseDir, $manifestDir | Out-Null
 
 $signed = [bool]$index.signed
-$assetSuffix = if ($signed) { "" } else { ".unsigned" }
+$assetSuffix = if ($signed) { ".signed" } else { ".unsigned" }
 $publicOrigin = Get-PublicOrigin
 $versionPrefix = "$channel/versions/$releaseVersion$assetSuffix"
 $latestPrefix = "$channel/latest"

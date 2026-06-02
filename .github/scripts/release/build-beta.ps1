@@ -12,7 +12,7 @@ param(
   [ValidateSet("all", "dir", "nsis", "zip")]
   [string]$Target = "all",
   [ValidateSet("auto", "off", "on")]
-  [string]$SignMode = "auto"
+  [string]$SignMode = "off"
 )
 
 $ErrorActionPreference = "Stop"

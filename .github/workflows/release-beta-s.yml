@@ -4,12 +4,12 @@ name: release-beta-s
 on:
   workflow_dispatch:
     inputs:
-      enable_win:
+      win_enable:
         description: "Run the Windows self-hosted beta lane."
         required: true
         type: boolean
         default: true
-      enable_mac:
+      mac_enable:
         description: "Run the mac arm64 self-hosted beta lane."
         required: true
         type: boolean
@@ -29,17 +29,17 @@ on:
         required: true
         type: string
         default: ""
-      update_metadata_url:
+      win_update_metadata_url:
         description: "Optional external updater metadata URL for full Windows smoke."
         required: false
         type: string
         default: ""
-      update_target_version:
+      win_update_target_version:
         description: "Optional external updater target version expected by full Windows smoke."
         required: false
         type: string
         default: ""
-      smoke_mode:
+      win_smoke_mode:
         description: "Windows smoke coverage. Core gates install/start/cleanup; full adds the real upgrade lifecycle."
         required: true
         type: choice
@@ -47,7 +47,7 @@ on:
           - core
           - full
         default: core
-      target:
+      win_target:
         description: "Windows build target."
         required: true
         type: choice
@@ -57,15 +57,15 @@ on:
           - zip
           - dir
         default: nsis
-      sign_mode:
-        description: "Windows signing mode."
+      win_sign_mode:
+        description: "Windows signing mode. Defaults to unsigned; use auto/on only for explicit signing validation."
         required: true
         type: choice
         options:
           - "auto"
           - "off"
           - "on"
-        default: "auto"
+        default: "off"
       mac_sign_mode:
         description: "mac arm64 signing mode. Keep off for cold-start validation."
         required: true
@@ -93,7 +93,7 @@ env:
 jobs:
   metadata:
     name: Prepare beta metadata
-    if: ${{ inputs.enable_win || inputs.enable_mac }}
+    if: ${{ inputs.win_enable || inputs.mac_enable }}
     runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
     env:
       OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
@@ -126,7 +126,7 @@ jobs:
       - name: Validate self-hosted beta inputs
         run: |
           set -euo pipefail
-          if [ "${{ inputs.enable_win }}" != "true" ] && [ "${{ inputs.enable_mac }}" != "true" ]; then
+          if [ "${{ inputs.win_enable }}" != "true" ] && [ "${{ inputs.mac_enable }}" != "true" ]; then
             echo "release-beta-s requires at least one self-hosted platform" >&2
             exit 1
           fi
@@ -150,7 +150,7 @@ jobs:
   build_win:
     name: Build Windows beta candidate
     needs: metadata
-    if: ${{ inputs.enable_win }}
+    if: ${{ inputs.win_enable }}
     runs-on: [self-hosted, Windows, X64, nexu-win, release-beta]
     timeout-minutes: 30
     steps:
@@ -166,7 +166,7 @@ jobs:
         shell: cmd
         run: |
           @echo on
-          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .github\scripts\release\probe-win-signing.ps1 -SignMode "${{ inputs.sign_mode }}"
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .github\scripts\release\probe-win-signing.ps1 -SignMode "${{ inputs.win_sign_mode }}"
 
       - name: Build beta candidate
         shell: cmd
@@ -180,11 +180,11 @@ jobs:
           OD_BETA_WINDOWS_SIGNING_SIGNTOOL_FOUND: ${{ steps.sign_probe.outputs.signtool_found }}
           OD_BETA_WINDOWS_SIGNTOOL_PATH: ${{ steps.sign_probe.outputs.signtool_path }}
           OD_BETA_WINDOWS_SIGN_CERT_SHA1: ${{ steps.sign_probe.outputs.thumbprint }}
-          OD_PACKAGED_E2E_WIN_UPDATE_METADATA_URL: ${{ inputs.update_metadata_url }}
-          OD_PACKAGED_E2E_WIN_UPDATE_VERSION: ${{ inputs.update_target_version }}
+          OD_PACKAGED_E2E_WIN_UPDATE_METADATA_URL: ${{ inputs.win_update_metadata_url }}
+          OD_PACKAGED_E2E_WIN_UPDATE_VERSION: ${{ inputs.win_update_target_version }}
         run: |
           @echo on
-          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .github\scripts\release\build-beta.ps1 -Platform win -Lane self-hosted -Namespace release-beta-win -ReleaseVersion "${{ inputs.release_version || needs.metadata.outputs.beta_version }}" -MetadataUrl "${{ inputs.s3_public_origin }}/beta/latest/metadata.json" -SmokeMode "${{ inputs.smoke_mode }}" -Target "${{ inputs.target }}" -SignMode "${{ inputs.sign_mode }}"
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .github\scripts\release\build-beta.ps1 -Platform win -Lane self-hosted -Namespace release-beta-win -ReleaseVersion "${{ inputs.release_version || needs.metadata.outputs.beta_version }}" -MetadataUrl "${{ inputs.s3_public_origin }}/beta/latest/metadata.json" -SmokeMode "${{ inputs.win_smoke_mode }}" -Target "${{ inputs.win_target }}" -SignMode "${{ inputs.win_sign_mode }}"
 
       - name: Publish beta candidate platform to Nexu S3
         id: publish_platform
@@ -222,7 +222,7 @@ jobs:
   build_mac:
     name: Build mac arm64 beta candidate
     needs: metadata
-    if: ${{ inputs.enable_mac }}
+    if: ${{ inputs.mac_enable }}
     runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
     timeout-minutes: 45
     env:
@@ -319,12 +319,12 @@ jobs:
         if: ${{ inputs.publish }}
         working-directory: _release-build
         env:
-          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}
+          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
           MAC_ARTIFACT_MODE: dmg-only
           OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
           RELEASE_CHANNEL: beta
-          RELEASE_NOTES: Open Design beta ${{ inputs.release_version || needs.metadata.outputs.beta_version }}${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}
+          RELEASE_NOTES: Open Design beta ${{ inputs.release_version || needs.metadata.outputs.beta_version }}${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}
           RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}
           TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}
           TOOLS_PACK_NAMESPACE: release-beta
@@ -338,7 +338,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.NEXU_S3_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.NEXU_S3_REGION }}
           AWS_EC2_METADATA_DISABLED: "true"
-          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}
+          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}
           CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.NEXU_S3_BUCKET }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
           CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.NEXU_S3_ENDPOINT }}
@@ -378,7 +378,7 @@ jobs:
         always() &&
         !cancelled() &&
         needs.metadata.result == 'success' &&
-        (inputs.enable_win || inputs.enable_mac) &&
+        (inputs.win_enable || inputs.mac_enable) &&
         inputs.publish
       }}
     runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
@@ -398,14 +398,14 @@ jobs:
             .github/scripts/release/r2/
 
       - name: Download windows publish manifest
-        if: ${{ inputs.enable_win && needs.build_win.result == 'success' }}
+        if: ${{ inputs.win_enable && needs.build_win.result == 'success' }}
         uses: actions/download-artifact@v8
         with:
           name: open-design-beta-win-publish-manifest
           path: ${{ runner.temp }}/release-platform-manifests
 
       - name: Download mac publish manifest
-        if: ${{ inputs.enable_mac && needs.build_mac.result == 'success' }}
+        if: ${{ inputs.mac_enable && needs.build_mac.result == 'success' }}
         uses: actions/download-artifact@v8
         with:
           name: open-design-beta-mac-publish-manifest
@@ -425,10 +425,10 @@ jobs:
           CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.NEXU_S3_BUCKET }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
           CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.NEXU_S3_ENDPOINT }}
-          ENABLE_MAC: ${{ inputs.enable_mac }}
+          ENABLE_MAC: ${{ inputs.mac_enable }}
           ENABLE_MAC_INTEL: "false"
           ENABLE_LINUX: "false"
-          ENABLE_WIN: ${{ inputs.enable_win }}
+          ENABLE_WIN: ${{ inputs.win_enable }}
           MAC_RESULT: ${{ needs.build_mac.result }}
           PLATFORM_MANIFEST_ROOT: ${{ runner.temp }}/release-platform-manifests
           RELEASE_CHANNEL: beta
@@ -448,10 +448,10 @@ jobs:
       - name: Verify beta metadata
         working-directory: _release-publish
         env:
-          ENABLE_MAC: ${{ inputs.enable_mac }}
+          ENABLE_MAC: ${{ inputs.mac_enable }}
           ENABLE_MAC_INTEL: "false"
           ENABLE_LINUX: "false"
-          ENABLE_WIN: ${{ inputs.enable_win }}
+          ENABLE_WIN: ${{ inputs.win_enable }}
           MAC_RESULT: ${{ needs.build_mac.result }}
           R2_METADATA_URL: ${{ steps.publish_metadata.outputs.version_metadata_url }}
           RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}

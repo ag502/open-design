@@ -113,9 +113,21 @@ describe("packaged smoke workflow", () => {
       readFile(releaseMacAssetsScriptPath, "utf8"),
     ]);
 
-    expect(workflow).toContain("enable_mac:");
+    expect(workflow).toContain("win_enable:");
+    expect(workflow).toContain("mac_enable:");
+    expect(workflow).toContain("win_smoke_mode:");
+    expect(workflow).toContain("win_target:");
+    expect(workflow).toContain("win_update_metadata_url:");
+    expect(workflow).toContain("win_update_target_version:");
     expect(workflow).toContain("mac_sign_mode:");
     expect(workflow).toContain('default: "off"');
+    expect(workflow).toMatch(/win_sign_mode:[\s\S]*?description: "Windows signing mode\. Defaults to unsigned; use auto\/on only for explicit signing validation\."[\s\S]*?default: "off"/);
+    expect(workflow).not.toMatch(/^      enable_win:/m);
+    expect(workflow).not.toMatch(/^      enable_mac:/m);
+    expect(workflow).not.toMatch(/^      sign_mode:/m);
+    expect(workflow).not.toMatch(/^      smoke_mode:/m);
+    expect(workflow).not.toMatch(/^      update_metadata_url:/m);
+    expect(workflow).not.toMatch(/^      update_target_version:/m);
     expect(workflow).toContain("name: Prepare beta metadata");
     expect(workflow).toContain("OPEN_DESIGN_BETA_METADATA_URL: ${{ inputs.s3_public_origin }}/beta/latest/metadata.json");
     expect(workflow).toContain("path: _release-metadata");
@@ -152,7 +164,7 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("bash .github/scripts/release/cache/mac.sh");
     expect(workflow).toContain("MAC_SIGN_MODE: ${{ inputs.mac_sign_mode }}");
     expect(workflow).toContain("OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile");
-    expect(workflow).toContain("ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}");
+    expect(workflow).toContain("ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}");
     expect(macAssetsScript).toContain('tools_pack_dir="${TOOLS_PACK_DIR:-$RUNNER_TEMP/tools-pack}"');
     expect(macAssetsScript).toContain('source_dmg="$tools_pack_dir/out/mac/namespaces/$TOOLS_PACK_NAMESPACE/dmg/Open Design-$TOOLS_PACK_NAMESPACE.dmg"');
     expect(workflow).toContain("Publish beta mac candidate platform to Nexu S3");

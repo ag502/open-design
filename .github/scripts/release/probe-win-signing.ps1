@@ -1,6 +1,6 @@
 param(
   [ValidateSet("auto", "off", "on")]
-  [string]$SignMode = "auto"
+  [string]$SignMode = "off"
 )
 
 $ErrorActionPreference = "Stop"
