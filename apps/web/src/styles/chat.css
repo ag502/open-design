@@ -256,27 +256,33 @@
 .msg-run-context-row {
   display: flex;
   justify-content: flex-end;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 3px 0 7px;
-  max-width: min(100%, 520px);
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin: 2px 0 5px;
+  max-width: min(100%, 460px);
   margin-left: auto;
+  overflow: hidden;
 }
 .msg-mode-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 8px;
+  gap: 4px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 7px;
   border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   background: color-mix(in srgb, var(--accent-tint) 72%, var(--bg));
   color: color-mix(in srgb, var(--accent) 72%, var(--text-strong));
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
+}
+.msg-mode-chip svg {
+  width: 11px;
+  height: 11px;
 }
 .msg-mode-chip--chat {
   border-color: color-mix(in srgb, var(--text-soft) 22%, var(--border));
@@ -287,24 +293,31 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 5px 6px;
+  flex-wrap: nowrap;
+  flex: 0 1 auto;
+  gap: 4px;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
 }
 .msg-plugin-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+  height: 22px;
+  flex: 0 1 auto;
+  min-width: 0;
   margin: 0;
-  padding: 4px 10px 4px 8px;
-  border-radius: 8px;
+  padding: 2px 6px 2px 5px;
+  border-radius: 7px;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
-  font-size: 11.5px;
+  font-size: 10.5px;
   line-height: 1;
   color: var(--text-muted);
   max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
   font: inherit;
   text-align: left;
   appearance: none;
@@ -325,8 +338,8 @@
   outline-offset: 2px;
 }
 .msg-plugin-chip__dot {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--accent);
   flex: 0 0 auto;
@@ -338,16 +351,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   border-radius: 5px;
   background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-subtle));
   color: var(--text-muted);
 }
+.msg-plugin-chip__icon svg {
+  width: 11px;
+  height: 11px;
+}
 .msg-plugin-chip--workspace {
-  gap: 7px;
-  padding-left: 5px;
+  gap: 5px;
+  padding-left: 3px;
   background: color-mix(in srgb, var(--bg-panel) 82%, var(--bg-subtle));
   border-color: color-mix(in srgb, var(--text-muted) 18%, var(--border));
 }
@@ -358,7 +375,8 @@
 .msg-plugin-chip__label {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  flex: 1 1 auto;
+  gap: 4px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -366,13 +384,15 @@
 }
 .msg-plugin-chip__kind {
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   font-weight: 600;
+  flex: 0 0 auto;
   color: var(--text-faint);
 }
 .msg-plugin-chip__title {
   color: var(--text);
   font-weight: 500;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -381,10 +401,15 @@
 .msg-plugin-chip__task {
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .msg-plugin-chip__task {
+  flex: 0 1 auto;
+  max-width: 68px;
   border-left: 1px solid var(--border);
-  padding-left: 8px;
+  padding-left: 5px;
 }
 .msg-plugin-context .context-chip-strip {
   justify-content: flex-end;
@@ -1388,8 +1413,8 @@
 .staged-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 4px 0;
+  gap: 4px;
+  padding: 3px 3px 0;
   max-height: min(108px, 18vh);
   overflow-y: auto;
   overflow-x: hidden;
@@ -1397,14 +1422,18 @@
 .staged-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 3px 6px 3px 3px;
+  gap: 4px;
+  height: 24px;
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px 5px 2px 2px;
   background: color-mix(in srgb, var(--bg-panel) 96%, var(--bg-subtle));
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  max-width: min(240px, 100%);
-  font-size: 11.5px;
+  border-radius: 7px;
+  max-width: min(210px, 100%);
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 10.5px;
   line-height: 1;
   box-shadow: none;
   transition:
@@ -1419,13 +1448,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border-radius: 6px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 5px;
   background: color-mix(in srgb, var(--text) 7%, var(--bg-subtle));
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 650;
   line-height: 1;
 }
@@ -1471,9 +1500,9 @@
 }
 .staged-chip img {
   display: block;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
   object-fit: cover;
 }
 .staged-preview-trigger {
@@ -1592,10 +1621,10 @@
   color: var(--text);
 }
 .staged-icon {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 5px;
   background: var(--bg-subtle);
   color: var(--text-muted);
   display: inline-flex;
@@ -1610,14 +1639,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 132px;
+  max-width: 116px;
   color: var(--text);
-  line-height: 18px;
+  line-height: 16px;
 }
 .staged-remove {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1627,7 +1656,7 @@
   color: var(--text-faint);
   cursor: pointer;
   line-height: 1;
-  border-radius: 6px;
+  border-radius: 5px;
 }
 .staged-remove svg {
   display: block;
