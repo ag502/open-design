@@ -122,12 +122,17 @@ function migrate(db: SqliteDb): void {
       text TEXT NOT NULL,
       position_json TEXT NOT NULL,
       html_hint TEXT NOT NULL,
+      selection_kind TEXT,
+      member_count INTEGER,
+      pod_members_json TEXT,
       style_json TEXT,
+      slide_index INTEGER,
+      slide_key INTEGER NOT NULL DEFAULT -1,
       note TEXT NOT NULL,
       status TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      UNIQUE(project_id, conversation_id, file_path, element_id),
+      UNIQUE(project_id, conversation_id, file_path, element_id, slide_key),
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     );
@@ -290,6 +295,10 @@ function migrate(db: SqliteDb): void {
   if (!previewCommentCols.some((c: DbRow) => c.name === 'attachments_json')) {
     db.exec(`ALTER TABLE preview_comments ADD COLUMN attachments_json TEXT`);
   }
+  if (!previewCommentCols.some((c: DbRow) => c.name === 'slide_index')) {
+    db.exec(`ALTER TABLE preview_comments ADD COLUMN slide_index INTEGER`);
+  }
+  migratePreviewCommentsSlideKey(db);
   const deploymentCols = db.prepare(`PRAGMA table_info(deployments)`).all() as DbRow[];
   if (!deploymentCols.some((c: DbRow) => c.name === 'status')) {
     db.exec(`ALTER TABLE deployments ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'`);
@@ -322,6 +331,59 @@ function migrate(db: SqliteDb): void {
   migrateCritique(db);
   migrateMediaTasks(db);
   migratePlugins(db);
+}
+
+function migratePreviewCommentsSlideKey(db: SqliteDb): void {
+  const table = db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'preview_comments'`)
+    .get() as DbRow | undefined;
+  const tableSql = String(table?.sql ?? '');
+  const hasSlideKey = /\bslide_key\b/i.test(tableSql);
+  const hasLegacyUnique = /UNIQUE\s*\(\s*project_id\s*,\s*conversation_id\s*,\s*file_path\s*,\s*element_id\s*\)/i
+    .test(tableSql);
+  if (hasSlideKey && !hasLegacyUnique) return;
+
+  db.exec(`
+    CREATE TABLE preview_comments_next (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      conversation_id TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      element_id TEXT NOT NULL,
+      selector TEXT NOT NULL,
+      label TEXT NOT NULL,
+      text TEXT NOT NULL,
+      position_json TEXT NOT NULL,
+      html_hint TEXT NOT NULL,
+      selection_kind TEXT,
+      member_count INTEGER,
+      pod_members_json TEXT,
+      style_json TEXT,
+      slide_index INTEGER,
+      slide_key INTEGER NOT NULL DEFAULT -1,
+      note TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(project_id, conversation_id, file_path, element_id, slide_key),
+      FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    );
+
+    INSERT INTO preview_comments_next
+      (id, project_id, conversation_id, file_path, element_id, selector, label,
+       text, position_json, html_hint, selection_kind, member_count, pod_members_json,
+       style_json, slide_index, slide_key, note, status, created_at, updated_at)
+    SELECT id, project_id, conversation_id, file_path, element_id, selector, label,
+       text, position_json, html_hint, selection_kind, member_count, pod_members_json,
+       style_json, slide_index, COALESCE(slide_index, -1), note, status, created_at, updated_at
+      FROM preview_comments;
+
+    DROP TABLE preview_comments;
+    ALTER TABLE preview_comments_next RENAME TO preview_comments;
+    CREATE INDEX IF NOT EXISTS idx_preview_comments_conversation
+      ON preview_comments(project_id, conversation_id, updated_at DESC);
+  `);
 }
 
 // ---------- deployments ----------
@@ -788,14 +850,25 @@ export function listConversations(db: SqliteDb, projectId: string) {
             FROM messages m
             JOIN project_conversations c ON c.id = m.conversation_id
            GROUP BY m.conversation_id
+        ),
+        total_run_durations AS (
+          SELECT m.conversation_id AS conversationId,
+                 SUM(${terminalRunDurationSql('m')}) AS totalDurationMs
+            FROM messages m
+            JOIN project_conversations c ON c.id = m.conversation_id
+           WHERE m.role = 'assistant'
+             AND m.run_status IN ('succeeded', 'failed', 'canceled')
+           GROUP BY m.conversation_id
         )
         SELECT c.id, c.projectId, c.title, c.sessionMode, c.createdAt, c.updatedAt,
                COALESCE(mc.messageCount, 0) AS messageCount,
                lr.latestRunStatus, lr.latestRunStartedAt,
-               lr.latestRunEndedAt, lr.latestRunEventsJson
+               lr.latestRunEndedAt, lr.latestRunEventsJson,
+               trd.totalDurationMs
           FROM project_conversations c
           LEFT JOIN latest_runs lr ON lr.conversationId = c.id
           LEFT JOIN message_counts mc ON mc.conversationId = c.id
+          LEFT JOIN total_run_durations trd ON trd.conversationId = c.id
          ORDER BY c.updatedAt DESC`,
     )
     .all(projectId)).map(normalizeConversation);
@@ -814,6 +887,7 @@ export function getConversation(db: SqliteDb, id: string) {
   return {
     ...normalizeConversation(r),
     latestRun: latestConversationRunSummary(db, r.id) ?? undefined,
+    ...numberProperty('totalDurationMs', totalConversationRunDurationMs(db, r.id)),
   };
 }
 
@@ -828,16 +902,22 @@ function normalizeConversation(r: DbRow) {
     id: r.id,
     projectId: r.projectId,
     title: r.title ?? null,
-	    sessionMode: normalizeConversationSessionMode(r.sessionMode),
-	    messageCount: Number(r.messageCount ?? 0),
-	    createdAt: Number(r.createdAt),
+    sessionMode: normalizeConversationSessionMode(r.sessionMode),
+    messageCount: Number(r.messageCount ?? 0),
+    createdAt: Number(r.createdAt),
     updatedAt: Number(r.updatedAt),
+    ...numberProperty('totalDurationMs', r.totalDurationMs),
     latestRun: latestRun ?? undefined,
   };
 }
 
 export function normalizeConversationSessionMode(value: unknown): ChatSessionMode {
   return value === 'chat' ? 'chat' : 'design';
+}
+
+function numberProperty(key: string, value: unknown) {
+  const n = value == null ? undefined : Number(value);
+  return typeof n === 'number' && Number.isFinite(n) ? { [key]: n } : {};
 }
 
 function latestConversationRunSummary(db: SqliteDb, conversationId: string) {
@@ -856,6 +936,50 @@ function latestConversationRunSummary(db: SqliteDb, conversationId: string) {
     )
     .get(conversationId) as DbRow | undefined;
   return conversationRunSummaryFromRow(row);
+}
+
+function totalConversationRunDurationMs(db: SqliteDb, conversationId: string): number | undefined {
+  const row = db
+    .prepare(
+      `SELECT SUM(${terminalRunDurationSql()}) AS totalDurationMs
+         FROM messages
+        WHERE conversation_id = ?
+          AND role = 'assistant'
+          AND run_status IN ('succeeded', 'failed', 'canceled')`,
+    )
+    .get(conversationId) as DbRow | undefined;
+  return row?.totalDurationMs == null ? undefined : Number(row.totalDurationMs);
+}
+
+function terminalRunDurationSql(alias?: string) {
+  const p = alias ? `${alias}.` : '';
+  return `CASE
+            WHEN ${p}started_at IS NOT NULL AND ${p}ended_at IS NOT NULL THEN
+              CASE
+                WHEN CAST(${p}ended_at AS INTEGER) >= CAST(${p}started_at AS INTEGER)
+                  THEN CAST(${p}ended_at AS INTEGER) - CAST(${p}started_at AS INTEGER)
+                ELSE 0
+              END
+            ELSE (
+              SELECT CASE
+                       WHEN json_extract(usage_event.value, '$.durationMs') >= 0
+                         THEN json_extract(usage_event.value, '$.durationMs')
+                       ELSE 0
+                     END
+                FROM json_each(
+                  CASE
+                    WHEN json_valid(${p}events_json) AND json_type(${p}events_json) = 'array'
+                      THEN ${p}events_json
+                    ELSE '[]'
+                  END
+                ) AS usage_event
+               WHERE usage_event.type = 'object'
+                 AND json_extract(usage_event.value, '$.kind') = 'usage'
+                 AND json_type(usage_event.value, '$.durationMs') IN ('integer', 'real')
+               ORDER BY CAST(usage_event.key AS INTEGER) DESC
+               LIMIT 1
+            )
+          END`;
 }
 
 function conversationRunSummaryFromRow(row: DbRow | undefined) {
@@ -1143,6 +1267,7 @@ export function listPreviewComments(db: SqliteDb, projectId: string, conversatio
               selection_kind AS selectionKind, member_count AS memberCount,
               pod_members_json AS podMembersJson, style_json AS styleJson,
               attachments_json AS attachmentsJson,
+              slide_index AS slideIndex,
               note, status, created_at AS createdAt, updated_at AS updatedAt
          FROM preview_comments
         WHERE project_id = ? AND conversation_id = ?
@@ -1174,14 +1299,16 @@ export function upsertPreviewComment(db: SqliteDb, projectId: string, conversati
           ? Math.max(0, Math.round(target.memberCount))
           : 0)
     : 0;
+  const slideIndex = Number.isFinite(target.slideIndex) ? Math.max(0, Math.round(target.slideIndex)) : null;
+  const slideKey = slideIndex ?? -1;
   const now = Date.now();
   const existing = db
     .prepare(
       `SELECT id, created_at AS createdAt, attachments_json AS attachmentsJson
          FROM preview_comments
-        WHERE project_id = ? AND conversation_id = ? AND file_path = ? AND element_id = ?`,
+        WHERE project_id = ? AND conversation_id = ? AND file_path = ? AND element_id = ? AND slide_key = ?`,
     )
-    .get(projectId, conversationId, filePath, elementId) as DbRow | undefined;
+    .get(projectId, conversationId, filePath, elementId, slideKey) as DbRow | undefined;
   const id = existing?.id ?? randomCommentId();
   const createdAt = existing?.createdAt ?? now;
   const existingAttachments = normalizePreviewCommentAttachments(parseJsonOrUndef(existing?.attachmentsJson));
@@ -1192,9 +1319,9 @@ export function upsertPreviewComment(db: SqliteDb, projectId: string, conversati
     `INSERT INTO preview_comments
        (id, project_id, conversation_id, file_path, element_id, selector, label,
         text, position_json, html_hint, selection_kind, member_count, pod_members_json,
-        style_json, attachments_json, note, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(project_id, conversation_id, file_path, element_id) DO UPDATE SET
+        style_json, attachments_json, slide_index, slide_key, note, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(project_id, conversation_id, file_path, element_id, slide_key) DO UPDATE SET
        selector = excluded.selector,
        label = excluded.label,
        text = excluded.text,
@@ -1205,6 +1332,7 @@ export function upsertPreviewComment(db: SqliteDb, projectId: string, conversati
        pod_members_json = excluded.pod_members_json,
        style_json = excluded.style_json,
        attachments_json = excluded.attachments_json,
+       slide_index = excluded.slide_index,
        note = excluded.note,
        status = 'open',
        updated_at = excluded.updated_at`,
@@ -1224,6 +1352,8 @@ export function upsertPreviewComment(db: SqliteDb, projectId: string, conversati
     selectionKind === 'pod' ? JSON.stringify(podMembers) : null,
     style ? JSON.stringify(style) : null,
     attachments.length > 0 ? JSON.stringify(attachments) : null,
+    slideIndex,
+    slideKey,
     note,
     'open',
     createdAt,
@@ -1262,6 +1392,7 @@ function getPreviewComment(db: SqliteDb, projectId: string, conversationId: stri
               selection_kind AS selectionKind, member_count AS memberCount,
               pod_members_json AS podMembersJson, style_json AS styleJson,
               attachments_json AS attachmentsJson,
+              slide_index AS slideIndex,
               note, status, created_at AS createdAt, updated_at AS updatedAt
          FROM preview_comments
         WHERE id = ? AND project_id = ? AND conversation_id = ?`,
@@ -1293,6 +1424,7 @@ function normalizePreviewComment(row: DbRow) {
           ? row.memberCount
           : undefined,
     podMembers: normalizedPodMembers,
+    slideIndex: Number.isFinite(row.slideIndex) ? row.slideIndex : undefined,
     note: row.note,
     attachments: normalizePreviewCommentAttachments(parseJsonOrUndef(row.attachmentsJson)),
     status: row.status,

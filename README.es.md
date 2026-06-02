@@ -12,7 +12,7 @@
 > → [**Lee el anuncio · descarga el instalador · únete al movimiento**](https://github.com/nexu-io/open-design/discussions/1727) · funciona en paralelo con tu 0.7 actual.
 
 <p align="center">
-  <img src="docs/assets/banner.png" alt="Open Design — editorial cover: design with the agent on your laptop" width="100%" />
+  <img src="https://repo-assets.open-design.ai/resources/images/banner.png" alt="Open Design — editorial cover: design with the agent on your laptop" width="100%" />
 </p>
 
 <p align="center">
@@ -767,7 +767,7 @@ Esta es una implementación temprana: el bucle cerrado (detect → pick skill + 
 ## Danos una estrella
 
 <p align="center">
-  <a href="https://github.com/nexu-io/open-design"><img src="docs/assets/star-us.png" alt="Star Open Design on GitHub — github.com/nexu-io/open-design" width="100%" /></a>
+  <a href="https://github.com/nexu-io/open-design"><img src="https://repo-assets.open-design.ai/resources/images/star-us.png" alt="Star Open Design on GitHub — github.com/nexu-io/open-design" width="100%" /></a>
 </p>
 
 Si esto te ahorró treinta minutos, dale una ★. Las estrellas no pagan la renta, pero le dicen al próximo diseñador, agente y contributor que este experimento merece atención. Un clic, tres segundos, señal real: [github.com/nexu-io/open-design](https://github.com/nexu-io/open-design).
@@ -787,26 +787,24 @@ Walkthrough completo, estándar de merge, code style y lo que no aceptamos → [
 Gracias a todas las personas que han ayudado a mover Open Design hacia adelante: con código, docs, feedback, nuevas skills, nuevos design systems o incluso un issue preciso. Toda contribución real cuenta, y el muro de abajo es la forma más simple de decirlo en voz alta.
 
 <a href="https://github.com/nexu-io/open-design/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=nexu-io/open-design&cache_bust=2026-05-29" alt="Contribuidores de Open Design" />
+  <img src="https://contrib.rocks/image?repo=nexu-io/open-design&cache_bust=2026-05-31" alt="Contribuidores de Open Design" />
 </a>
 
 Si ya enviaste tu primer PR, bienvenido. La etiqueta [`good-first-issue`](https://github.com/nexu-io/open-design/labels/good-first-issue) es el punto de entrada.
 
 ## Actividad del repositorio
 
-<picture>
-  <img alt="Open Design — repository metrics" src="docs/assets/github-metrics.svg" />
-</picture>
-
-El SVG anterior se regenera diariamente mediante [`.github/workflows/metrics.yml`](.github/workflows/metrics.yml) usando [`lowlighter/metrics`](https://github.com/lowlighter/metrics). Ejecuta un refresh manual desde la pestaña **Actions** si lo quieres antes; para plugins más ricos (traffic, follow-up time), añade un secret `METRICS_TOKEN` con un PAT fine-grained.
+<p align="center">
+  <img alt="Open Design — repository metrics" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" width="720" />
+</p>
 
 ## Historial de estrellas
 
 <a href="https://star-history.com/#nexu-io/open-design&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&theme=dark&cache_bust=2026-05-29" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-05-29" />
-    <img alt="Historial de estrellas de Open Design" src="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-05-29" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&theme=dark&cache_bust=2026-05-31" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-05-31" />
+    <img alt="Historial de estrellas de Open Design" src="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-05-31" />
   </picture>
 </a>
 

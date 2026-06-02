@@ -50,6 +50,7 @@ import type {
   ProviderModelsRequest,
   ProviderModelsResponse,
   Project,
+  ProjectLocationPrefs,
   ProjectPlatform,
   ProjectBrowserWorkspaceTab,
   ProjectTabsState,
@@ -90,6 +91,7 @@ export type {
   ChatCommentSelectionKind,
   OrbitRunSummary,
   OrbitStatusResponse,
+  ProjectLocation,
   PreviewCommentMember,
   PreviewAnnotationStyle,
   PreviewCommentSelectionKind,
@@ -416,6 +418,8 @@ export interface AppConfig {
   // PrivacySection persist it through `syncConfigToDaemon`.
   telemetry?: TelemetryConfig;
   customInstructions?: string;
+  projectLocations?: ProjectLocationPrefs[];
+  defaultProjectLocationId?: string | null;
 }
 
 export interface TelemetryConfig {

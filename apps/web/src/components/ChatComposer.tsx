@@ -28,7 +28,7 @@ import { patchProject } from "../state/projects";
 import { fetchMcpServers } from "../state/mcp";
 import type { McpServerConfig, McpTemplate } from "../state/mcp";
 import { listPlugins } from "../state/projects";
-import type { AppConfig, ChatAttachment, ChatCommentAttachment, ProjectFile, ProjectMetadata, SkillSummary } from "../types";
+import type { AppConfig, ChatAttachment, ChatCommentAttachment, Project, ProjectFile, ProjectMetadata, SkillSummary } from "../types";
 import type {
   ContextItem,
   AppliedPluginSnapshot,
@@ -57,6 +57,7 @@ import {
 } from './composer/LexicalComposerInput';
 import { CaretFloatingLayer } from './composer/CaretFloatingLayer';
 import { ANNOTATION_EVENT, type AnnotationEventDetail } from "./PreviewDrawOverlay";
+import { DesignSystemSwitchPicker } from "./DesignSystemSwitchPicker";
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
@@ -155,6 +156,20 @@ interface Props {
   // ChatPane). Pass `null` (or omit) to render the full rail.
   pinnedPluginId?: string | null;
   footerAccessory?: ReactNode;
+  // Project's current `designSystemId`. The mid-chat design-system picker
+  // uses this to surface a "current" indicator and to no-op a redundant
+  // switch. Optional so test/screenshot harnesses can omit it.
+  currentDesignSystemId?: string | null;
+  // Fires after a successful `PATCH /api/projects/:id` from the mid-chat
+  // design-system picker. Receives the full patched `Project` straight
+  // from the PATCH response so the parent replaces its mirror wholesale —
+  // rebuilding from a stale `project` prop would drop server-owned fields
+  // the daemon refreshes on every PATCH (e.g. `updatedAt`).
+  onActiveDesignSystemChange?: (project: Project) => void;
+  // Optional transient banner sink. The composer emits one short message
+  // here when a mid-chat design-system switch lands (or fails) so the user
+  // has explicit confirmation without re-opening the picker.
+  onShowToast?: (message: string) => void;
 }
 
 // Imperative handle so ancestors (e.g. example chips in ChatPane) can
@@ -231,6 +246,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       onProjectSkillChange,
       pinnedPluginId = null,
       footerAccessory,
+      currentDesignSystemId = null,
+      onActiveDesignSystemChange,
+      onShowToast,
     },
     ref
   ) {
@@ -1136,6 +1154,25 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       if (result?.metadata) onProjectMetadataChange?.(result.metadata);
     }
 
+    async function handleSwitchDesignSystem(
+      designSystemId: string | null,
+      title: string | null,
+    ): Promise<boolean> {
+      if (!projectId) return false;
+      if (designSystemId === currentDesignSystemId) return true;
+      const result = await patchProject(projectId, { designSystemId });
+      if (!result) {
+        onShowToast?.(t('chat.importDesignSystemFailed'));
+        return false;
+      }
+      onActiveDesignSystemChange?.(result);
+      const switchedTitle = designSystemId === null
+        ? t('chat.importDesignSystemNone')
+        : title ?? designSystemId;
+      onShowToast?.(t('chat.importDesignSystemSwitched', { title: switchedTitle }));
+      return true;
+    }
+
     async function handleUnlinkFolder(dir: string) {
       if (!projectId) return;
       const base = projectMetadata ?? { kind: 'prototype' as const };
@@ -1874,6 +1911,19 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                           setToolsOpen(false);
                           await handleLinkFolder();
                         }}
+                        currentDesignSystemId={currentDesignSystemId}
+                        onSwitchDesignSystem={
+                          projectId
+                            ? async (designSystemId, title) => {
+                                const ok = await handleSwitchDesignSystem(
+                                  designSystemId,
+                                  title,
+                                );
+                                if (ok) setToolsOpen(false);
+                                return ok;
+                              }
+                            : undefined
+                        }
                       />
                     ) : null}
                   </div>
@@ -2815,10 +2865,35 @@ function pluginSourceLabel(plugin: InstalledPluginRecord, t: TranslateFn): strin
 function ToolsImportPanel({
   t,
   onLinkFolder,
+  currentDesignSystemId,
+  onSwitchDesignSystem,
 }: {
   t: TranslateFn;
   onLinkFolder: () => Promise<void> | void;
+  currentDesignSystemId?: string | null;
+  // When omitted (no active project) the design-system import row stays
+  // disabled with the existing "Coming soon" affordance so users aren't
+  // routed into a picker that has nothing to PATCH. Returns true on a
+  // successful PATCH so the picker can close itself; false leaves the
+  // picker open so the user can retry.
+  onSwitchDesignSystem?: (
+    designSystemId: string | null,
+    title: string | null,
+  ) => Promise<boolean>;
 }) {
+  const [view, setView] = useState<'root' | 'designSystems'>('root');
+
+  if (view === 'designSystems' && onSwitchDesignSystem) {
+    return (
+      <DesignSystemSwitchPicker
+        t={t}
+        currentDesignSystemId={currentDesignSystemId}
+        onSelect={onSwitchDesignSystem}
+        onBack={() => setView('root')}
+      />
+    );
+  }
+
   return (
     <div className="composer-tools-list">
       <ImportItem icon="upload" label={t('chat.importFig')} t={t} />
@@ -2830,7 +2905,14 @@ function ToolsImportPanel({
         enabled
         onClick={() => void onLinkFolder()}
       />
-      <ImportItem icon="sparkles" label={t('chat.importSkills')} t={t} />
+      <ImportItem
+        icon="sparkles"
+        label={t('chat.importSkills')}
+        t={t}
+        enabled={!!onSwitchDesignSystem}
+        onClick={() => setView('designSystems')}
+        testId="composer-import-design-systems"
+      />
       <ImportItem icon="file" label={t('chat.importProject')} t={t} />
     </div>
   );
@@ -2842,12 +2924,14 @@ function ImportItem({
   t,
   enabled,
   onClick,
+  testId,
 }: {
   icon: "upload" | "link" | "grid" | "folder" | "sparkles" | "file";
   label: string;
   t: TranslateFn;
   enabled?: boolean;
   onClick?: () => void;
+  testId?: string;
 }) {
   return (
     <button
@@ -2858,6 +2942,7 @@ function ImportItem({
       disabled={!enabled}
       title={enabled ? label : t('chat.importComingSoon')}
       onClick={enabled && onClick ? onClick : (e) => e.preventDefault()}
+      data-testid={testId}
     >
       <span className="ico" aria-hidden>
         <Icon name={icon} size={14} />

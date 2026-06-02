@@ -789,7 +789,10 @@ async function consumeDaemonRun({
       }
     }
 
-    if (endStatus === 'canceled') return;
+    if (endStatus === 'canceled') {
+      handlers.onDone(acc);
+      return;
+    }
 
     // Trust the server's authoritative success declaration. When the server
     // explicitly sets `status: 'succeeded'` (either in the SSE end payload

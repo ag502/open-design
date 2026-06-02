@@ -245,6 +245,8 @@ export function BoardComposerPopover({
   onRemoveImage,
   onPreviewImage,
   sending,
+  queueOnSend = false,
+  sendDisabled = false,
   t,
   scale = 1,
   bounds,
@@ -273,6 +275,8 @@ export function BoardComposerPopover({
   onRemoveImage?: (index: number) => void;
   onPreviewImage?: (index: number) => void;
   sending: boolean;
+  queueOnSend?: boolean;
+  sendDisabled?: boolean;
   t: TranslateFn;
   scale?: number;
   bounds?: PopoverBounds;
@@ -317,11 +321,20 @@ export function BoardComposerPopover({
   // An attached image alone is enough to send (the element context rides along
   // even without a typed note).
   const hasAnyImage = hasFreshImage || existingImages.length > 0;
-  const sendDisabled = (pendingCount === 0 && !hasAnyImage) || sending;
+  // `sendDisabled` (prop) is the external gate (e.g. the chat can't accept the
+  // batch right now); combine it with the local "nothing to send" / sending
+  // checks so the send-to-chat CTA reflects both.
+  const sendBlocked = (pendingCount === 0 && !hasAnyImage) || sending || sendDisabled;
   const isPodSelection = target.selectionKind === 'pod';
   const hasSaveContent = Boolean(trimmedDraft) || hasAnyImage;
   const existingChanged = existing ? trimmedDraft !== existingNote || hasFreshImage : true;
   const saveDisabled = !hasSaveContent || !existingChanged || sending;
+  // Queue-on-send swaps the primary label to the annotation-queue wording.
+  const primaryLabel = sending
+    ? t('chat.comments.sending')
+    : queueOnSend
+      ? t('chat.annotationQueue')
+      : t('chat.comments.sendToChat');
   function pickImages(list: FileList | null) {
     const imgs = Array.from(list ?? []).filter((f) => f.type.startsWith('image/'));
     if (imgs.length > 0) onAttachImages?.(imgs);
@@ -470,7 +483,7 @@ export function BoardComposerPopover({
                 // Enter triggers the primary CTA: comment (save) for element
                 // selections, send-to-chat for pod selections.
                 if (isPodSelection) {
-                  if (!sendDisabled) void onSendBatch();
+                  if (!sendBlocked) void onSendBatch();
                 } else if (!saveDisabled) {
                   void onSaveComment();
                 }
@@ -539,10 +552,10 @@ export function BoardComposerPopover({
                     type="button"
                     className="primary"
                     data-testid="comment-add-send"
-                    disabled={sendDisabled}
+                    disabled={sendBlocked}
                     onClick={() => void onSendBatch()}
                   >
-                    {sending ? t('chat.comments.sending') : t('chat.comments.sendToChat')}
+                    {primaryLabel}
                   </button>
                 </>
               ) : (
@@ -553,10 +566,10 @@ export function BoardComposerPopover({
                     type="button"
                     className="ghost"
                     data-testid="comment-add-send"
-                    disabled={sendDisabled}
+                    disabled={sendBlocked}
                     onClick={() => void onSendBatch()}
                   >
-                    {sending ? t('chat.comments.sending') : t('chat.comments.sendToChat')}
+                    {primaryLabel}
                   </button>
                   <button
                     type="button"

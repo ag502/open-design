@@ -1521,6 +1521,14 @@
   padding: 10px 12px 10px 0;
   vertical-align: middle;
   overflow: hidden;
+  /* Force ellipsis truncation in auto-layout tables (#3260). Without
+     `max-width: 0` and `min-width: 0`, a long `f.name` would expand
+     this td and push the kind / mtime / menu cells off-screen — even
+     though `.df-row-name` already has `text-overflow: ellipsis`. The
+     `:not(.no-preview)` overrides in `routines.css` already pin the
+     row's children to `width: 100%` when a preview pane is open; this
+     baseline rule covers the no-preview state the issue reports. */
+  max-width: 0;
 }
 .df-cell-openable {
   cursor: pointer;
@@ -1809,6 +1817,9 @@
   gap: 2px;
   width: 100%;
   min-width: 0;
+  /* Constrain the wrap to the cell's content box so the ellipsis on
+     `.df-row-name` engages even in the auto-layout table state
+     (#3260). */
   max-width: 100%;
 }
 .df-row-name {
@@ -1821,6 +1832,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* `max-width: 100%` on a flex child pairs with the wrap's
+     `min-width: 0` so the long filename collapses to the cell width
+     instead of pushing the kind / mtime / menu columns off-screen
+     (#3260). */
+  max-width: 100%;
+  min-width: 0;
 }
 .df-rename-input {
   width: 100%;

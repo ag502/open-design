@@ -37,6 +37,7 @@ export type EntrySettingsSection =
   | 'appearance'
   | 'notifications'
   | 'pet'
+  | 'projectLocations'
   | 'library'
   | 'about'
   | 'memory'

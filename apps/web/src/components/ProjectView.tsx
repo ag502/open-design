@@ -890,6 +890,8 @@ export function ProjectView({
     || failedMessagesConversationId === activeConversationId
     || currentConversationAwaitingActiveRunAttach;
   const currentConversationActionDisabled = currentConversationBusy || currentConversationSendDisabled;
+  const currentConversationQueueDisabled = currentConversationLoading
+    || failedMessagesConversationId === activeConversationId;
   const currentConversationQueuedItems = activeConversationId
     ? queuedChatSends
         .filter((item) => item.conversationId === activeConversationId)
@@ -3402,7 +3404,8 @@ export function ProjectView({
 
   const handleSendBoardCommentAttachments = useCallback(
     async (commentAttachments: ChatCommentAttachment[], images: File[] = []) => {
-      if (commentAttachments.length === 0 && images.length === 0) return;
+      if (currentConversationQueueDisabled) return false;
+      if (commentAttachments.length === 0 && images.length === 0) return false;
       setWorkspaceFocused(false);
       setCommentInspectorActive(false);
       // Upload any attached images once, then queue. Each comment becomes its
@@ -3415,7 +3418,7 @@ export function ProjectView({
       }
       if (commentAttachments.length === 0) {
         if (uploaded.length > 0) await handleSend('', uploaded, [], { queueOnly: true });
-        return;
+        return true;
       }
       for (let i = 0; i < commentAttachments.length; i++) {
         const commentAttachment = commentAttachments[i]!;
@@ -3428,9 +3431,11 @@ export function ProjectView({
           { queueOnly: true },
         );
       }
+      return true;
     },
-    [handleSend, project.id],
+    [handleSend, project.id, currentConversationQueueDisabled],
   );
+  const commentQueueOnSend = currentConversationBusy && !currentConversationQueueDisabled;
 
   const handleContinueRemainingTasks = useCallback(
     (_assistantMessage: ChatMessage, todos: TodoItem[]) => {
@@ -5106,6 +5111,13 @@ export function ProjectView({
                 onProjectChange({ ...project, skillId });
               }}
               activePluginSnapshot={activePluginSnapshot}
+              currentDesignSystemId={project.designSystemId}
+              onActiveDesignSystemChange={(updatedProject) => {
+                onProjectChange(updatedProject);
+              }}
+              onShowToast={(message) => {
+                setProjectActionsToast({ message, details: null });
+              }}
               onCollapse={() => setWorkspaceFocused(true)}
             />
           ) : (
@@ -5147,6 +5159,8 @@ export function ProjectView({
           isDeck={isDeck}
           onExportAsPptx={handleExportAsPptx}
           streaming={currentConversationActionDisabled}
+          commentQueueOnSend={commentQueueOnSend}
+          commentSendDisabled={currentConversationQueueDisabled}
           openRequest={openRequest}
           liveArtifactEvents={liveArtifactEvents}
           designSystemActivityEvents={designSystemActivityEvents}
@@ -5184,6 +5198,13 @@ export function ProjectView({
           activeConversationChat={activeConversationChatState}
           onCreateSideChat={handleCreateSideChat}
           onActiveContextChange={handleActiveWorkspaceContextChange}
+          messages={messages}
+          artifactHtml={artifact?.html}
+          conversationError={error}
+          onRetry={handleRetry}
+          onAuthorizeAndRetry={handleSwitchToAmrAndRetry}
+          onLaunchTerminalAuth={handleLaunchAntigravityOauth}
+          conversationId={activeConversationId}
         />
       </div>
       {contextPluginDetails ? (

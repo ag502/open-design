@@ -216,6 +216,9 @@ function AppInner() {
   const [integrationInitialTab, setIntegrationInitialTab] = useState<IntegrationTab>('mcp');
   const [daemonLive, setDaemonLive] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [providerModelsCache, setProviderModelsCache] = useState<
+    Record<string, ProviderModelOption[]>
+  >({});
   // Functional skills (capabilities the agent invokes mid-task) — stays
   // small and lives under the Settings → Skills surface.
   const [skills, setSkills] = useState<SkillSummary[]>([]);
@@ -237,9 +240,6 @@ function AppInner() {
   const [appVersionInfo, setAppVersionInfo] = useState<AppVersionInfo | null>(
     null,
   );
-  const [providerModelsCache, setProviderModelsCache] = useState<
-    Record<string, ProviderModelOption[]>
-  >({});
   const [daemonMediaProviders, setDaemonMediaProviders] = useState<
     AppConfig['mediaProviders'] | null
   >(null);
@@ -1630,6 +1630,7 @@ function AppInner() {
           daemonMediaProvidersFetchState={daemonMediaProvidersFetchState}
           mediaProvidersNotice={mediaProvidersNotice}
           onReloadMediaProviders={reloadMediaProvidersFromDaemon}
+          onProjectsRefresh={refreshProjects}
           onSkillsChanged={handleSkillsChanged}
           onDesignSystemsChanged={handleDesignSystemsChanged}
           providerModelsCache={providerModelsCache}

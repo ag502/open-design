@@ -65,6 +65,8 @@ export interface PreviewCommentTarget {
   selectionKind?: PreviewCommentSelectionKind;
   memberCount?: number;
   podMembers?: PreviewCommentMember[];
+  /** Zero-based deck slide index when the comment was placed. */
+  slideIndex?: number;
 }
 
 export interface PreviewComment {
@@ -82,6 +84,8 @@ export interface PreviewComment {
   selectionKind?: PreviewCommentSelectionKind;
   memberCount?: number;
   podMembers?: PreviewCommentMember[];
+  /** Zero-based deck slide index when the comment was placed. */
+  slideIndex?: number;
   note: string;
   attachments?: PreviewCommentAttachment[];
   status: PreviewCommentStatus;

@@ -1043,7 +1043,9 @@ export function DesignFilesPanel({
               }}
             >
               <span className="df-row-name-wrap">
-                <span className="df-row-name">{displayNameForFile(f.name)}</span>
+                <span className="df-row-name" title={displayNameForFile(f.name)}>
+                  {displayNameForFile(f.name)}
+                </span>
                 <span className="df-row-sub">
                   <span>{humanBytes(f.size)}</span>
                   <span className="df-row-sub-kind">{kindLabel(f.kind, t)}</span>
@@ -1139,7 +1141,7 @@ export function DesignFilesPanel({
         <td className="df-cell-name df-cell-openable" onClick={() => openDirectory(fullPath)}>
           <button type="button" className="df-row-name-btn" onClick={() => openDirectory(fullPath)}>
             <span className="df-row-name-wrap">
-              <span className="df-row-name">{dir.label}</span>
+              <span className="df-row-name" title={dir.label}>{dir.label}</span>
               <span className="df-row-sub">{t('designFiles.folderCount', { n: count })}</span>
             </span>
           </button>
@@ -1666,7 +1668,9 @@ export function DesignFilesPanel({
                         ◉
                       </span>
                       <span className="df-row-name-wrap">
-                        <span className="df-row-name">{artifact.title}</span>
+                        <span className="df-row-name" title={artifact.title}>
+                          {artifact.title}
+                        </span>
                         <span className="df-row-sub">
                           <span>{t('designFiles.kindLiveArtifact')}</span>
                           <LiveArtifactBadges
