@@ -114,7 +114,7 @@ preflight_mac_signing() {
   local keychain_password
   keychain_password="$(uuidgen)"
   local probe_bin="$RUNNER_TEMP/open-design-codesign-preflight"
-  local identities identity_hash identity_name default_keychain
+  local identities identity_hash identity_name csc_name default_keychain
   local current_keychains=()
   default_keychain="$(security default-keychain -d user 2>/dev/null | sed 's/^ *"//; s/"$//' || true)"
 
@@ -160,7 +160,8 @@ preflight_mac_signing() {
     exit 1
   fi
   if [ -n "$identity_name" ]; then
-    export CSC_NAME="$identity_name"
+    csc_name="${identity_name#Developer ID Application: }"
+    export CSC_NAME="$csc_name"
   fi
 
   echo "mac signing preflight: default keychain=${default_keychain:-<none>}"
@@ -173,7 +174,7 @@ preflight_mac_signing() {
     cp /bin/echo "$probe_bin"
     echo "mac signing preflight: trying $label"
     if codesign "$@" "$probe_bin"; then
-      codesign --verify --verbose "$probe_bin"
+      /usr/bin/codesign --verify --verbose "$probe_bin"
       echo "mac signing preflight: $label succeeded"
       return 0
     fi
@@ -245,10 +246,10 @@ capture_framework_diagnostics() {
     echo "### plist"
     plutil -p "$framework/Versions/A/Resources/Info.plist" 2>&1 || true
     echo "### codesign display"
-    codesign --display --verbose=4 "$framework/Electron Framework" 2>&1 || true
-    codesign --display --verbose=4 "$framework/Versions/Current/Electron Framework" 2>&1 || true
-    codesign --display --verbose=4 "$framework/Versions/A/Electron Framework" 2>&1 || true
-    codesign --display --verbose=4 "$framework" 2>&1 || true
+    /usr/bin/codesign --display --verbose=4 "$framework/Electron Framework" 2>&1 || true
+    /usr/bin/codesign --display --verbose=4 "$framework/Versions/Current/Electron Framework" 2>&1 || true
+    /usr/bin/codesign --display --verbose=4 "$framework/Versions/A/Electron Framework" 2>&1 || true
+    /usr/bin/codesign --display --verbose=4 "$framework" 2>&1 || true
   }
 
   {
