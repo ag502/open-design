@@ -5,6 +5,9 @@ source_profile="${OPEN_DESIGN_RELEASE_PROFILE:-}"
 if [ -n "$source_profile" ]; then
   # Self-hosted mac runners run as LaunchDaemons with a thin default PATH.
   # Source the runner profile explicitly when the workflow provides one.
+  if ! command -v rehash >/dev/null 2>&1; then
+    rehash() { hash -r; }
+  fi
   # shellcheck disable=SC1090
   source "$source_profile"
 fi

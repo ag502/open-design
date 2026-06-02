@@ -136,6 +136,9 @@ jobs:
         id: beta
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           node --experimental-strip-types ./scripts/release-beta.ts
@@ -266,6 +269,9 @@ jobs:
           OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           corepack prepare pnpm@10.33.2 --activate
