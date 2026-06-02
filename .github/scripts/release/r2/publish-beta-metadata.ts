@@ -116,8 +116,8 @@ for (const def of platformDefs) {
 let assetVersionSuffix = requestedAssetVersionSuffix;
 if (assetVersionSuffix === "auto") {
   const readyManifests = readyPlatforms.map((key) => platforms[key]).filter((manifest) => manifest != null);
-  const hasSignedPlatform = readyManifests.some((manifest) => manifest.signed === true);
-  assetVersionSuffix = hasSignedPlatform ? "" : ".unsigned";
+  const allReadyPlatformsSigned = readyManifests.length > 0 && readyManifests.every((manifest) => manifest.signed === true);
+  assetVersionSuffix = allReadyPlatformsSigned ? "" : ".unsigned";
 }
 
 let releaseState = "failed";
