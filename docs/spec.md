@@ -17,6 +17,7 @@ Other docs:
 - Agent adapters → [`agent-adapters.md`](agent-adapters.md)
 - Modes → [`modes.md`](modes.md)
 - Automations self-evolution → [`../specs/current/automation-self-evolution.md`](../specs/current/automation-self-evolution.md)
+- Langfuse prompt-stack observability → [`../specs/current/langfuse-prompt-stack-observability.md`](../specs/current/langfuse-prompt-stack-observability.md)
 - References & credits → [`references.md`](references.md)
 - Roadmap → [`roadmap.md`](roadmap.md)
 
