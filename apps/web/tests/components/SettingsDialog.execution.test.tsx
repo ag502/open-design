@@ -789,6 +789,43 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
     expect(screen.getByText('Model discovery is not available for this protocol.')).toBeTruthy();
   });
 
+  it('auto-loads provider models after a pasted dirty key is cleaned on blur', async () => {
+    fetchProviderModelsMock.mockResolvedValueOnce({
+      ok: true,
+      kind: 'success',
+      latencyMs: 12,
+      models: [{ id: 'gpt-account', label: 'Account Model' }],
+    });
+    renderSettingsDialog({
+      apiProtocol: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      apiProviderBaseUrl: 'https://api.openai.com/v1',
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'OpenAI' }));
+    expect(fetchProviderModelsMock).not.toHaveBeenCalled();
+
+    // Paste a key with a leading zero-width char + trailing newline/tab.
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: '\u200Bsk-openai\n\t' },
+    });
+    fireEvent.blur(screen.getByLabelText('API key'));
+
+    // If onByokKeyCommit committed the dirty-key cache key, the auto-fetch
+    // effect would bail on providerModelsCommittedKey !== providerModelsKey
+    // and this text would never appear.
+    expect(await screen.findByText('✓ Loaded 1 models from your account.')).toBeTruthy();
+    expect(fetchProviderModelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        protocol: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-openai',
+      }),
+      expect.any(AbortSignal),
+    );
+  });
+
   it('does not show a BYOK Test button or nag when the API key is still missing', () => {
     renderSettingsDialog({
       apiProtocol: 'anthropic',

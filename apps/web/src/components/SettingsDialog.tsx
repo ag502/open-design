@@ -963,6 +963,7 @@ export function SettingsDialog({
   const providerTestRevisionRef = useRef(0);
   const providerModelsRevisionRef = useRef(0);
   const providerModelsFirstResetRef = useRef(true);
+  const recommitModelsAfterCleanRef = useRef(false);
   const providerAutoTestKeyRef = useRef<string | null>(null);
   const apiKeyInputRef = useRef<HTMLInputElement | null>(null);
   const baseUrlInputRef = useRef<HTMLInputElement | null>(null);
@@ -1905,11 +1906,27 @@ export function SettingsDialog({
     // non-blocking warning yet still go out malformed over the wire.
     const cleanedApiKey = cleanByokApiKey(cfg.apiKey);
     if (cleanedApiKey !== cfg.apiKey) {
+      // Writing the cleaned key changes cfg.apiKey, which re-runs the effect
+      // that nulls providerModelsCommittedKey on any apiKey change — so a
+      // commit here would be clobbered before the auto-fetch effect reads it.
+      // Defer the model commit until the cleaned value lands (recommit effect
+      // below), otherwise account models never auto-load after a dirty paste.
+      recommitModelsAfterCleanRef.current = true;
       updateApiConfig({ apiKey: cleanedApiKey });
+    } else {
+      commitProviderModelsInputs();
     }
-    commitProviderModelsInputs();
     handleAutoTestProvider();
   };
+  useEffect(() => {
+    if (!recommitModelsAfterCleanRef.current) return;
+    recommitModelsAfterCleanRef.current = false;
+    if (blockingByokDraftIssues(byokModelFetchDraftValidation).length > 0) {
+      setProviderModelsCommittedKey(null);
+      return;
+    }
+    setProviderModelsCommittedKey(providerModelsKey);
+  }, [cfg.apiKey, byokModelFetchDraftValidation, providerModelsKey]);
   useEffect(() => {
     if (cfg.mode !== 'api') return;
     if (apiProtocol === 'azure' || apiProtocol === 'ollama') return;
