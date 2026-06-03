@@ -811,6 +811,13 @@ function AssistantFooter({
 }: AssistantFooterProps) {
   const t = useT();
   const elapsed = useLiveElapsed(streaming, startedAt, endedAt, usage?.durationMs);
+  const formattedCost =
+    typeof usage?.costUsd === "number" &&
+    Number.isFinite(usage.costUsd) &&
+    usage.costUsd > 0
+      ? usage.costUsd.toFixed(4)
+      : "";
+  const costLabel = formattedCost && formattedCost !== "0.0000" ? ` · $${formattedCost}` : "";
   if (
     !forceVisible &&
     !streaming &&
@@ -840,9 +847,7 @@ function AssistantFooter({
         {usage?.outputTokens != null
           ? ` · ${t("assistant.outTokens", { n: usage.outputTokens })}`
           : ""}
-        {typeof usage?.costUsd === "number"
-          ? ` · $${usage.costUsd.toFixed(4)}`
-          : ""}
+        {costLabel}
       </span>
       {feedbackControls}
     </div>
