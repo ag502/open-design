@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import {
   APP_KEYS,
   OPEN_DESIGN_SIDECAR_CONTRACT,
-  SIDECAR_DEFAULTS,
   SIDECAR_MESSAGES,
   SIDECAR_MODES,
   SIDECAR_SOURCES,
@@ -23,9 +22,9 @@ import {
 import { isProcessAlive, spawnBackgroundProcess } from "@open-design/platform";
 import { openBrowser } from "@open-design/daemon/browser-open";
 
-import { PACKAGED_NAMESPACE_ENV, type PackagedConfig } from "./config.js";
+import type { PackagedConfig } from "./config.js";
 import { writePackagedDesktopIdentity, writePackagedWebIdentity } from "./identity.js";
-import { resolvePackagedNamespacePaths } from "./paths.js";
+import { resolvePackagedNamespacePaths, resolveWebuiNamespacesRoot } from "./paths.js";
 import { readSidecarLogTail, startPackagedSidecars } from "./sidecars.js";
 import { resolveWebuiLocale, webuiMessages } from "./webui-i18n.js";
 import {
@@ -37,6 +36,7 @@ import {
   parseWebuiArgs,
   persistTokenToConfig,
   resolveDisplayHost,
+  resolveRuntimeNamespace,
   resolveWebuiConfig,
   type ResolvedWebuiConfig,
   type WebuiConfigFile,
@@ -51,14 +51,15 @@ const SERVE_COMMAND = "__serve";
 const RESOLVED_CONFIG_ENV = "OD_WEBUI_RESOLVED";
 
 function resolveNamespaceBaseRoot(): string {
-  const odDataDir = process.env.OD_DATA_DIR;
-  if (odDataDir != null && odDataDir.length > 0) {
-    return join(resolve(odDataDir.replace(/^~/, homedir())), "namespaces");
-  }
-  const xdgDataHome = process.env.XDG_DATA_HOME;
-  const dataBase =
-    xdgDataHome != null && xdgDataHome.length > 0 ? xdgDataHome : join(homedir(), ".local", "share");
-  return join(dataBase, "open-design", "namespaces");
+  // Delegate to the shared resolver so a scoped OD_DATA_DIR
+  // (`<base>/namespaces/<ns>/data`) is normalized the same way the daemon's
+  // packaged paths normalize it, instead of gaining a second `namespaces`
+  // segment that would fork the launcher's runtime tree from the daemon data.
+  return resolveWebuiNamespacesRoot({
+    odDataDir: process.env.OD_DATA_DIR,
+    xdgDataHome: process.env.XDG_DATA_HOME,
+    home: homedir(),
+  });
 }
 
 function resolveLauncherConfig(namespace: string): PackagedConfig {
@@ -167,10 +168,8 @@ type ServeHandle = { webUrl: string; daemonUrl: string | null };
 // orchestrator owns user-facing output. The process stays alive afterwards via
 // the IPC server handle (no explicit blocking needed).
 async function runServer(config: ResolvedWebuiConfig): Promise<ServeHandle> {
-  const namespace = OPEN_DESIGN_SIDECAR_CONTRACT.normalizeNamespace(
-    config.namespace ?? process.env[PACKAGED_NAMESPACE_ENV] ?? SIDECAR_DEFAULTS.namespace,
-  );
   if (config.dataDir != null) process.env.OD_DATA_DIR = config.dataDir;
+  const namespace = resolveRuntimeNamespace(config, process.env);
 
   const packagedConfig = resolveLauncherConfig(namespace);
   const paths = resolvePackagedNamespacePaths(packagedConfig);
@@ -382,9 +381,7 @@ async function commandStart(
   // Default: detach into the background. Spawn this module again as `__serve`,
   // unref it, wait for readiness over IPC, print, then exit so the terminal is
   // free. `stop` talks to the detached worker over the same IPC path.
-  const namespace = OPEN_DESIGN_SIDECAR_CONTRACT.normalizeNamespace(
-    resolved.namespace ?? process.env[PACKAGED_NAMESPACE_ENV] ?? SIDECAR_DEFAULTS.namespace,
-  );
+  const namespace = resolveRuntimeNamespace(resolved, process.env);
   const paths = resolvePackagedNamespacePaths(resolveLauncherConfig(namespace));
   await mkdir(paths.logsRoot, { recursive: true });
   const logPath = join(paths.logsRoot, "webui.log");
@@ -415,10 +412,18 @@ async function commandStart(
   process.exit(0);
 }
 
-async function commandStopOrStatus(command: "stop" | "status", json: boolean): Promise<void> {
-  const namespace = OPEN_DESIGN_SIDECAR_CONTRACT.normalizeNamespace(
-    process.env[PACKAGED_NAMESPACE_ENV] ?? SIDECAR_DEFAULTS.namespace,
-  );
+async function commandStopOrStatus(
+  command: "stop" | "status",
+  json: boolean,
+  config: ResolvedWebuiConfig,
+): Promise<void> {
+  // Target the SAME runtime `start` brought up: resolve the namespace (and apply
+  // dataDir) from the same config, otherwise a config-driven `namespace` makes
+  // stop/status probe the default socket and report "not running" for a live
+  // instance. The IPC socket is namespace-scoped, so namespace is what matters
+  // for discovery; dataDir is applied for parity with start's env.
+  if (config.dataDir != null) process.env.OD_DATA_DIR = config.dataDir;
+  const namespace = resolveRuntimeNamespace(config, process.env);
   const ipc = resolveAppIpcPath({ app: APP_KEYS.DESKTOP, contract: OPEN_DESIGN_SIDECAR_CONTRACT, namespace });
   const type = command === "stop" ? SIDECAR_MESSAGES.SHUTDOWN : SIDECAR_MESSAGES.STATUS;
   const t = webuiMessages(currentLocale());
@@ -458,9 +463,16 @@ async function main(): Promise<void> {
     await commandStart(config, json, configPath, flags.foreground === true);
     return;
   }
-  const locale = resolveWebuiLocale({ flagLang: flags.lang, env: process.env });
+  // stop/status: resolve the same config `start` used so we target the right
+  // namespace/dataDir. Load the config file if present but never scaffold one —
+  // stopping must not create files. An explicit --config is honored verbatim.
+  const configPath =
+    flags.config != null ? resolve(flags.config) : join(resolveWebuiHome(), "webui.config.json");
+  const configFile = loadConfigFile(configPath);
+  const locale = resolveWebuiLocale({ flagLang: flags.lang, configLang: configFile?.lang, env: process.env });
   process.env.OD_LANG = locale;
-  await commandStopOrStatus(command, flags.json === true);
+  const config = resolveWebuiConfig({ flags, configFile, env: process.env });
+  await commandStopOrStatus(command, flags.json === true, config);
 }
 
 void main().catch((error: unknown) => {

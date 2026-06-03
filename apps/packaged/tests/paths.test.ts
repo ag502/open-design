@@ -1,10 +1,11 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { PackagedConfig } from "../src/config.js";
 import { PackagedPathAccessError } from "../src/errors.js";
-import { resolvePackagedNamespacePaths } from "../src/paths.js";
+import { resolvePackagedNamespacePaths, resolveWebuiNamespacesRoot } from "../src/paths.js";
 
 function stubPlatform(value: NodeJS.Platform): () => void {
   const original = process.platform;
@@ -218,5 +219,42 @@ describe("resolvePackagedNamespacePaths", () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe("resolveWebuiNamespacesRoot", () => {
+  const HOME = join("/home", "alice");
+
+  it("appends a single `namespaces` segment to an unscoped OD_DATA_DIR", () => {
+    const base = join("/srv", "open-design-data");
+    expect(resolveWebuiNamespacesRoot({ odDataDir: base, home: HOME })).toBe(join(base, "namespaces"));
+  });
+
+  it("does NOT double the `namespaces` segment for a scoped OD_DATA_DIR", () => {
+    // Scoped form already points inside the tree: `<base>/namespaces/<ns>/data`.
+    // The namespaces parent must be `<base>/namespaces`, not
+    // `<base>/namespaces/<ns>/data/namespaces` — that fork is the regression.
+    const base = join("/srv", "open-design-data");
+    const scoped = join(base, "namespaces", "release-stable", "data");
+    expect(resolveWebuiNamespacesRoot({ odDataDir: scoped, home: HOME })).toBe(join(base, "namespaces"));
+  });
+
+  it("expands a leading ~ (real home, mirroring resolvePackagedDataRoot) before applying the rule", () => {
+    expect(resolveWebuiNamespacesRoot({ odDataDir: "~/od", home: HOME })).toBe(
+      join(homedir(), "od", "namespaces"),
+    );
+  });
+
+  it("falls back to XDG_DATA_HOME when OD_DATA_DIR is unset", () => {
+    const xdg = join("/home", "alice", ".xdg");
+    expect(resolveWebuiNamespacesRoot({ xdgDataHome: xdg, home: HOME })).toBe(
+      join(xdg, "open-design", "namespaces"),
+    );
+  });
+
+  it("falls back to ~/.local/share when neither OD_DATA_DIR nor XDG is set", () => {
+    expect(resolveWebuiNamespacesRoot({ home: HOME })).toBe(
+      join(HOME, ".local", "share", "open-design", "namespaces"),
+    );
   });
 });

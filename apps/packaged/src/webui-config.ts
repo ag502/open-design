@@ -3,6 +3,8 @@ import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { networkInterfaces } from "node:os";
 
+import { SIDECAR_DEFAULTS, normalizeNamespace } from "@open-design/sidecar-proto";
+
 export type WebuiCommand = "start" | "stop" | "status";
 
 export type WebuiFlags = {
@@ -243,6 +245,19 @@ export function isLoopbackHost(host: string): boolean {
   if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
   if (isIP(normalized) === 4) return normalized === "127.0.0.1" || normalized.startsWith("127.");
   return false;
+}
+
+// The runtime namespace a webui command targets: explicit config namespace >
+// OD_PACKAGED_NAMESPACE env override > packaged default, normalized. INVARIANT:
+// `start` (which creates the desktop IPC socket) and `stop`/`status` (which
+// probe that socket) MUST resolve the SAME namespace, or stop/status looks at
+// the default socket and reports "not running" for a live config-driven
+// instance. Both call sites derive their namespace through this one function.
+export function resolveRuntimeNamespace(
+  config: Pick<ResolvedWebuiConfig, "namespace">,
+  env: NodeJS.ProcessEnv,
+): string {
+  return normalizeNamespace(config.namespace ?? env.OD_PACKAGED_NAMESPACE ?? SIDECAR_DEFAULTS.namespace);
 }
 
 export function generateApiToken(): string {

@@ -14,6 +14,7 @@ import {
   parseWebuiArgs,
   persistTokenToConfig,
   resolveDisplayHost,
+  resolveRuntimeNamespace,
   resolveWebuiConfig,
 } from "../src/webui-config.js";
 
@@ -286,5 +287,31 @@ describe("hasDisplay", () => {
     expect(hasDisplay("linux", {})).toBe(false);
     expect(hasDisplay("linux", { DISPLAY: ":0" })).toBe(true);
     expect(hasDisplay("linux", { WAYLAND_DISPLAY: "wayland-0" })).toBe(true);
+  });
+});
+
+describe("resolveRuntimeNamespace", () => {
+  it("prefers the config namespace over env and default", () => {
+    expect(resolveRuntimeNamespace({ namespace: "release-stable" }, { OD_PACKAGED_NAMESPACE: "envns" })).toBe(
+      "release-stable",
+    );
+  });
+
+  it("falls back to OD_PACKAGED_NAMESPACE when config has none", () => {
+    expect(resolveRuntimeNamespace({ namespace: null }, { OD_PACKAGED_NAMESPACE: "envns" })).toBe("envns");
+  });
+
+  it("falls back to the packaged default when neither is set", () => {
+    expect(resolveRuntimeNamespace({ namespace: null }, {})).toBe("default");
+  });
+
+  it("agrees between start and stop/status for the same config (the IPC invariant)", () => {
+    // start derives its IPC socket namespace from the resolved config; stop and
+    // status must derive the identical value or they probe the wrong socket.
+    const config = { namespace: "team-a" };
+    const startNs = resolveRuntimeNamespace(config, {});
+    const stopNs = resolveRuntimeNamespace(config, {});
+    expect(stopNs).toBe(startNs);
+    expect(stopNs).toBe("team-a");
   });
 });

@@ -97,6 +97,33 @@ function resolvePackagedDataRoot(
   return join(config.namespaceBaseRoot, namespace, "data");
 }
 
+// WebUI (no-Electron) launcher: derive the `namespaces/` parent directory from
+// OD_DATA_DIR — or the XDG/home fallback when it is unset. This MUST follow the
+// same scoped-vs-unscoped rule as resolvePackagedDataRoot(): a scoped
+// OD_DATA_DIR already points *inside* the tree (`<base>/namespaces/<ns>/data`),
+// so its `namespaces/` parent is two levels up; an unscoped base still needs the
+// `namespaces` segment appended. Blindly appending `namespaces` to a scoped
+// value forks the launcher's runtime/log tree away from the daemon's data dir,
+// leaving the started instance pointing at a different path tree. Pure for tests.
+export function resolveWebuiNamespacesRoot(input: {
+  odDataDir?: string | null;
+  xdgDataHome?: string | null;
+  home: string;
+}): string {
+  const odDataDir = input.odDataDir?.trim();
+  if (odDataDir) {
+    const expanded = expandHomePrefix(odDataDir);
+    if (getScopedPackagedDataRootNamespace(expanded) != null) {
+      // `<base>/namespaces/<ns>/data` → `<base>/namespaces`
+      return join(expanded, "..", "..");
+    }
+    return join(expanded, "namespaces");
+  }
+  const xdg = input.xdgDataHome?.trim();
+  const dataBase = xdg && xdg.length > 0 ? xdg : join(input.home, ".local", "share");
+  return join(dataBase, "open-design", "namespaces");
+}
+
 export function resolvePackagedNamespacePaths(
   config: PackagedConfig,
   namespace = config.namespace,
