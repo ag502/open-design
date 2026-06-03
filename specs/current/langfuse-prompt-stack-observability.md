@@ -478,9 +478,25 @@ Each score should include metadata linking it to:
 
 ### Phase 1: Debug-Ready Prompt Diagnostics
 
-Phase 1 is one implementation issue under the #3496 umbrella. It should land
-debug-ready prompt-stack observability without introducing a new user-facing
-privacy toggle.
+Phase 1 is one implementation issue under the #3496 umbrella. It landed as
+#3556 / #3557 and provides debug-ready prompt-stack observability without
+introducing a new user-facing privacy toggle.
+
+Phase 1 is intentionally a diagnostic layer on top of the existing Langfuse
+trace shape. It does not try to make the Langfuse generation fully replayable.
+The accepted tradeoff is:
+
+- keep the user request in `trace.input` and `generation.input`;
+- attach bounded, redacted prompt-stack diagnostics in trace and generation
+  metadata;
+- keep key aggregate system prompts, including `daemonSystemPrompt` and
+  `clientSystemPrompt`, visible as `redactedContent` because direct inspection
+  of the model's system context is the Phase 1 acceptance goal;
+- keep metadata queryable by omitting absent sections and limiting top-level
+  `promptStack_*` flat fields to high-value filters;
+- align unresolved `Default (CLI config)` model runs with PostHog by reporting
+  the `default` model bucket when no explicit or agent-reported model is
+  available.
 
 Phase 1 capture target:
 
@@ -587,20 +603,56 @@ Store the result on the in-memory run record and thread it through:
 Do not change top-level `trace.input` in this phase. Generation metadata should
 be sufficient to debug prompt behavior from the Langfuse UI.
 
-### Phase 2: Structured Generation Input
+### Phase 2: Langfuse-Native Generation Modeling
 
-Promote the redacted prompt invocation from generation metadata into
-`generation.input` for users who want the Langfuse generation panel to show the
-LLM call in a first-class way.
+Phase 2 promotes the Phase 1 diagnostics into a more Langfuse-native generation
+model. The goal is no longer only "can I see the system prompt?" but "can I
+understand, reproduce, filter, and cost a model call using Langfuse-native
+surfaces?"
 
-The structured input should contain the same section array, hashes, byte counts,
-and capture flags from Phase 1. It should not include raw unredacted prompt
-content.
+Core Phase 2 deliverables:
 
-This may be configured through existing Langfuse telemetry config or a new
-daemon setting. Product/security review should decide whether and when the
-structured generation input view is worth the higher UI/semantics risk. It is
-not required for prompt-stack debugging in Phase 1.
+1. Structured `generation.input`
+   - Represent the actual LLM invocation as structured messages / prompt parts
+     instead of leaving the user request as the only generation input.
+   - Preserve Phase 1 redaction guarantees: no raw credentials, tool tokens,
+     unredacted local paths, or attachment bodies.
+   - Keep enough section identity, hashes, and truncation state for Playground,
+     eval, and dataset workflows to understand what was sent.
+
+2. Model, provider, usage, and cost attribution
+   - Keep `generation.model` populated for explicit model selections,
+     agent-reported resolved models, and unresolved default runs.
+   - Add provider and Langfuse-compatible usage/cost details where the runtime
+     exposes them.
+   - Treat provider-specific resolved-model extraction, especially for Codex
+     `Default (CLI config)` runs, as part of this attribution work rather than
+     prompt-stack capture itself.
+
+3. Prompt-stack metadata diet
+   - Keep metadata useful for filtering: redaction version, prompt/stack
+     fingerprints, section counts, truncation flags, and compact section
+     presence fields.
+   - Move large prompt bodies away from metadata when a better Langfuse-native
+     home exists, such as structured generation input, archived references, or
+     a dedicated debug view.
+   - Retain only bounded snippets in metadata if the structured input path does
+     not cover a diagnostic need.
+
+Adjacent follow-ups that may be implemented alongside Phase 2 but are not core
+Phase 2 acceptance:
+
+- Timing observations: split queue, spawn, prompt-build, model-call,
+  stream-output, and finalize timings into Langfuse spans/events instead of
+  metadata-only fields.
+- First-class release/version fields: map `appVersion` and `appChannel` onto
+  Langfuse-supported `version` / `release` fields when the ingestion surface
+  supports them.
+- OTel/W3C identifier shape: evaluate migration from legacy UUID-style trace /
+  observation IDs to Langfuse's newer lower-hex ID expectations.
+
+Phase 2 should not include Langfuse datasets/scores or prompt registry
+management; those remain Phase 3 and Phase 4 respectively.
 
 ### Phase 3: Evaluation Dataset and Scores
 
@@ -667,9 +719,15 @@ Phase 1 tests:
 
 Phase 2 tests:
 
-- Verify structured generation input is emitted only in explicit opt-in mode.
+- Verify structured generation input represents the redacted LLM invocation
+  with stable message / prompt-part boundaries.
 - Verify structured generation input contains no raw tokens, credentials, local
   user paths, or attachment bodies.
+- Verify `generation.model`, provider, usage, and cost fields are populated when
+  the runtime exposes the required data, with `default` preserved as the
+  unresolved-model bucket.
+- Verify prompt-stack metadata remains compact when structured generation input
+  carries the detailed diagnostic content.
 
 Phase 3 tests:
 
