@@ -1,0 +1,114 @@
+import { test } from 'vitest';
+import {
+  assert,
+  chmodSync,
+  detectAgents,
+  join,
+  mkdtempSync,
+  rmSync,
+  tmpdir,
+  withEnvSnapshot,
+  writeFileSync,
+} from './helpers/test-helpers.js';
+import { detectAgentsStream } from '../../src/runtimes/detection.js';
+
+const posixTest = process.platform === 'win32' ? test.skip : test;
+
+function writeCursorAgent(dir: string, statusOutput: string): void {
+  const bin = join(dir, 'cursor-agent');
+  writeFileSync(
+    bin,
+    `#!/bin/sh\n` +
+      `if [ "$1" = "--version" ]; then echo "2026.05.07-test"; exit 0; fi\n` +
+      `if [ "$1" = "models" ]; then echo "auto"; exit 0; fi\n` +
+      `if [ "$1" = "status" ]; then echo "${statusOutput}"; exit 0; fi\n` +
+      `exit 0\n`,
+  );
+  chmodSync(bin, 0o755);
+}
+
+posixTest('detectAgents emits a not-on-path diagnostic with searched dirs + fix intents', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'od-diag-notpath-'));
+  try {
+    await withEnvSnapshot(['PATH', 'OD_AGENT_HOME'], async () => {
+      // Only cursor-agent is on PATH; everything else is unavailable.
+      writeCursorAgent(dir, 'Authenticated');
+      process.env.PATH = dir;
+      process.env.OD_AGENT_HOME = dir;
+
+      const agents = await detectAgents();
+      const gemini = agents.find((agent) => agent.id === 'gemini');
+
+      assert.equal(gemini?.available, false);
+      const diagnostic = gemini?.diagnostics?.[0];
+      assert.ok(diagnostic, 'expected a diagnostic on the unavailable agent');
+      assert.equal(diagnostic?.reason, 'not-on-path');
+      assert.equal(diagnostic?.severity, 'error');
+      assert.ok(
+        (diagnostic?.searchedDirs ?? []).length > 0,
+        'expected searchedDirs to be populated',
+      );
+      const intents = (diagnostic?.fixActions ?? []).map((a) => a.kind);
+      assert.ok(intents.includes('openInstall'), 'expected openInstall fix intent');
+      assert.ok(intents.includes('rescan'), 'expected rescan fix intent');
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+posixTest('detectAgents emits an auth-missing diagnostic when the auth probe reports not authenticated', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'od-diag-auth-'));
+  try {
+    await withEnvSnapshot(['PATH', 'OD_AGENT_HOME'], async () => {
+      writeCursorAgent(dir, 'Not authenticated');
+      process.env.PATH = dir;
+      process.env.OD_AGENT_HOME = dir;
+
+      const agents = await detectAgents();
+      const cursor = agents.find((agent) => agent.id === 'cursor-agent');
+
+      assert.equal(cursor?.available, true);
+      assert.equal(cursor?.authStatus, 'missing');
+      const diagnostic = cursor?.diagnostics?.[0];
+      assert.ok(diagnostic, 'expected an auth diagnostic');
+      assert.equal(diagnostic?.reason, 'auth-missing');
+      const intents = (diagnostic?.fixActions ?? []).map((a) => a.kind);
+      // cursor-agent has no daemon-driven OAuth, so it points at docs + rescan.
+      assert.ok(intents.includes('openDocs'), 'expected openDocs fix intent');
+      assert.ok(intents.includes('rescan'), 'expected rescan fix intent');
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+posixTest('detectAgentsStream yields the same agent set as detectAgents', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'od-diag-stream-'));
+  try {
+    await withEnvSnapshot(['PATH', 'OD_AGENT_HOME'], async () => {
+      writeCursorAgent(dir, 'Authenticated');
+      process.env.PATH = dir;
+      process.env.OD_AGENT_HOME = dir;
+
+      const batch = await detectAgents();
+      const streamed: string[] = [];
+      for await (const agent of detectAgentsStream()) {
+        streamed.push(agent.id);
+      }
+
+      assert.equal(
+        streamed.length,
+        batch.length,
+        'stream should yield one event per agent',
+      );
+      assert.deepEqual(
+        [...streamed].sort(),
+        batch.map((agent) => agent.id).sort(),
+        'stream should cover exactly the same agent ids',
+      );
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

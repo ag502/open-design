@@ -6,7 +6,13 @@ import { spawnEnvForAgent } from './env.js';
 import { probeAgentAuthStatus } from './auth.js';
 import { agentCapabilities } from './capabilities.js';
 import { installMetaForAgent } from './metadata.js';
+import {
+  buildAuthDiagnostic,
+  buildExecutableDiagnostic,
+  buildNotInvocableDiagnostic,
+} from './diagnostics.js';
 import type {
+  AgentDiagnostic,
   DetectedAgent,
   RuntimeAgentDef,
   RuntimeCapabilityMap,
@@ -117,14 +123,47 @@ async function probeVersionAtPath(
   }
 }
 
-function unavailableAgent(def: RuntimeAgentDef): DetectedAgent {
+function unavailableAgent(
+  def: RuntimeAgentDef,
+  diagnostics: AgentDiagnostic[] = [],
+): DetectedAgent {
   return {
     ...stripFns(def),
     models: def.fallbackModels ?? [DEFAULT_MODEL_OPTION],
     modelsSource: 'fallback',
     available: false,
+    ...(diagnostics.length > 0 ? { diagnostics } : {}),
     ...installMetaForAgent(def.id),
   };
+}
+
+// Probe the agent's `--help` once and record which advertised flags the
+// installed CLI supports, so buildArgs can consult the cache. Extracted from
+// the main probe so it can run concurrently with model + auth probing instead
+// of blocking them. Returns the capability map (or null when the agent
+// declares no help/capability metadata or the probe failed).
+async function probeCapabilities(
+  def: RuntimeAgentDef,
+  launchPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<RuntimeCapabilityMap | null> {
+  if (!def.helpArgs || !def.capabilityFlags) return null;
+  try {
+    const { stdout } = await execAgentFile(launchPath, def.helpArgs, {
+      env,
+      timeout: 5000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    const caps: RuntimeCapabilityMap = {};
+    for (const [flag, key] of Object.entries(def.capabilityFlags)) {
+      caps[key] = String(stdout).includes(flag);
+    }
+    return caps;
+  } catch {
+    // If --help fails, leave caps empty so buildArgs falls back to the safe
+    // baseline (no optional flags).
+    return {};
+  }
 }
 
 async function probe(
@@ -141,7 +180,7 @@ async function probe(
   // hand even though the real launch path is healthy.
   const launch = resolveAgentLaunch(def, configuredEnv);
   if (!launch.selectedPath || !launch.launchPath) {
-    return unavailableAgent(def);
+    return unavailableAgent(def, [buildExecutableDiagnostic(def, configuredEnv)]);
   }
   const probeEnv = applyAgentLaunchEnv(
     spawnEnvForAgent(
@@ -158,29 +197,22 @@ async function probe(
   );
   const outcome = await probeVersionAtPath(def, launch.launchPath, probeEnv);
   if (outcome.kind === 'not-invocable') {
-    return unavailableAgent(def);
+    return unavailableAgent(def, [buildNotInvocableDiagnostic(def, launch)]);
   }
-  // Probe `--help` once per agent and record which flags the installed CLI
-  // advertises. Cached on `agentCapabilities` for buildArgs to consult.
-  if (def.helpArgs && def.capabilityFlags) {
-    const caps: RuntimeCapabilityMap = {};
-    try {
-      const { stdout } = await execAgentFile(launch.launchPath, def.helpArgs, {
-        env: probeEnv,
-        timeout: 5000,
-        maxBuffer: 4 * 1024 * 1024,
-      });
-      for (const [flag, key] of Object.entries(def.capabilityFlags)) {
-        caps[key] = String(stdout).includes(flag);
-      }
-    } catch {
-      // If --help fails, leave caps empty so buildArgs falls back to the safe
-      // baseline (no optional flags).
-    }
+  // The version probe must finish first (it gates availability), but the
+  // three post-version probes are independent reads — run them concurrently
+  // so a single agent's detection wall is max(help, models, auth) ≈ 5s rather
+  // than the sum ≈ 15s. `--help` capabilities are cached on `agentCapabilities`
+  // for buildArgs to consult.
+  const [caps, modelResult, auth] = await Promise.all([
+    probeCapabilities(def, launch.launchPath, probeEnv),
+    fetchModels(def, launch.launchPath, probeEnv),
+    probeAgentAuthStatus(def, launch.launchPath, probeEnv),
+  ]);
+  if (caps) {
     agentCapabilities.set(def.id, caps);
   }
-  const modelResult = await fetchModels(def, launch.launchPath, probeEnv);
-  const auth = await probeAgentAuthStatus(def.id, launch.launchPath, probeEnv);
+  const authDiagnostic = auth ? buildAuthDiagnostic(def, auth) : null;
   return {
     ...stripFns(def),
     models: modelResult.models,
@@ -194,6 +226,7 @@ async function probe(
           ...(auth.message ? { authMessage: auth.message } : {}),
         }
       : {}),
+    ...(authDiagnostic ? { diagnostics: [authDiagnostic] } : {}),
     ...installMetaForAgent(def.id),
   };
 }
@@ -218,6 +251,7 @@ function stripFns(
     versionProbeTimeoutMs,
     maxPromptArgBytes,
     env,
+    authProbe,
     ...rest
   } = def;
   return rest;
@@ -254,4 +288,29 @@ export async function detectAgents(
     rememberLiveModels(agent.id, agent.models);
   }
   return results;
+}
+
+// Streaming variant: yields each agent the moment its probe settles, in
+// completion order rather than registry order, so the UI can paint a card
+// as soon as it resolves instead of waiting for the slowest CLI. The model
+// validation cache is refreshed per-agent (same effect as the batch path,
+// just incrementally). `detectAgents` keeps the array contract for callers
+// that don't care about incremental delivery (cache warm, analytics, chat).
+export async function* detectAgentsStream(
+  configuredEnvByAgent: Record<string, Record<string, string>> = {},
+): AsyncGenerator<DetectedAgent> {
+  const tagged = AGENT_DEFS.map((def, index) =>
+    safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}).then((agent) => {
+      rememberLiveModels(agent.id, agent.models);
+      return { index, agent };
+    }),
+  );
+  const pending = new Set(tagged.keys());
+  while (pending.size > 0) {
+    const { index, agent } = await Promise.race(
+      tagged.filter((_, i) => pending.has(i)),
+    );
+    pending.delete(index);
+    yield agent;
+  }
 }

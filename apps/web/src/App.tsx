@@ -43,7 +43,7 @@ import { PrivacyConsentModal } from './components/PrivacyConsentModal';
 import {
   daemonIsLive,
   fetchAppVersionInfo,
-  fetchAgents,
+  fetchAgentsStream,
   fetchDesignSystems,
   fetchDesignTemplates,
   fetchPromptTemplates,
@@ -212,6 +212,68 @@ function mergeAmrModelsIntoAgents(
   });
 }
 
+const CANONICAL_AGENT_ORDER = [
+  'amr',
+  'claude',
+  'codex',
+  'devin',
+  'gemini',
+  'opencode',
+  'hermes',
+  'trae-cli',
+  'grok-build',
+  'kimi',
+  'cursor-agent',
+  'qwen',
+  'qoder',
+  'copilot',
+  'pi',
+  'kiro',
+  'kilo',
+  'vibe',
+  'deepseek',
+  'aider',
+  'antigravity',
+  'reasonix',
+] as const;
+
+const CANONICAL_AGENT_ORDER_INDEX = new Map<string, number>(
+  CANONICAL_AGENT_ORDER.map((id, index) => [id, index]),
+);
+
+function orderAgentsByRegistry(agents: AgentInfo[]): AgentInfo[] {
+  return agents
+    .map((agent, index) => ({ agent, index }))
+    .sort((left, right) => {
+      const leftRank =
+        CANONICAL_AGENT_ORDER_INDEX.get(left.agent.id) ??
+        CANONICAL_AGENT_ORDER.length;
+      const rightRank =
+        CANONICAL_AGENT_ORDER_INDEX.get(right.agent.id) ??
+        CANONICAL_AGENT_ORDER.length;
+      if (leftRank !== rightRank) return leftRank - rightRank;
+      return left.index - right.index;
+    })
+    .map(({ agent }) => agent);
+}
+
+function upsertAgent(agents: AgentInfo[], agent: AgentInfo): AgentInfo[] {
+  const index = agents.findIndex((item) => item.id === agent.id);
+  if (index === -1) return [...agents, agent];
+  const next = agents.slice();
+  next[index] = agent;
+  return next;
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'name' in err &&
+    (err as { name?: unknown }).name === 'AbortError'
+  );
+}
+
 export function App() {
   return (
     <IframeKeepAliveProvider>
@@ -249,6 +311,7 @@ function AppInner() {
   const [daemonLive, setDaemonLive] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const amrModelsRef = useRef<AmrModelsResponse | null>(null);
+  const agentStreamRequestSeqRef = useRef(0);
   const [amrPollRestartToken, setAmrPollRestartToken] = useState(0);
   const [providerModelsCache, setProviderModelsCache] = useState<
     Record<string, ProviderModelOption[]>
@@ -312,6 +375,15 @@ function AppInner() {
   const [composioConfigLoading, setComposioConfigLoading] = useState(true);
   const route = useRoute();
   const analytics = useAnalytics();
+
+  const beginAgentStreamRequest = useCallback(() => {
+    agentStreamRequestSeqRef.current += 1;
+    return agentStreamRequestSeqRef.current;
+  }, []);
+
+  const isCurrentAgentStreamRequest = useCallback((requestId: number) => {
+    return agentStreamRequestSeqRef.current === requestId;
+  }, []);
 
   // v2 schema removed the standalone `app_launch` event; the initial
   // page_view fires from each top-level page surface (home / projects /
@@ -442,7 +514,7 @@ function AppInner() {
   // changes; the next capture inherits the fresh values, so dashboards
   // can segment by execution setup without per-helper boilerplate.
   //
-  // Gated on `agentsLoading` so the cold-start probe (`fetchAgents()`
+  // Gated on `agentsLoading` so the cold-start probe (`fetchAgentsStream()`
   // lands asynchronously after this effect's first run) does not stamp
   // the first home/projects/plugins page_view with
   // has_available_configure_cli=false / configure_availability=unavailable
@@ -566,6 +638,7 @@ function AppInner() {
   // gate every tab including the ones that don't need agents at all.
   useEffect(() => {
     let cancelled = false;
+    const agentStreamAbort = new AbortController();
     (async () => {
       const alive = await daemonIsLive();
       if (cancelled) return;
@@ -586,11 +659,42 @@ function AppInner() {
         return;
       }
 
-      void fetchAgents().then((list) => {
-        if (cancelled) return;
-        setAgents(mergeAmrModelsIntoAgents(list, amrModelsRef.current));
-        setAgentsLoading(false);
-      });
+      const agentRequestId = beginAgentStreamRequest();
+      void fetchAgentsStream({
+        signal: agentStreamAbort.signal,
+        onAgent: (agent) => {
+          if (cancelled || !isCurrentAgentStreamRequest(agentRequestId)) return;
+          setAgents((current) =>
+            mergeAmrModelsIntoAgents(
+              upsertAgent(current, agent),
+              amrModelsRef.current,
+            ),
+          );
+        },
+      })
+        .then((list) => {
+          if (cancelled || !isCurrentAgentStreamRequest(agentRequestId)) return;
+          setAgents(
+            mergeAmrModelsIntoAgents(
+              orderAgentsByRegistry(list),
+              amrModelsRef.current,
+            ),
+          );
+        })
+        .catch((err) => {
+          if (
+            cancelled ||
+            isAbortError(err) ||
+            !isCurrentAgentStreamRequest(agentRequestId)
+          ) {
+            return;
+          }
+          setAgents([]);
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setAgentsLoading(false);
+        });
 
       // Functional skills + design templates land independently. Both
       // gate `skillsLoading` together so the EntryView stops rendering
@@ -727,8 +831,14 @@ function AppInner() {
     })();
     return () => {
       cancelled = true;
+      agentStreamAbort.abort();
     };
-  }, [beginProjectListRequest, reconcileFetchedProjects]);
+  }, [
+    beginAgentStreamRequest,
+    beginProjectListRequest,
+    isCurrentAgentStreamRequest,
+    reconcileFetchedProjects,
+  ]);
 
   // Auto-pick the first available agent once both the daemon-stored config
   // and the agents listing have landed. Splitting this out of bootstrap
@@ -995,11 +1105,34 @@ function AppInner() {
         await syncConfigToDaemon(nextConfig);
         setConfig(nextConfig);
       }
-      const next = await fetchAgents({ throwOnError: options?.throwOnError });
-      setAgents(mergeAmrModelsIntoAgents(next, amrModelsRef.current));
-      return next;
+      const agentRequestId = beginAgentStreamRequest();
+      try {
+        const next = await fetchAgentsStream({
+          onAgent: (agent) => {
+            if (!isCurrentAgentStreamRequest(agentRequestId)) return;
+            setAgents((current) =>
+              mergeAmrModelsIntoAgents(
+                upsertAgent(current, agent),
+                amrModelsRef.current,
+              ),
+            );
+          },
+        });
+        const ordered = orderAgentsByRegistry(next);
+        if (isCurrentAgentStreamRequest(agentRequestId)) {
+          setAgents(mergeAmrModelsIntoAgents(ordered, amrModelsRef.current));
+          setAgentsLoading(false);
+        }
+        return ordered;
+      } catch (err) {
+        if (!isCurrentAgentStreamRequest(agentRequestId)) return [];
+        setAgentsLoading(false);
+        if (options?.throwOnError) throw err;
+        setAgents([]);
+        return [];
+      }
     },
-    [config],
+    [beginAgentStreamRequest, config, isCurrentAgentStreamRequest],
   );
 
   const handleCreateProject = useCallback(
