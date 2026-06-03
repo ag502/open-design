@@ -111,9 +111,6 @@ type DesignToolboxResourceKind =
 
 interface DesignToolboxAction {
   id: DesignToolboxActionId;
-  title: string;
-  badge: string;
-  description: string;
   icon: IconName;
   preferredSkillIds: string[];
   categoryHints: string[];
@@ -151,9 +148,6 @@ type DesignToolboxResource =
 const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   {
     id: 'auto-match',
-    title: '智能匹配下一步',
-    badge: '匹配',
-    description: '先定义好看标准，再全局匹配 skills / MCP / plugins / connectors / files。',
     icon: 'sparkles',
     preferredSkillIds: ['creative-director', 'frontend-design', 'design-taste-frontend'],
     categoryHints: ['creative-direction', 'web-artifacts'],
@@ -161,9 +155,6 @@ const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   },
   {
     id: 'motion',
-    title: '加动画 / 动效',
-    badge: '动画',
-    description: '给当前 HTML 或页面元素加入场、滚动、状态切换和微交互。',
     icon: 'play',
     preferredSkillIds: ['emilkowalski-motion', 'gsap-react', 'gsap-scrolltrigger', 'gsap-timeline', 'gsap-core'],
     categoryHints: ['animation-motion'],
@@ -171,9 +162,6 @@ const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   },
   {
     id: 'motion-polish',
-    title: '动效润色',
-    badge: '节奏',
-    description: '检查现有动效的节奏、缓动、性能和 reduced-motion 兜底。',
     icon: 'sliders',
     preferredSkillIds: ['gsap-performance', 'emilkowalski-motion', 'gsap-timeline', 'gsap-core'],
     categoryHints: ['animation-motion'],
@@ -181,9 +169,6 @@ const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   },
   {
     id: 'anti-ai-polish',
-    title: '反 AI 味美化',
-    badge: '去味',
-    description: '移除模板感、AI 紫蓝渐变、廉价卡片堆叠和空泛 copy。',
     icon: 'paint-bucket',
     preferredSkillIds: ['design-taste-frontend', 'gpt-taste', 'frontend-design', 'impeccable-design-polish'],
     categoryHints: ['creative-direction', 'web-artifacts'],
@@ -191,9 +176,6 @@ const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   },
   {
     id: 'visual-polish',
-    title: '设计润色 / 可交付',
-    badge: '润色',
-    description: '审一次视觉层级、排版、间距、响应式、可访问性和交付状态。',
     icon: 'palette',
     preferredSkillIds: ['impeccable-design-polish', 'frontend-design', 'creative-director', 'design-taste-frontend'],
     categoryHints: ['creative-direction', 'web-artifacts'],
@@ -201,9 +183,6 @@ const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   },
   {
     id: 'image-gen',
-    title: '生图 / 视觉参考',
-    badge: '生图',
-    description: '为当前页面生成分区视觉参考、素材、图标、社媒图或 moodboard。',
     icon: 'image',
     preferredSkillIds: ['imagegen-frontend-web', 'fal-generate', 'imagen', 'venice-image-generate', 'image-enhancer'],
     categoryHints: ['image-generation'],
@@ -211,9 +190,6 @@ const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
   },
   {
     id: 'video-gen',
-    title: '生视频 / 动画脚本',
-    badge: '视频',
-    description: '把设计转成短视频、Remotion / Hyperframes 分镜或可生成视频的 prompt。',
     icon: 'play',
     preferredSkillIds: ['video-hyperframes', 'sora', 'fal-video-edit', 'venice-video', 'replicate'],
     categoryHints: ['video-generation'],
@@ -1037,6 +1013,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           workspaceItem: visibleWorkspaceContext,
           activeDraft: draft,
           resourceIndex: designToolboxResourceIndex,
+          t,
         }),
         skill,
       );
@@ -1049,6 +1026,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           workspaceItem: visibleWorkspaceContext,
           activeDraft: draft,
           resourceIndex: designToolboxResourceIndex,
+          t,
         }),
         skill,
       );
@@ -1065,6 +1043,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         workspaceItem: visibleWorkspaceContext,
         activeDraft: draft,
         resourceIndex: designToolboxResourceIndex,
+        t,
       });
 
       if (resource.kind === 'plugin') {
@@ -2303,11 +2282,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                     return next;
                   });
                 }}
-                title="设计百宝箱 / Feel lucky"
-                data-tooltip="设计百宝箱 / Feel lucky"
+                title={t('chat.designToolbox.tooltip')}
+                data-tooltip={t('chat.designToolbox.tooltip')}
                 aria-haspopup="menu"
                 aria-expanded={designToolboxOpen}
-                aria-label="打开设计百宝箱"
+                aria-label={t('chat.designToolbox.aria')}
               >
                 <Icon name="lightbulb" size={15} />
               </button>
@@ -3201,7 +3180,7 @@ function DesignToolboxPanel({
   onPickSkill: (skill: SkillSummary) => void;
   onPickResource: (resource: DesignToolboxResource) => void;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [query, setQuery] = useState('');
   const activeSkillSet = useMemo(() => new Set(activeSkillIds), [activeSkillIds]);
   const activeMcpServerSet = useMemo(() => new Set(activeMcpServerIds), [activeMcpServerIds]);
@@ -3223,9 +3202,9 @@ function DesignToolboxPanel({
   const visibleActions = useMemo(
     () =>
       actions.filter((action) =>
-        designToolboxActionMatchesQuery(action, query, findDesignToolboxSkill(action, skills)),
+        designToolboxActionMatchesQuery(action, query, findDesignToolboxSkill(action, skills), t),
       ),
-    [actions, query, skills],
+    [actions, query, skills, t],
   );
   const visibleResources = useMemo(
     () => {
@@ -3242,7 +3221,7 @@ function DesignToolboxPanel({
       <div className="composer-design-toolbox-head">
         <div className="composer-design-toolbox-title">
           <Icon name="lightbulb" size={14} />
-          <span>设计百宝箱</span>
+          <span>{t('chat.designToolbox.title')}</span>
         </div>
         <button
           type="button"
@@ -3250,7 +3229,7 @@ function DesignToolboxPanel({
           onMouseDown={(e) => e.preventDefault()}
           onClick={onLucky}
         >
-          Feel lucky
+          {t('chat.designToolbox.lucky')}
         </button>
       </div>
       <div className="composer-tools-filter">
@@ -3258,15 +3237,17 @@ function DesignToolboxPanel({
           className="composer-tools-search"
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          placeholder="搜索 skills / MCP / plugins / connectors / design files..."
-          aria-label="Search design toolbox resources"
+          placeholder={t('chat.designToolbox.searchPlaceholder')}
+          aria-label={t('chat.designToolbox.searchAria')}
         />
       </div>
       {visibleActions.length > 0 ? (
         <div className="composer-tools-list">
-          <div className="composer-tools-section-label">后续动作</div>
+          <div className="composer-tools-section-label">{t('chat.designToolbox.followupSection')}</div>
           {visibleActions.map((action) => {
             const skill = findDesignToolboxSkill(action, skills);
+            const actionTitle = designToolboxActionTitle(action, t);
+            const actionDescription = designToolboxActionDescription(action, t);
             return (
               <button
                 key={action.id}
@@ -3275,15 +3256,15 @@ function DesignToolboxPanel({
                 className="composer-tools-row composer-design-toolbox-row"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onPickAction(action)}
-                title={skill ? localizeSkillDescription(locale, skill) : action.description}
+                title={skill ? localizeSkillDescription(locale, skill) : actionDescription}
               >
                 <span className="composer-design-toolbox-icon" aria-hidden>
                   <Icon name={action.icon} size={13} />
                 </span>
                 <span className="composer-tools-row-body">
-                  <strong>{action.title}</strong>
+                  <strong>{actionTitle}</strong>
                   <span className="composer-tools-row-meta">
-                    {action.description}
+                    {actionDescription}
                   </span>
                   {skill ? (
                     <span className="composer-design-toolbox-skill">
@@ -3291,7 +3272,7 @@ function DesignToolboxPanel({
                     </span>
                   ) : null}
                 </span>
-                <span className="composer-design-toolbox-badge">{action.badge}</span>
+                <span className="composer-design-toolbox-badge">{designToolboxActionBadge(action, t)}</span>
               </button>
             );
           })}
@@ -3299,7 +3280,7 @@ function DesignToolboxPanel({
       ) : null}
       {visibleResources.length > 0 ? (
         <div className="composer-tools-list">
-          <div className="composer-tools-section-label">全局资源</div>
+          <div className="composer-tools-section-label">{t('chat.designToolbox.resourcesSection')}</div>
           {visibleResources.map((resource) => {
             const active = designToolboxResourceIsActive(resource, {
               skillIds: activeSkillSet,
@@ -3333,11 +3314,11 @@ function DesignToolboxPanel({
                     {resource.subtitle}
                   </span>
                   <span className="composer-design-toolbox-skill">
-                    {designToolboxResourceKindLabel(resource.kind)}
+                    {designToolboxResourceKindLabel(resource.kind, t)}
                   </span>
                 </span>
                 <span className="composer-design-toolbox-badge">
-                  {active ? '已选' : resource.badge}
+                  {active ? t('chat.designToolbox.selected') : resource.badge}
                 </span>
               </button>
             );
@@ -3346,7 +3327,7 @@ function DesignToolboxPanel({
       ) : null}
       {visibleActions.length === 0 && visibleResources.length === 0 ? (
         <div className="composer-tools-empty">
-          No resources found for "{query}".
+          {t('chat.designToolbox.noResources', { query })}
         </div>
       ) : null}
     </>
@@ -3456,6 +3437,27 @@ function skillMatchesQuery(skill: SkillSummary, query: string): boolean {
     .join(' ')
     .toLowerCase()
     .includes(q);
+}
+
+function designToolboxActionTitle(
+  action: DesignToolboxAction,
+  t: TranslateFn,
+): string {
+  return t(`chat.designToolbox.action.${action.id}.title` as keyof Dict);
+}
+
+function designToolboxActionBadge(
+  action: DesignToolboxAction,
+  t: TranslateFn,
+): string {
+  return t(`chat.designToolbox.action.${action.id}.badge` as keyof Dict);
+}
+
+function designToolboxActionDescription(
+  action: DesignToolboxAction,
+  t: TranslateFn,
+): string {
+  return t(`chat.designToolbox.action.${action.id}.description` as keyof Dict);
 }
 
 function buildDesignToolboxResources({
@@ -3670,20 +3672,23 @@ function designToolboxDefaultResources(
   return out;
 }
 
-function designToolboxResourceKindLabel(kind: DesignToolboxResourceKind): string {
+function designToolboxResourceKindLabel(
+  kind: DesignToolboxResourceKind,
+  t: TranslateFn,
+): string {
   switch (kind) {
     case 'skill':
-      return 'Skill';
+      return t('chat.designToolbox.kind.skill');
     case 'plugin':
-      return 'Plugin';
+      return t('chat.designToolbox.kind.plugin');
     case 'mcp':
-      return 'MCP';
+      return t('chat.designToolbox.kind.mcp');
     case 'mcp-template':
-      return 'MCP template';
+      return t('chat.designToolbox.kind.mcpTemplate');
     case 'connector':
-      return 'Connector';
+      return t('chat.designToolbox.kind.connector');
     case 'file':
-      return 'Design file';
+      return t('chat.designToolbox.kind.designFile');
   }
 }
 
@@ -3737,13 +3742,14 @@ function designToolboxActionMatchesQuery(
   action: DesignToolboxAction,
   query: string,
   skill: SkillSummary | null,
+  t: TranslateFn,
 ): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return [
-    action.title,
-    action.badge,
-    action.description,
+    designToolboxActionTitle(action, t),
+    designToolboxActionBadge(action, t),
+    designToolboxActionDescription(action, t),
     ...action.searchTerms,
     skill?.id ?? '',
     skill?.name ?? '',
@@ -3867,18 +3873,49 @@ function keywordPick(
   return fallback;
 }
 
-function designToolboxContextLine(workspaceItem: WorkspaceContextItem | null): string {
+function designToolboxContextLine(
+  workspaceItem: WorkspaceContextItem | null,
+  t: TranslateFn,
+): string {
   if (!workspaceItem) {
-    return '当前目标：当前打开的 HTML / 设计文件 / 网页元素。';
+    return t('chat.designToolbox.prompt.contextGeneric');
   }
   const label = workspaceItem.label || workspaceItem.path || workspaceItem.title || workspaceItem.id;
-  return `当前目标：${workspaceContextKindLabel(workspaceItem.kind)} · ${label}。`;
+  return t('chat.designToolbox.prompt.contextSpecific', {
+    kind: designToolboxWorkspaceKindLabel(workspaceItem.kind, t),
+    label,
+  });
 }
 
-function designToolboxDraftLine(activeDraft: string): string {
+function designToolboxDraftLine(activeDraft: string, t: TranslateFn): string {
   const trimmed = activeDraft.trim();
   if (!trimmed) return '';
-  return `保留我输入框里已有的意图：${trimmed}`;
+  return t('chat.designToolbox.prompt.preserveDraft', { draft: trimmed });
+}
+
+function designToolboxWorkspaceKindLabel(
+  kind: WorkspaceContextItem['kind'],
+  t: TranslateFn,
+): string {
+  switch (kind) {
+    case 'browser':
+      return t('chat.designToolbox.context.browser');
+    case 'design-files':
+      return t('chat.designToolbox.context.designFiles');
+    case 'design-system':
+      return t('chat.designToolbox.context.designSystem');
+    case 'folder':
+      return t('chat.designToolbox.context.folder');
+    case 'terminal':
+      return t('chat.designToolbox.context.terminal');
+    case 'side-chat':
+      return t('chat.designToolbox.context.sideChat');
+    case 'live-artifact':
+      return t('chat.designToolbox.context.liveArtifact');
+    case 'file':
+    default:
+      return t('chat.designToolbox.context.file');
+  }
 }
 
 function designToolboxActionPrompt({
@@ -3887,20 +3924,22 @@ function designToolboxActionPrompt({
   workspaceItem,
   activeDraft,
   resourceIndex,
+  t,
 }: {
   action: DesignToolboxAction;
   skill: SkillSummary | null;
   workspaceItem: WorkspaceContextItem | null;
   activeDraft: string;
   resourceIndex: DesignToolboxResourceIndex;
+  t: TranslateFn;
 }): string {
   const skillLine = skill
-    ? `已选 skill：${skill.name}。请把它作为本轮主要工作流。`
-    : '如果没有匹配到具体 skill，请先从当前可用 skills / MCP / plugins / connectors / design files 中选择最合适的组合。';
-  const resourceLines = designToolboxResourceIndexLines(resourceIndex);
-  const draftLine = designToolboxDraftLine(activeDraft);
+    ? t('chat.designToolbox.prompt.selectedSkill', { skill: skill.name })
+    : t('chat.designToolbox.prompt.noSkill');
+  const resourceLines = designToolboxResourceIndexLines(resourceIndex, t);
+  const draftLine = designToolboxDraftLine(activeDraft, t);
   const base = [
-    designToolboxContextLine(workspaceItem),
+    designToolboxContextLine(workspaceItem, t),
     skillLine,
     ...resourceLines,
     draftLine,
@@ -3910,41 +3949,41 @@ function designToolboxActionPrompt({
     case 'auto-match':
       return [
         ...base,
-        '请作为 Creative Director 总调度完成一套设计流程：',
-        '1. 先帮我定义“什么是好看的设计”：受众、业务目标、品牌气质、风格参考、信息密度、色彩/字体/动效/素材标准，以及不能出现的 AI 味/模板感。',
-        '2. 搜索并匹配上面的全量资源索引，不要只看设计百宝箱推荐项；需要时组合 skills、MCP、plugins、connectors 和 design files。',
-        '3. 如果目标或审美标准还不够清楚，用有限选项或表单式 UI 引导我选择，并给出推荐默认项；如果已经足够清楚，直接执行下一步。',
-        '4. 按“诊断 -> 风格方向 -> 资源选择 -> 具体改动/生成 -> 验证”的顺序走完全程。每一步说明为什么选这些资源，以及下一步需要我确认什么。',
+        t('chat.designToolbox.prompt.autoMatchIntro'),
+        t('chat.designToolbox.prompt.autoMatchStep1'),
+        t('chat.designToolbox.prompt.autoMatchStep2'),
+        t('chat.designToolbox.prompt.autoMatchStep3'),
+        t('chat.designToolbox.prompt.autoMatchStep4'),
       ].join('\n');
     case 'motion':
       return [
         ...base,
-        '请基于当前 HTML / 页面元素加入高质量动效：入场、滚动、状态切换或微交互任选最有效的 1-2 处。保持克制，优先 transform / opacity，并加 prefers-reduced-motion 兜底。',
+        t('chat.designToolbox.prompt.motion'),
       ].join('\n');
     case 'motion-polish':
       return [
         ...base,
-        '请审查并润色现有动效的节奏、缓动、性能和可访问性。修掉突兀、廉价或影响阅读的动画；必要时改成更细腻的时间线。',
+        t('chat.designToolbox.prompt.motionPolish'),
       ].join('\n');
     case 'anti-ai-polish':
       return [
         ...base,
-        '请做一次反 AI 味美化：移除模板化布局、廉价渐变/光晕、无意义卡片堆叠和空泛文案；保持信息不丢失，直接改到更像真实设计师交付。',
+        t('chat.designToolbox.prompt.antiAiPolish'),
       ].join('\n');
     case 'visual-polish':
       return [
         ...base,
-        '请把这个设计打磨到可交付：检查视觉层级、排版、间距、响应式、按钮状态、空/加载/错误状态和可访问性，并直接完成最重要的修正。',
+        t('chat.designToolbox.prompt.visualPolish'),
       ].join('\n');
     case 'image-gen':
       return [
         ...base,
-        '请为当前设计生成下一步视觉资产方案：可以是分区参考图、hero 素材、插画、icon、社媒图或 moodboard。先判断最缺哪类图，再给可执行的生成 prompt / 文件计划。',
+        t('chat.designToolbox.prompt.imageGen'),
       ].join('\n');
     case 'video-gen':
       return [
         ...base,
-        '请把当前设计转成视频方向：生成短视频分镜、Hyperframes / Remotion 帧结构或 Sora/fal 可用 prompt。优先让现有 HTML / 页面内容自然变成镜头。',
+        t('chat.designToolbox.prompt.videoGen'),
       ].join('\n');
   }
 }
@@ -3954,18 +3993,20 @@ function designToolboxSkillPrompt({
   workspaceItem,
   activeDraft,
   resourceIndex,
+  t,
 }: {
   skill: SkillSummary;
   workspaceItem: WorkspaceContextItem | null;
   activeDraft: string;
   resourceIndex: DesignToolboxResourceIndex;
+  t: TranslateFn;
 }): string {
   return [
-    designToolboxContextLine(workspaceItem),
-    `使用 ${skill.name} 处理当前设计。`,
-    ...designToolboxResourceIndexLines(resourceIndex),
-    designToolboxDraftLine(activeDraft),
-    '请先判断最合适的加工目标，再直接完成一轮具体改动；如果它依赖外部素材或 API，请给出可运行的替代方案或明确需要我补充什么。',
+    designToolboxContextLine(workspaceItem, t),
+    t('chat.designToolbox.prompt.useSkill', { skill: skill.name }),
+    ...designToolboxResourceIndexLines(resourceIndex, t),
+    designToolboxDraftLine(activeDraft, t),
+    t('chat.designToolbox.prompt.skillInstruction'),
   ].filter(Boolean).join('\n');
 }
 
@@ -3974,64 +4015,80 @@ function designToolboxResourcePrompt({
   workspaceItem,
   activeDraft,
   resourceIndex,
+  t,
 }: {
   resource: Exclude<DesignToolboxResource, { kind: 'skill' }>;
   workspaceItem: WorkspaceContextItem | null;
   activeDraft: string;
   resourceIndex: DesignToolboxResourceIndex;
+  t: TranslateFn;
 }): string {
   const base = [
-    designToolboxContextLine(workspaceItem),
-    `已选资源：${designToolboxResourceKindLabel(resource.kind)} · ${resource.title}（${resource.id}）。`,
-    resource.subtitle ? `资源说明：${resource.subtitle}` : '',
-    ...designToolboxResourceIndexLines(resourceIndex),
-    designToolboxDraftLine(activeDraft),
+    designToolboxContextLine(workspaceItem, t),
+    t('chat.designToolbox.prompt.selectedResource', {
+      kind: designToolboxResourceKindLabel(resource.kind, t),
+      title: resource.title,
+      id: resource.id,
+    }),
+    resource.subtitle ? t('chat.designToolbox.prompt.resourceDescription', { description: resource.subtitle }) : '',
+    ...designToolboxResourceIndexLines(resourceIndex, t),
+    designToolboxDraftLine(activeDraft, t),
   ].filter(Boolean);
 
   switch (resource.kind) {
     case 'plugin':
       return [
         ...base,
-        '请把这个 plugin 当作当前设计流程的主要上下文。如果它暴露输入项或 GenUI，请在需要时引导我选择；如果不适合当前目标，请改选更合适的全局资源并说明原因。',
+        t('chat.designToolbox.prompt.pluginResource'),
       ].join('\n');
     case 'mcp':
       return [
         ...base,
-        '请优先使用这个 MCP 能力完成当前设计下一步。需要外部素材、网页截图、图像/视频生成或数据时，先判断它能否完成，再给出可执行计划。',
+        t('chat.designToolbox.prompt.mcpResource'),
       ].join('\n');
     case 'mcp-template':
       return [
         ...base,
-        '这个 MCP 是可配置模板。如果它是完成当前设计最需要的工具，请先引导我完成配置；如果已有替代资源可用，请先用替代资源继续。',
+        t('chat.designToolbox.prompt.mcpTemplateResource'),
       ].join('\n');
     case 'connector':
       return [
         ...base,
-        '请在需要真实数据、素材、账号内容或外部工作流时使用这个 connector；使用前先说明会读取/写入什么，必要时让我确认。',
+        t('chat.designToolbox.prompt.connectorResource'),
       ].join('\n');
     case 'file':
       return [
         ...base,
-        '请把这个 design file 作为当前设计对象或参考资产，基于它完成下一步加工；如果需要同时比较其他文件，请从全量 design files 中继续搜索。',
+        t('chat.designToolbox.prompt.fileResource'),
       ].join('\n');
   }
 }
 
-function designToolboxResourceIndexLines(index: DesignToolboxResourceIndex): string[] {
+function designToolboxResourceIndexLines(
+  index: DesignToolboxResourceIndex,
+  t: TranslateFn,
+): string[] {
   const files = index.projectFiles
     .filter((file) => file.type !== 'dir')
     .map((file) => file.path ?? file.name);
   return [
-    `全局资源索引：skills(${index.skills.length})、plugins(${index.plugins.length})、MCP(${index.mcpServers.length} enabled / ${index.mcpTemplates.length} templates)、connectors(${index.connectors.length} connected)、design files(${files.length})。`,
-    designToolboxCompactLine('可搜索 skills', index.skills.map((skill) => skill.name), 60),
-    designToolboxCompactLine('可搜索 plugins', index.plugins.map((plugin) => plugin.title), 40),
-    designToolboxCompactLine('可用 MCP', [
+    t('chat.designToolbox.prompt.resourceIndex', {
+      skills: index.skills.length,
+      plugins: index.plugins.length,
+      mcpEnabled: index.mcpServers.length,
+      mcpTemplates: index.mcpTemplates.length,
+      connectors: index.connectors.length,
+      files: files.length,
+    }),
+    designToolboxCompactLine(t('chat.designToolbox.prompt.searchableSkills'), index.skills.map((skill) => skill.name), 60, t),
+    designToolboxCompactLine(t('chat.designToolbox.prompt.searchablePlugins'), index.plugins.map((plugin) => plugin.title), 40, t),
+    designToolboxCompactLine(t('chat.designToolbox.prompt.availableMcp'), [
       ...index.mcpServers.map((server) => server.label || server.id),
-      ...index.mcpTemplates.map((template) => `${template.label} template`),
-    ], 40),
-    designToolboxCompactLine('已连接 connectors', index.connectors.map((connector) => connector.name), 30),
-    designToolboxCompactLine('可参考 design files', files, 40),
-    '流程规则：先定义审美目标和约束，再搜索/匹配资源；需要用户选择时生成有限选项 UI，引导确认后继续执行。',
+      ...index.mcpTemplates.map((template) => t('chat.designToolbox.prompt.mcpTemplateName', { name: template.label })),
+    ], 40, t),
+    designToolboxCompactLine(t('chat.designToolbox.prompt.connectedConnectors'), index.connectors.map((connector) => connector.name), 30, t),
+    designToolboxCompactLine(t('chat.designToolbox.prompt.referenceDesignFiles'), files, 40, t),
+    t('chat.designToolbox.prompt.processRule'),
   ].filter(Boolean);
 }
 
@@ -4039,12 +4096,19 @@ function designToolboxCompactLine(
   label: string,
   values: string[],
   limit: number,
+  t: TranslateFn,
 ): string {
   const clean = Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
   if (clean.length === 0) return '';
   const shown = clean.slice(0, limit);
-  const suffix = clean.length > shown.length ? `, +${clean.length - shown.length} more` : '';
-  return `${label}：${shown.join(', ')}${suffix}。`;
+  const suffix = clean.length > shown.length
+    ? t('chat.designToolbox.prompt.moreSuffix', { count: clean.length - shown.length })
+    : '';
+  return t('chat.designToolbox.prompt.compactLine', {
+    label,
+    values: shown.join(', '),
+    suffix,
+  });
 }
 
 function skillMentionRank(skill: SkillSummary, query: string): number {

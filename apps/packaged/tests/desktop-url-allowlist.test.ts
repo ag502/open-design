@@ -99,11 +99,20 @@ describe('isAllowedChildWindowUrl (issue #911)', () => {
 });
 
 describe('isAllowedEmbeddedBrowserUrl', () => {
-  it('allows browser-tab page URLs and local files', () => {
+  it('allows external http(s) references, project-served content, and about:blank', () => {
     expect(isAllowedEmbeddedBrowserUrl('https://example.com')).toBe(true);
     expect(isAllowedEmbeddedBrowserUrl('http://127.0.0.1:17579/index.html')).toBe(true);
-    expect(isAllowedEmbeddedBrowserUrl('file:///Users/pftom/example.html')).toBe(true);
     expect(isAllowedEmbeddedBrowserUrl('about:blank')).toBe(true);
+  });
+
+  it('rejects file: URLs so the capture bridge cannot exfiltrate local files', () => {
+    // The design-browser surface can capture the webview region and persist
+    // the PNG into the project. Allowing `file://` would let a compromised
+    // renderer or pasted address load a local file such as `/etc/passwd` and
+    // exfiltrate its rendered pixels through the project files API. The
+    // reference board only needs http(s)/about:blank, so file: stays blocked.
+    expect(isAllowedEmbeddedBrowserUrl('file:///Users/pftom/example.html')).toBe(false);
+    expect(isAllowedEmbeddedBrowserUrl('file:///etc/passwd')).toBe(false);
   });
 
   it('rejects executable or privileged schemes for embedded browser startup', () => {

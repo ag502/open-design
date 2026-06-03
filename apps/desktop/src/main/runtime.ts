@@ -835,10 +835,16 @@ export function isAllowedChildWindowUrl(url: string): boolean {
 export function isAllowedEmbeddedBrowserUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
+    // Security boundary for the design-browser webview. Keep this to remote
+    // references and project-served content only. `file:` is deliberately
+    // excluded: the same surface can capture the webview region and persist
+    // the PNG into the project, so allowing `file://` would let a compromised
+    // renderer or a pasted address load and exfiltrate arbitrary local files
+    // (e.g. `/etc/passwd`). The reference board only needs http(s) and
+    // about:blank.
     return (
       parsed.protocol === "http:" ||
       parsed.protocol === "https:" ||
-      parsed.protocol === "file:" ||
       (parsed.protocol === "about:" && parsed.pathname === "blank")
     );
   } catch {
@@ -1386,6 +1392,22 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
     webPreferences.sandbox = true;
+  });
+  // `will-attach-webview` only vets the initial `src`. The design-browser panel
+  // navigates an already-attached guest with `<webview>.loadURL(...)`, which does
+  // not re-trigger attach, so the same allowlist has to gate every guest
+  // navigation too — otherwise a compromised renderer or pasted address could
+  // `loadURL("file:///etc/passwd")` after the first http(s) load and exfiltrate
+  // its pixels through the host capture bridge.
+  window.webContents.on("did-attach-webview", (_event, guestWebContents) => {
+    const blockDisallowed = (navEvent: Electron.Event, url: string): void => {
+      if (!isAllowedEmbeddedBrowserUrl(url)) {
+        navEvent.preventDefault();
+      }
+    };
+    guestWebContents.on("will-navigate", blockDisallowed);
+    guestWebContents.on("will-redirect", blockDisallowed);
+    guestWebContents.setWindowOpenHandler(() => ({ action: "deny" }));
   });
   ipcMain.handle("browser:clear-data", async (event, rawOptions: unknown): Promise<OpenDesignHostActionResult> => {
     requireMainWindowSender(event);

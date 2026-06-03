@@ -1827,8 +1827,11 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
   app.get('/api/projects/:id/folders', async (req, res) => {
     try {
       const project = getProject(db, req.params.id);
+      if (!project) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+      }
       const folders = await listProjectFolders(PROJECTS_DIR, req.params.id, {
-        metadata: project?.metadata,
+        metadata: project.metadata,
       });
       /** @type {import('@open-design/contracts').ProjectFoldersResponse} */
       const body = { folders };
@@ -1845,11 +1848,14 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         return sendApiError(res, 400, 'BAD_REQUEST', 'name required');
       }
       const project = getProject(db, req.params.id);
+      if (!project) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+      }
       const folder = await createProjectFolder(
         PROJECTS_DIR,
         req.params.id,
         name,
-        project?.metadata,
+        project.metadata,
       );
       /** @type {import('@open-design/contracts').ProjectFolderResponse} */
       const body = { folder };
@@ -1866,11 +1872,14 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         return sendApiError(res, 400, 'BAD_REQUEST', 'path required');
       }
       const project = getProject(db, req.params.id);
+      if (!project) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+      }
       await deleteProjectFolder(
         PROJECTS_DIR,
         req.params.id,
         folderPath,
-        project?.metadata,
+        project.metadata,
       );
       /** @type {import('@open-design/contracts').DeleteProjectFolderResponse} */
       const body = { ok: true };

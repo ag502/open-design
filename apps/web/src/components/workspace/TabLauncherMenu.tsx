@@ -118,7 +118,7 @@ export function TabLauncherMenu({
       .slice(0, 20);
   }, [kindFilter, query, workspaceContexts]);
 
-  const selectableCount = tabResults.length + results.length;
+  const selectableCount = results.length + tabResults.length;
 
   // Clamp the selection whenever the result set shrinks.
   useEffect(() => {
@@ -153,15 +153,15 @@ export function TabLauncherMenu({
       setSelected((s) => (selectableCount === 0 ? 0 : (s - 1 + selectableCount) % selectableCount));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const tab = selected < tabResults.length ? tabResults[selected] : null;
-      if (tab) {
-        chooseTab(tab);
-        return;
-      }
-      const fileIndex = selected - tabResults.length;
-      const file = results[fileIndex] ?? results[0];
+      const file = results[selected] ?? null;
       if (file) {
         chooseFile(file.name);
+        return;
+      }
+      const tabIndex = selected - results.length;
+      const tab = tabResults[tabIndex] ?? null;
+      if (tab) {
+        chooseTab(tab);
       } else if (actions[0]) {
         // No file matches the query but "Create new" actions exist — Enter
         // triggers the first action so the keyboard path is never a dead end.
@@ -221,106 +221,113 @@ export function TabLauncherMenu({
         </div>
       ) : null}
 
-      {tabResults.length > 0 ? (
-        <>
-          <div className={styles.sectionHeader}>{t('workspace.openTabs')}</div>
-          <ul className={styles.list} style={{ maxHeight: 'none', flex: '0 0 auto' }}>
-            {tabResults.map((item, index) => (
-              <li key={`${item.kind}:${item.id}`}>
-                <button
-                  type="button"
-                  className={`${styles.row} ${index === selected ? styles.rowSelected : ''}`}
-                  onMouseEnter={() => setSelected(index)}
-                  onClick={() => chooseTab(item)}
-                  data-selectable-idx={index}
-                  data-testid="tab-launcher-tab-result"
-                >
-                  <span className={styles.rowIcon} aria-hidden>
-                    <Icon name={workspaceContextIconName(item.kind)} size={15} />
-                  </span>
-                  <span className={styles.rowBody}>
-                    <span className={styles.rowName}>{item.label}</span>
-                    <span className={styles.rowMeta}>
-                      {workspaceContextKindLabel(item.kind)} · {workspaceContextMeta(item)}
+      <div className={styles.scrollBody} data-testid="tab-launcher-scroll-body">
+        {actions.length > 0 ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>{t('workspace.createNew')}</div>
+            <ul className={styles.list}>
+              {actions.map((action) => (
+                <li key={action.id}>
+                  <button
+                    type="button"
+                    className={styles.row}
+                    onClick={() => {
+                      action.run(launcherContext);
+                      onClose();
+                    }}
+                  >
+                    <span className={styles.rowIcon} aria-hidden>
+                      <Icon name={action.iconName} size={15} />
                     </span>
-                  </span>
-                  <span className={styles.rowOpen}>{t('workspace.tabOpen')}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-
-      {actions.length > 0 ? (
-        <>
-          <div className={styles.sectionHeader}>{t('workspace.createNew')}</div>
-          <ul className={styles.list} style={{ maxHeight: 'none', flex: '0 0 auto' }}>
-            {actions.map((action) => (
-              <li key={action.id}>
-                <button
-                  type="button"
-                  className={styles.row}
-                  onClick={() => {
-                    action.run(launcherContext);
-                    onClose();
-                  }}
-                >
-                  <span className={styles.rowIcon} aria-hidden>
-                    <Icon name={action.iconName} size={15} />
-                  </span>
-                  <span className={styles.rowBody}>
-                    <span className={styles.rowName}>{t(action.labelKey)}</span>
-                    {action.descriptionKey ? (
-                      <span className={styles.rowMeta}>{t(action.descriptionKey)}</span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.sectionHeader}>{t('workspace.openFile')}</div>
-        </>
-      ) : tabResults.length > 0 ? (
-        <div className={styles.sectionHeader}>{t('workspace.openFile')}</div>
-      ) : null}
-
-      {results.length === 0 && tabResults.length === 0 ? (
-        <div className={styles.empty} data-testid="tab-launcher-empty">
-          {t('workspace.noFilesMatch')}
-        </div>
-      ) : (
-        <ul className={styles.list} ref={listRef}>
-          {results.map((file, index) => {
-            const isOpen = openSet.has(file.name);
-            const selectableIndex = tabResults.length + index;
-            return (
-              <li key={file.name}>
-                <button
-                  type="button"
-                  className={`${styles.row} ${selectableIndex === selected ? styles.rowSelected : ''}`}
-                  onMouseEnter={() => setSelected(selectableIndex)}
-                  onClick={() => chooseFile(file.name)}
-                  data-selectable-idx={selectableIndex}
-                  data-testid="tab-launcher-result"
-                >
-                  <span className={styles.rowIcon} aria-hidden>
-                    <Icon name={kindIconName(file.kind)} size={15} />
-                  </span>
-                  <span className={styles.rowBody}>
-                    <span className={styles.rowName}>{file.name}</span>
-                    <span className={styles.rowMeta}>
-                      {kindLabel(file.kind, t)} · {formatBytes(file.size)} ·{' '}
-                      {formatRelativeTime(file.mtime, t)}
+                    <span className={styles.rowBody}>
+                      <span className={styles.rowName}>{t(action.labelKey)}</span>
+                      {action.descriptionKey ? (
+                        <span className={styles.rowMeta}>{t(action.descriptionKey)}</span>
+                      ) : null}
                     </span>
-                  </span>
-                  {isOpen ? <span className={styles.rowOpen}>{t('workspace.tabOpen')}</span> : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {results.length > 0 ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>{t('workspace.openFile')}</div>
+            <ul className={styles.list} ref={listRef}>
+              {results.map((file, index) => {
+                const isOpen = openSet.has(file.name);
+                const selectableIndex = index;
+                return (
+                  <li key={file.name}>
+                    <button
+                      type="button"
+                      className={`${styles.row} ${selectableIndex === selected ? styles.rowSelected : ''}`}
+                      onMouseEnter={() => setSelected(selectableIndex)}
+                      onClick={() => chooseFile(file.name)}
+                      data-selectable-idx={selectableIndex}
+                      data-testid="tab-launcher-result"
+                    >
+                      <span className={styles.rowIcon} aria-hidden>
+                        <Icon name={kindIconName(file.kind)} size={15} />
+                      </span>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowName}>{file.name}</span>
+                        <span className={styles.rowMeta}>
+                          {kindLabel(file.kind, t)} · {formatBytes(file.size)} ·{' '}
+                          {formatRelativeTime(file.mtime, t)}
+                        </span>
+                      </span>
+                      {isOpen ? <span className={styles.rowOpen}>{t('workspace.tabOpen')}</span> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
+
+        {tabResults.length > 0 ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>{t('workspace.openTabs')}</div>
+            <ul className={styles.list}>
+              {tabResults.map((item, index) => {
+                const selectableIndex = results.length + index;
+                return (
+                  <li key={`${item.kind}:${item.id}`}>
+                    <button
+                      type="button"
+                      className={`${styles.row} ${selectableIndex === selected ? styles.rowSelected : ''}`}
+                      onMouseEnter={() => setSelected(selectableIndex)}
+                      onClick={() => chooseTab(item)}
+                      data-selectable-idx={selectableIndex}
+                      data-testid="tab-launcher-tab-result"
+                    >
+                      <span className={styles.rowIcon} aria-hidden>
+                        <Icon name={workspaceContextIconName(item.kind)} size={15} />
+                      </span>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowName}>{item.label}</span>
+                        <span className={styles.rowMeta}>
+                          {workspaceContextKindLabel(item.kind)} · {workspaceContextMeta(item)}
+                        </span>
+                      </span>
+                      <span className={styles.rowOpen}>{t('workspace.tabOpen')}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
+
+        {results.length === 0 && tabResults.length === 0 ? (
+          <div className={styles.empty} data-testid="tab-launcher-empty">
+            {t('workspace.noFilesMatch')}
+          </div>
+        ) : null}
+      </div>
     </div>,
     document.body,
   );

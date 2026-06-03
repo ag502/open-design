@@ -779,10 +779,23 @@ describe('ProjectView daemon cleanup', () => {
 
     await waitFor(() => {
       const latest = chatPaneSpy.mock.calls.at(-1)?.[0] as {
-        queuedItems?: Array<{ commentAttachments?: Array<{ comment: string }> }>;
+        queuedItems?: Array<{
+          prompt?: string;
+          commentAttachments?: Array<{
+            comment: string;
+            commentContext?: string;
+            elementId?: string;
+          }>;
+        }>;
       };
       expect(latest.queuedItems).toHaveLength(1);
-      expect(latest.queuedItems?.[0]?.commentAttachments?.[0]?.comment).toBe('Use a warmer accent');
+      // Each board comment is queued as its own task: the comment text becomes
+      // the task prompt while the attachment rides along as element context
+      // (comment blanked, commentContext === 'query').
+      expect(latest.queuedItems?.[0]?.prompt).toBe('Use a warmer accent');
+      const queuedAttachment = latest.queuedItems?.[0]?.commentAttachments?.[0];
+      expect(queuedAttachment?.elementId).toBe('hero');
+      expect(queuedAttachment?.commentContext).toBe('query');
     });
     expect(streamViaDaemon).toHaveBeenCalledTimes(1);
   });

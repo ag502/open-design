@@ -1470,6 +1470,47 @@ describe('FileWorkspace add-module menu', () => {
     expect(addButton.closest('.ws-tabs-actions')).not.toBeNull();
   });
 
+  it('orders launcher sections as create new, files, then tabs in one scroll body', () => {
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[workspaceFile('cover.html')]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{
+          tabs: ['cover.html'],
+          active: 'cover.html',
+          browserTabs: [
+            {
+              id: '__browser__:1',
+              label: 'Reference Browser',
+              title: 'Behance',
+              url: 'https://www.behance.net/',
+            },
+          ],
+        }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByTestId('workspace-add-tab'));
+    });
+
+    const scrollBody = screen.getByTestId('tab-launcher-scroll-body');
+    const createHeader = screen.getByText('Create new');
+    const fileHeader = screen.getByText('Open a file');
+    const tabsHeader = screen.getByText('Open tabs');
+
+    expect(scrollBody.contains(createHeader)).toBe(true);
+    expect(scrollBody.contains(fileHeader)).toBe(true);
+    expect(scrollBody.contains(tabsHeader)).toBe(true);
+    expect(createHeader.compareDocumentPosition(fileHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fileHeader.compareDocumentPosition(tabsHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('adds a new browser tab every time the Browser module is selected', () => {
     const onTabsStateChange = vi.fn();
     render(

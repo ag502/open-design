@@ -601,11 +601,19 @@ export function projectSplitStyle(
   return {
     '--project-chat-panel-width': `${chatPanelWidth}px`,
     '--project-workspace-panel-track': workspacePanelTrack,
+    gridTemplateColumns: `${chatPanelWidth}px ${SPLIT_RESIZE_HANDLE_WIDTH}px ${workspacePanelTrack}`,
   };
 }
 
-function applySplitChatPanelWidth(split: HTMLDivElement | null, width: number): void {
-  split?.style.setProperty('--project-chat-panel-width', `${width}px`);
+function applySplitChatPanelWidth(
+  split: HTMLDivElement | null,
+  width: number,
+  workspacePanelTrack: string,
+): void {
+  if (!split) return;
+  split.style.setProperty('--project-chat-panel-width', `${width}px`);
+  split.style.gridTemplateColumns =
+    `${width}px ${SPLIT_RESIZE_HANDLE_WIDTH}px ${workspacePanelTrack}`;
 }
 
 function shouldFetchElevenLabsVoiceOptions(project: Project): boolean {
@@ -4433,6 +4441,7 @@ export function ProjectView({
 
   useEffect(() => {
     chatPanelWidthRef.current = chatPanelWidth;
+    applySplitChatPanelWidth(splitRef.current, chatPanelWidth);
   }, [chatPanelWidth]);
 
   useEffect(() => {

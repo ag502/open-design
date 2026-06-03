@@ -101,10 +101,18 @@
   color: var(--text-faint);
 }
 
-.list {
+.scrollBody {
   flex: 1 1 auto;
   overflow-y: auto;
-  max-height: 320px;
+  max-height: min(420px, calc(100vh - 190px));
+  padding: 4px 0;
+}
+
+.section {
+  display: block;
+}
+
+.list {
   padding: 4px;
   margin: 0;
   list-style: none;

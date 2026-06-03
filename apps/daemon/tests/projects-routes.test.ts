@@ -336,6 +336,78 @@ describe('GET /api/projects/:id resolvedDir', () => {
     expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
   });
 
+  // Folder routes (#3516) must refuse to touch the filesystem for an unknown
+  // project id. Without the guard, POST reaches createProjectFolder ->
+  // ensureProject and would materialize a `.od/projects/<id>/...` directory
+  // with no DB row, leaving orphaned state and breaking the invariant the
+  // neighboring project-file routes rely on.
+  it('returns 404 PROJECT_NOT_FOUND for GET /folders on an unknown project', async () => {
+    const resp = await fetch(`${baseUrl}/api/projects/unknown-folders-${Date.now()}/folders`);
+    expect(resp.status).toBe(404);
+    const body = (await resp.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
+  });
+
+  it('returns 404 PROJECT_NOT_FOUND for POST /folders on an unknown project', async () => {
+    const resp = await fetch(`${baseUrl}/api/projects/unknown-folders-${Date.now()}/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'should-not-be-created' }),
+    });
+    expect(resp.status).toBe(404);
+    const body = (await resp.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
+  });
+
+  it('returns 404 PROJECT_NOT_FOUND for DELETE /folders on an unknown project', async () => {
+    const resp = await fetch(`${baseUrl}/api/projects/unknown-folders-${Date.now()}/folders`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'whatever' }),
+    });
+    expect(resp.status).toBe(404);
+    const body = (await resp.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
+  });
+
+  it('creates, lists, and deletes a folder for a real project', async () => {
+    const projectId = `proj-folders-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Folder fixture',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const postResp = await fetch(`${baseUrl}/api/projects/${projectId}/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'references' }),
+    });
+    expect(postResp.status).toBe(200);
+    const created = (await postResp.json()) as { folder: { path: string } };
+    expect(created.folder.path).toContain('references');
+
+    const listResp = await fetch(`${baseUrl}/api/projects/${projectId}/folders`);
+    expect(listResp.status).toBe(200);
+    const listed = (await listResp.json()) as { folders: Array<{ path: string }> };
+    expect(listed.folders.some((f) => f.path.includes('references'))).toBe(true);
+
+    const deleteResp = await fetch(`${baseUrl}/api/projects/${projectId}/folders`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: created.folder.path }),
+    });
+    expect(deleteResp.status).toBe(200);
+    const deleted = (await deleteResp.json()) as { ok: boolean };
+    expect(deleted.ok).toBe(true);
+  });
+
   // PR #974: `fromTrustedPicker` is privileged the same way `baseDir`
   // is — only the HMAC-gated POST /api/import/folder may set it. POST
   // /api/projects (the generic create endpoint) and PATCH
