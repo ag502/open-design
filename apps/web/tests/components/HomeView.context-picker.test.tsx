@@ -142,7 +142,8 @@ describe('HomeView context picker', () => {
     );
 
     const input = await screen.findByTestId('home-hero-input');
-    expect(screen.getByTestId('home-hero-attach')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('home-hero-plus-trigger'));
+    expect(screen.getByTestId('home-hero-plus-attach')).toBeTruthy();
     // Lexical's PastePlugin reads `clipboardData.files` (the old textarea path
     // read `clipboardData.items[].getAsFile()`); the staged-file outcome is
     // identical, only the clipboard shape the handler inspects changed.
