@@ -511,14 +511,15 @@ describe('AssistantMessage recovered produced files', () => {
 });
 
 describe('AssistantMessage live AskUserQuestion fallback suppression', () => {
-  it('suppresses duplicate hedging markdown while a live AskUserQuestion streams', () => {
+  it('keeps legitimate preamble that precedes a live AskUserQuestion card', () => {
     const message = baseMessage({
       content: '',
       runStatus: 'running',
       endedAt: undefined,
-      // Hedging markdown the model emitted alongside the tool call — the exact
-      // duplicate the live card is meant to replace.
-      events: [{ kind: 'text', text: 'UNIQUEFALLBACKPROSEXYZ' } as ChatMessage['events'][number]],
+      // Intro prose the model emitted before calling the tool — preamble, not
+      // a duplicate. It precedes the (appended) live card in block order, so it
+      // must be preserved; only text after the card is hedging to drop.
+      events: [{ kind: 'text', text: 'INTROPREAMBLEXYZ' } as ChatMessage['events'][number]],
     });
     const { container } = render(
       <AssistantMessage
@@ -535,8 +536,9 @@ describe('AssistantMessage live AskUserQuestion fallback suppression', () => {
     );
     // The live card renders…
     expect(container.querySelector('[data-testid="ask-user-question"]')).not.toBeNull();
-    // …and the duplicate prose is suppressed (it would render without the fix).
-    expect(container.textContent).not.toContain('UNIQUEFALLBACKPROSEXYZ');
+    // …and the preamble before it is preserved (the earlier blanket-suppress
+    // fix wrongly dropped it).
+    expect(container.textContent).toContain('INTROPREAMBLEXYZ');
   });
 
   it('keeps assistant prose when no live AskUserQuestion is present', () => {

@@ -420,25 +420,10 @@ function AssistantMessageImpl({
   // The chat-pane-level PinnedTodoBar renders the canonical TodoWrite card
   // above the composer, so we strip any TodoWrite tool-groups out of the
   // per-message flow to avoid the same task list rendering twice.
-  // A live AskUserQuestion (streaming, no persisted `tool_use` yet) still means
-  // any duplicate hedging markdown the model emitted alongside it must be
-  // suppressed — otherwise the fallback text and the live card render the same
-  // questions at once, the exact duplicate state this card removes. Seed the
-  // fallback suppressor with this so it fires before the persisted tool_use
-  // settles.
-  const hasLiveAskUserQuestion = useMemo(() => {
-    if (!streaming || !liveToolInput) return false;
-    const settledUseIds = new Set(
-      events.filter((e) => e.kind === "tool_use").map((e) => e.id),
-    );
-    return Object.entries(liveToolInput).some(
-      ([id, entry]) => !settledUseIds.has(id) && isAskUserQuestionName(entry.name),
-    );
-  }, [streaming, liveToolInput, events]);
   const persistedBlocks = stripTodoToolGroups(
     stripEmptyThinkingBlocks(
       suppressDuplicateQuestionForms(
-        suppressAskUserQuestionFallbackText(buildBlocks(events), hasLiveAskUserQuestion),
+        suppressAskUserQuestionFallbackText(buildBlocks(events)),
       ),
     ),
   );
@@ -464,7 +449,14 @@ function AssistantMessageImpl({
     }
     return out;
   }, [streaming, liveToolInput, events]);
-  const blocks = liveBlocks.length ? [...persistedBlocks, ...liveBlocks] : persistedBlocks;
+  // Re-run the fallback suppression over the composed list once live blocks
+  // are appended, so a still-streaming (not-yet-persisted) AskUserQuestion
+  // suppresses hedging text that follows it in block order — without dropping
+  // legitimate preamble that precedes it (an order-aware pass, not a blanket
+  // "a live AUQ exists" flag).
+  const blocks = liveBlocks.length
+    ? suppressAskUserQuestionFallbackText([...persistedBlocks, ...liveBlocks])
+    : persistedBlocks;
   const fileOps = useMemo(() => deriveFileOps(events), [events]);
   const produced = message.producedFiles ?? [];
   const displayedProduced = useMemo(
@@ -2687,8 +2679,8 @@ function suppressDuplicateQuestionForms(blocks: Block[]): Block[] {
 // assistant message. Claude tends to also write the same questions as
 // markdown text alongside the tool call. The card already shows the
 // content; the prose is hedge that duplicates and confuses the user.
-function suppressAskUserQuestionFallbackText(blocks: Block[], seedSeen = false): Block[] {
-  let seenAskUserQuestion = seedSeen;
+function suppressAskUserQuestionFallbackText(blocks: Block[]): Block[] {
+  let seenAskUserQuestion = false;
   const filtered: Block[] = [];
   for (const block of blocks) {
     if (block.kind === "tool-group") {
@@ -2698,6 +2690,14 @@ function suppressAskUserQuestionFallbackText(blocks: Block[], seedSeen = false):
           it.use.name === "ask_user_question",
       );
       if (hasAuq) seenAskUserQuestion = true;
+      filtered.push(block);
+      continue;
+    }
+    // A still-streaming AskUserQuestion (live block, no persisted tool_use yet)
+    // counts the same as a settled one: hedging text after it is suppressed,
+    // preamble before it is kept.
+    if (block.kind === "live-tool" && isAskUserQuestionName(block.name)) {
+      seenAskUserQuestion = true;
       filtered.push(block);
       continue;
     }
