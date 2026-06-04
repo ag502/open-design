@@ -126,7 +126,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   if (context.env.NEWSLETTER_SUBSCRIBERS) {
     context.waitUntil(context.env.NEWSLETTER_SUBSCRIBERS.put(key, JSON.stringify(record)));
   } else {
-    console.log("newsletter_subscribe", JSON.stringify(record));
+    // The KV binding is missing — collection is silently broken. Surface this
+    // loudly for operators, but never write the raw email/referer to provider
+    // logs: log only non-PII metadata (hashed key, source, country).
+    console.warn(
+      "newsletter_subscribe_kv_unbound: NEWSLETTER_SUBSCRIBERS binding missing; subscription dropped",
+      JSON.stringify({ key, source: record.source, country: record.country }),
+    );
   }
 
   return json({ ok: true }, 200, origin);
