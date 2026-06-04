@@ -92,6 +92,7 @@ function ctxFor(stage: PipelineStage, iteration = 0): AtomWorkerContext {
     runId:          'run-1',
     projectId:      'project-1',
     conversationId: 'conv-A',
+    cwd:            tmpDir,
     stage,
     iteration,
     snapshot:       fakeSnapshot(),
@@ -236,6 +237,7 @@ describe('registerBuiltInAtomWorkers: idempotency', () => {
     expect(first).toContain('critique-theater');
     expect(first).toContain('file-write');
     expect(first).toContain('media-image');
+    expect(first).toContain('visual-validation');
   });
 });
 

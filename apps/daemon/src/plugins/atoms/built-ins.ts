@@ -23,6 +23,7 @@ import {
   type AtomOutcome,
   type AtomWorkerContext,
 } from './registry.js';
+import { runVisualValidation } from './visual-validation.js';
 
 let installed = false;
 
@@ -34,6 +35,14 @@ export function registerBuiltInAtomWorkers(): void {
         id:       atom.id,
         describe: 'reads run_devloop_iterations.critique_summary for real critique scores',
         run:      critiqueTheaterWorker,
+      });
+      continue;
+    }
+    if (atom.id === 'visual-validation') {
+      registerAtomWorker({
+        id:       atom.id,
+        describe: 'renders the current project entry HTML and compares it with reference screenshots',
+        run:      visualValidationWorker,
       });
       continue;
     }
@@ -66,6 +75,17 @@ function critiqueTheaterWorker(ctx: AtomWorkerContext): AtomOutcome {
     };
   }
   return { signals: {} };
+}
+
+async function visualValidationWorker(ctx: AtomWorkerContext): Promise<AtomOutcome> {
+  if (!ctx.cwd) {
+    return { signals: {}, note: '[visual-validation] skipped: no project cwd' };
+  }
+  const { report, signals } = await runVisualValidation({ cwd: ctx.cwd });
+  return {
+    signals,
+    note: `[visual-validation] ${report.message}`,
+  };
 }
 
 // Matches `score=4`, `score: 4.5`, `Critique score 4/5`, etc.
