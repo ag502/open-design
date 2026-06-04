@@ -643,6 +643,7 @@ export function EntryShell({
                 className="entry-discord-badge"
                 href={DISCORD_URL}
                 aria-label={discordAriaLabel}
+                title={discordAriaLabel}
                 data-tooltip={discordAriaLabel}
                 data-testid="entry-discord-badge"
               >

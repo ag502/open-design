@@ -1026,6 +1026,30 @@ test('[P0] home hero attachment-only submit uploads the file and sends it with t
   await expect(page.locator('.user-attachments').getByText('reference.txt', { exact: true })).toBeVisible();
 });
 
+test('[P1] collapsed rail stays out of the keyboard tab order on the home view', async ({ page }) => {
+  await gotoEntryHome(page);
+
+  // Collapsed by default: the rail must be inert so its still-mounted logo and
+  // nav buttons cannot receive keyboard focus before the visible toggle/hero.
+  const rail = page.locator('.entry-nav-rail');
+  await expect(rail).toHaveAttribute('inert', '');
+
+  // Tabbing from the top of the document must never land inside the rail.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Tab');
+    const inRail = await page.evaluate(
+      () => !!document.activeElement?.closest('.entry-nav-rail'),
+    );
+    expect(inRail).toBe(false);
+  }
+
+  // Once expanded the rail becomes interactive again and drops inert.
+  await ensureRailOpen(page);
+  await expect(rail).not.toHaveAttribute('inert', '');
+  await expect(page.getByTestId('entry-nav-new-project')).toBeVisible();
+});
+
 async function gotoEntryHome(page: Page) {
   await page.goto('/');
   const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve Open Design' });
