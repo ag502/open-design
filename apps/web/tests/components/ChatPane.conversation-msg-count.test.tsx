@@ -92,6 +92,34 @@ describe('ChatPane conversation message count', () => {
     expect(within(activeRow).getByText(/3 msg/)).toBeTruthy();
   });
 
+  it('falls back to the persisted count when the caller does not track messagesConversationId', () => {
+    // Secondary mounts (SideChatTab, DesignSystemFlow) whose loaders reset/retag
+    // `messages` asynchronously omit the prop on purpose; the active row must use
+    // the stable persisted count rather than a phantom live length.
+    render(
+      <ChatPane
+        messages={[]}
+        streaming={false}
+        error={null}
+        projectId="project-1"
+        projectFiles={[]}
+        onEnsureProject={async () => 'project-1'}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        conversations={[conversation({ id: 'conv-1', title: 'Active', messageCount: 12 })]}
+        activeConversationId="conv-1"
+        onSelectConversation={vi.fn()}
+        onDeleteConversation={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('conversation-history-trigger'));
+
+    const activeRow = screen.getByTestId('conversation-item-conv-1');
+    expect(within(activeRow).getByText(/12 msg/)).toBeTruthy();
+    expect(within(activeRow).queryByText(/0 msg/)).toBeNull();
+  });
+
   it('shows the persisted count for non-active conversations', () => {
     render(
       chatPaneElement({

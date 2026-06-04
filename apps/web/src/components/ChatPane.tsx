@@ -495,7 +495,10 @@ interface Props {
   // The conversation whose history the live `messages` array currently
   // reflects. Null while a switch is mid-flight (or after a load failure),
   // which is exactly when `messages.length` must NOT be trusted as the active
-  // conversation's count — see `conversationMessageCount`.
+  // conversation's count — see `conversationMessageCount`. Callers that do not
+  // track this (mounts whose loader resets/retags `messages` asynchronously)
+  // leave it undefined and fall back to the persisted `conversation.messageCount`
+  // for a stable list count.
   messagesConversationId?: string | null;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
