@@ -7,6 +7,7 @@
 // `/api/runs` — see providers/daemon.ts).
 //
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { DesignSystemSummary } from '@open-design/contracts';
 import { useI18n } from '../i18n';
@@ -184,6 +185,12 @@ export function ProjectDesignSystemPicker({
     setOpen(false);
   };
 
+  const selectDesignSystemOnKeyDown = (event: KeyboardEvent<HTMLButtonElement>, id: string | null) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    selectDesignSystem(id);
+  };
+
   return (
     <div
       ref={wrapRef}
@@ -258,6 +265,7 @@ export function ProjectDesignSystemPicker({
                       event.preventDefault();
                       selectDesignSystem(null);
                     }}
+                    onKeyDown={(event) => selectDesignSystemOnKeyDown(event, null)}
                   >
                     <div className="project-ds-picker-option-head">
                       <span className="project-ds-picker-option-title">{t('designSystemPicker.noneTitle')}</span>
@@ -286,6 +294,7 @@ export function ProjectDesignSystemPicker({
                           event.preventDefault();
                           selectDesignSystem(d.id);
                         }}
+                        onKeyDown={(event) => selectDesignSystemOnKeyDown(event, d.id)}
                         data-testid={`project-ds-picker-option-${d.id}`}
                       >
                         <div className="project-ds-picker-option-head">

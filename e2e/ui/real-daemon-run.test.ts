@@ -368,7 +368,10 @@ async function createProjectViaApi(page: Page, projectId: string, name: string) 
 }
 
 async function openProjectFromProjectsView(page: Page, projectId: string) {
-  await page.goto(`/projects/${projectId}`, { waitUntil: 'domcontentloaded' });
+  await gotoEntryHome(page);
+  const recentProjects = page.getByTestId('recent-projects-strip');
+  await expect(recentProjects).toBeVisible();
+  await recentProjects.locator(`[data-project-id="${projectId}"]`).click();
 }
 
 async function gotoEntryHome(page: Page) {
