@@ -4661,7 +4661,6 @@ function HtmlViewer({
   const [manualEditFrozenSource, setManualEditFrozenSource] = useState<string | null>(null);
   const [manualEditViewportWidth, setManualEditViewportWidth] = useState<number | null>(null);
   const [commentPortalHost, setCommentPortalHost] = useState<HTMLElement | null>(null);
-  const [tabPresentChromeHeight, setTabPresentChromeHeight] = useState<number | null>(null);
   const [previewBodyRef, previewBodySize] = usePreviewCanvasSize<HTMLDivElement>();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const urlPreviewIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -6524,10 +6523,16 @@ function HtmlViewer({
 
   useEffect(() => {
     if (!inTabPresent) return;
+    const bodyStyle = document.body.style;
+    const previousChromeHeight = bodyStyle.getPropertyValue('--workspace-tabs-chrome-height');
     const updateChromeHeight = () => {
       const chrome = document.querySelector<HTMLElement>('.workspace-tabs-chrome.app-chrome-header');
       const height = chrome?.getBoundingClientRect().height ?? 0;
-      setTabPresentChromeHeight(height > 0 ? Math.round(height) : null);
+      if (height > 0) {
+        bodyStyle.setProperty('--workspace-tabs-chrome-height', `${Math.round(height)}px`);
+      } else {
+        bodyStyle.removeProperty('--workspace-tabs-chrome-height');
+      }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setInTabPresent(false);
@@ -6542,6 +6547,11 @@ function HtmlViewer({
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', updateChromeHeight);
       observer?.disconnect();
+      if (previousChromeHeight) {
+        bodyStyle.setProperty('--workspace-tabs-chrome-height', previousChromeHeight);
+      } else {
+        bodyStyle.removeProperty('--workspace-tabs-chrome-height');
+      }
     };
   }, [inTabPresent]);
 
@@ -8765,9 +8775,6 @@ function HtmlViewer({
           className="present-overlay"
           role="dialog"
           aria-label={t('fileViewer.exitPresentation')}
-          style={tabPresentChromeHeight ? ({
-            '--workspace-tabs-chrome-height': `${tabPresentChromeHeight}px`,
-          } as CSSProperties) : undefined}
         >
           <button
             className="present-exit"

@@ -1196,13 +1196,23 @@ describe('FileViewer SVG artifacts', () => {
         exports: ['html'],
       },
     });
+    const css = readExpandedIndexCss();
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+    const workspaceShell = document.createElement('div');
+    workspaceShell.className = 'workspace-shell';
     const chrome = document.createElement('div');
     chrome.className = 'workspace-tabs-chrome app-chrome-header';
     vi.spyOn(chrome, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 34));
-    document.body.appendChild(chrome);
+    const workspaceBody = document.createElement('div');
+    workspaceBody.className = 'workspace-shell__body';
+    workspaceShell.append(chrome, workspaceBody);
+    document.body.appendChild(workspaceShell);
 
     const { container } = render(
       <FileViewer projectId="project-1" projectKind="prototype" file={file} liveHtml="<html><body>hi</body></html>" />,
+      { container: workspaceBody },
     );
 
     fireEvent.click(screen.getByRole('button', { name: /present/i }));
@@ -1216,8 +1226,18 @@ describe('FileViewer SVG artifacts', () => {
     expect(container.querySelector('.html-viewer.is-tab-present')).toBeTruthy();
     const overlay = document.body.querySelector<HTMLElement>('.present-overlay');
     expect(overlay?.parentElement).toBe(document.body);
-    expect(overlay?.style.getPropertyValue('--workspace-tabs-chrome-height')).toBe('34px');
-    chrome.remove();
+    expect(document.body.style.getPropertyValue('--workspace-tabs-chrome-height')).toBe('34px');
+    expect(overlay?.style.getPropertyValue('--workspace-tabs-chrome-height')).toBe('');
+    const bodyChromeHeight = window
+      .getComputedStyle(document.body)
+      .getPropertyValue('--workspace-tabs-chrome-height')
+      .trim();
+    const resolvedTop = window
+      .getComputedStyle(overlay!)
+      .top.replace(/var\(--workspace-tabs-chrome-height,\s*38px\)/, bodyChromeHeight || '38px');
+    expect(resolvedTop).toBe('34px');
+    style.remove();
+    workspaceShell.remove();
   });
 
   it('allows downloads in React component preview iframes', async () => {
@@ -5115,7 +5135,7 @@ describe('LiveArtifactViewer', () => {
     expect(rule).toContain('align-items: center;');
   });
 
-  it('keeps in-tab presentation overlays below the workspace tab chrome', () => {
+  it('keeps in-tab presentation overlays anchored to the inherited workspace tab height', () => {
     const css = readExpandedIndexCss();
     const overlayRule = css.match(/\.present-overlay\s*\{[^}]+\}/)?.[0] ?? '';
 
