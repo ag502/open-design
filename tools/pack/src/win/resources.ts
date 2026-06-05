@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 
 import { hashJson, hashPath, ToolPackCache } from "../cache.js";
 import type { ToolPackConfig } from "../config.js";
-import { copyBundledResourceTrees, winResources } from "../resources.js";
+import { copyBundledPlaywrightChromium, copyBundledResourceTrees, winResources } from "../resources.js";
 import {
   copyOptionalVelaCliBinary,
   resolveOptionalVelaCliBinary,
@@ -62,6 +62,10 @@ export async function prepareResourceTree(
       const resourceRoot = join(entryRoot, "open-design");
       await mkdir(resourceRoot, { recursive: true });
       await copyBundledResourceTrees({
+        workspaceRoot: config.workspaceRoot,
+        resourceRoot,
+      });
+      await copyBundledPlaywrightChromium({
         workspaceRoot: config.workspaceRoot,
         resourceRoot,
       });

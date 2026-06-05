@@ -15,6 +15,7 @@ const DEFAULT_MAX_CANVAS_PIXELS = 16_000_000;
 const DIFF_COLOR = [255, 76, 76] as const;
 const IGNORED_REFERENCE_SCAN_DIRS = new Set(['critique', 'dist', 'node_modules', '.next']);
 const AUTO_DISCOVERED_REFERENCE_IMAGE_RE = /\.png$/i;
+const PACKAGED_PLAYWRIGHT_BROWSERS_DIR = 'ms-playwright';
 
 export interface VisualValidationCaptureInput {
   entryFile: string;
@@ -244,6 +245,7 @@ async function comparePngs(input: {
 }
 
 async function captureWithPlaywright(input: VisualValidationCaptureInput): Promise<void> {
+  configurePackagedPlaywrightEnvironment();
   const { chromium } = await import('playwright');
   const browser = await chromium.launch();
   try {
@@ -259,6 +261,20 @@ async function captureWithPlaywright(input: VisualValidationCaptureInput): Promi
   } finally {
     await browser.close();
   }
+}
+
+export function resolvePackagedPlaywrightBrowsersPath(env: NodeJS.ProcessEnv = process.env): string | null {
+  const configured = env.PLAYWRIGHT_BROWSERS_PATH?.trim();
+  if (configured) return configured;
+  const resourceRoot = env.OD_RESOURCE_ROOT?.trim();
+  if (!resourceRoot) return null;
+  return path.join(resourceRoot, PACKAGED_PLAYWRIGHT_BROWSERS_DIR);
+}
+
+function configurePackagedPlaywrightEnvironment(env: NodeJS.ProcessEnv = process.env): void {
+  const browsersPath = resolvePackagedPlaywrightBrowsersPath(env);
+  if (!browsersPath || env.PLAYWRIGHT_BROWSERS_PATH?.trim()) return;
+  env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
 }
 
 async function stabilizePage(page: Page): Promise<void> {

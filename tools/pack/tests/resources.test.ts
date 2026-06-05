@@ -14,7 +14,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
-import { copyBundledResourceTrees } from "../src/resources.js";
+import {
+  copyBundledPlaywrightChromium,
+  copyBundledResourceTrees,
+} from "../src/resources.js";
 import { copyOptionalVelaCliBinary, resolveOptionalVelaCliBinary } from "../src/vela-cli.js";
 
 async function writeFakeOpenCodeCompanion(
@@ -322,6 +325,48 @@ describe("copyOptionalVelaCliBinary", () => {
 
       expect(copied).toBeNull();
       await expect(access(join(resourceRoot, "bin", "vela"))).rejects.toThrow();
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("copyBundledPlaywrightChromium", () => {
+  it("copies the Chromium revision tree into packaged resources", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-playwright-"));
+    const resourceRoot = join(root, "resources", "open-design");
+    const sourceExecutablePath = join(
+      root,
+      "ms-playwright",
+      "chromium-1234",
+      "chrome-linux",
+      "chrome",
+    );
+
+    try {
+      await mkdir(dirname(sourceExecutablePath), { recursive: true });
+      await writeFile(sourceExecutablePath, "#!/bin/sh\nexit 0\n", "utf8");
+      await chmod(sourceExecutablePath, 0o755);
+      await writeFile(
+        join(root, "ms-playwright", "chromium-1234", "chrome-linux", "LICENSE"),
+        "license\n",
+        "utf8",
+      );
+
+      const copied = await copyBundledPlaywrightChromium({
+        workspaceRoot: root,
+        resourceRoot,
+        sourceExecutablePath,
+      });
+
+      expect(copied.sourceRoot).toBe(join(root, "ms-playwright", "chromium-1234"));
+      expect(copied.targetRoot).toBe(join(resourceRoot, "ms-playwright", "chromium-1234"));
+      await expect(
+        readFile(
+          join(resourceRoot, "ms-playwright", "chromium-1234", "chrome-linux", "LICENSE"),
+          "utf8",
+        ),
+      ).resolves.toBe("license\n");
     } finally {
       await rm(root, { force: true, recursive: true });
     }

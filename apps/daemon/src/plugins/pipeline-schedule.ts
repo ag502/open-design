@@ -49,6 +49,7 @@ export function splitPipelineSnapshotByExecutionBoundary(
   }
 
   const pipelineSplit = splitPipelineByExecutionBoundary(snapshot.pipeline);
+  const keepTriggerlessInPostRun = pipelineSplit.preRun == null;
   return {
     preRun: pipelineSplit.preRun
       ? {
@@ -68,7 +69,7 @@ export function splitPipelineSnapshotByExecutionBoundary(
           genuiSurfaces: filterSurfacesForPipelineStages(
             snapshot.genuiSurfaces,
             pipelineSplit.postRun,
-            { includeTriggerless: false },
+            { includeTriggerless: keepTriggerlessInPostRun },
           ),
         }
       : null,

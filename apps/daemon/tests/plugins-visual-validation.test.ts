@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
+  resolvePackagedPlaywrightBrowsersPath,
   runVisualValidation,
   similarityToCritiqueScore,
 } from '../src/plugins/atoms/visual-validation.js';
@@ -290,6 +291,23 @@ describe('visual validation atom runner', () => {
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
+  });
+
+  it('resolves the packaged Playwright browser cache from OD_RESOURCE_ROOT', () => {
+    expect(
+      resolvePackagedPlaywrightBrowsersPath({
+        OD_RESOURCE_ROOT: '/tmp/open-design/resources',
+      } as NodeJS.ProcessEnv),
+    ).toBe('/tmp/open-design/resources/ms-playwright');
+  });
+
+  it('preserves an explicit Playwright browser cache override', () => {
+    expect(
+      resolvePackagedPlaywrightBrowsersPath({
+        OD_RESOURCE_ROOT: '/tmp/open-design/resources',
+        PLAYWRIGHT_BROWSERS_PATH: '/custom/playwright-cache',
+      } as NodeJS.ProcessEnv),
+    ).toBe('/custom/playwright-cache');
   });
 
   it('skips ignored dependency trees before recursing for references', async () => {

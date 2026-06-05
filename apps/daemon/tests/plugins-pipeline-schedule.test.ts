@@ -118,4 +118,44 @@ describe('splitPipelineSnapshotByExecutionBoundary', () => {
       'handoff-form',
     ]);
   });
+
+  it('preserves triggerless surfaces when the entire pipeline is deferred', () => {
+    const snapshot = {
+      snapshotId: 'snap-2',
+      pluginId: 'sample-plugin',
+      pluginVersion: '1.0.0',
+      manifestSourceDigest: 'digest-2',
+      inputs: {},
+      resolvedContext: { items: [] },
+      capabilitiesGranted: [],
+      capabilitiesRequired: [],
+      assetsStaged: [],
+      taskKind: 'new-generation',
+      appliedAt: 0,
+      connectorsRequired: [],
+      connectorsResolved: [],
+      mcpServers: [],
+      pipeline: {
+        stages: [
+          { id: 'critique', atoms: ['visual-validation'] },
+          { id: 'handoff', atoms: ['handoff'] },
+        ],
+      },
+      genuiSurfaces: [
+        { id: 'confirm', kind: 'confirmation', persist: 'run' },
+        { id: 'critique-form', kind: 'form', persist: 'run', trigger: { stageId: 'critique' } },
+        { id: 'handoff-form', kind: 'form', persist: 'run', trigger: { stageId: 'handoff' } },
+      ],
+      status: 'fresh',
+    } as AppliedPluginSnapshot;
+
+    const split = splitPipelineSnapshotByExecutionBoundary(snapshot);
+
+    expect(split.preRun).toBeNull();
+    expect(split.postRun?.genuiSurfaces?.map((surface) => surface.id)).toEqual([
+      'confirm',
+      'critique-form',
+      'handoff-form',
+    ]);
+  });
 });

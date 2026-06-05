@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
-import { cp } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { access, cp, mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 function resolveToolsPackRoot(startDir: string): string {
@@ -78,4 +79,47 @@ export async function copyBundledResourceTrees({
       recursive: true,
     });
   }
+}
+
+export async function copyBundledPlaywrightChromium({
+  resourceRoot,
+  sourceExecutablePath,
+  workspaceRoot,
+}: {
+  resourceRoot: string;
+  sourceExecutablePath?: string;
+  workspaceRoot: string;
+}): Promise<{ sourceRoot: string; targetRoot: string }> {
+  const executablePath = sourceExecutablePath ?? resolveDaemonPlaywrightChromiumExecutablePath(workspaceRoot);
+  await access(executablePath);
+  const sourceRoot = resolveChromiumBundleRoot(executablePath);
+  const targetRoot = join(resourceRoot, "ms-playwright", basename(sourceRoot));
+  await mkdir(dirname(targetRoot), { recursive: true });
+  await cp(sourceRoot, targetRoot, { recursive: true });
+  return { sourceRoot, targetRoot };
+}
+
+function resolveDaemonPlaywrightChromiumExecutablePath(workspaceRoot: string): string {
+  const daemonPackagePath = join(workspaceRoot, "apps", "daemon", "package.json");
+  const requireFromDaemon = createRequire(daemonPackagePath);
+  const playwrightModule = requireFromDaemon("playwright") as {
+    chromium?: { executablePath?: () => string };
+  };
+  const executablePath = playwrightModule.chromium?.executablePath?.();
+  if (!executablePath) {
+    throw new Error("tools-pack: daemon Playwright Chromium executable path is unavailable");
+  }
+  return executablePath;
+}
+
+function resolveChromiumBundleRoot(executablePath: string): string {
+  let current = dirname(executablePath);
+  while (true) {
+    const name = basename(current);
+    if (/^chromium(?:_headless_shell)?-\d+$/i.test(name)) return current;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  throw new Error(`tools-pack: unable to locate Chromium bundle root for ${executablePath}`);
 }
