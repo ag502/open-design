@@ -48,5 +48,4 @@ describe('AgentDiagnosticRow', () => {
     fireEvent.click(rescan);
     expect(onRescan).toHaveBeenCalledTimes(1);
   });
-
 });

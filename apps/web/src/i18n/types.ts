@@ -224,6 +224,18 @@ export interface Dict {
   'settings.rescanFailed': string;
   'settings.test': string;
   'settings.testTitle': string;
+  'settings.healthcheck.button': string;
+  'settings.healthcheck.run': string;
+  'settings.healthcheck.rerun': string;
+  'settings.healthcheck.latency': string;
+  'settings.healthcheck.details': string;
+  'settings.healthcheck.overall.pass': string;
+  'settings.healthcheck.overall.warn': string;
+  'settings.healthcheck.overall.fail': string;
+  'settings.healthcheck.check.detected': string;
+  'settings.healthcheck.check.invocable': string;
+  'settings.healthcheck.check.authenticated': string;
+  'settings.healthcheck.check.smoke': string;
   'settings.testRunning': string;
   'settings.byokReadyToTest': string;
   'settings.testCancel': string;
@@ -253,6 +265,8 @@ export interface Dict {
   'settings.noAgentsDetected': string;
   'settings.agentInstalledGroup': string;
   'settings.agentInstallGroup': string;
+  'settings.agentInstallShowAll': string;
+  'settings.agentInstallShowLess': string;
   'settings.agentAuthRequired': string;
   'settings.agentAuthUnknown': string;
   'settings.advanced': string;
@@ -339,6 +353,7 @@ export interface Dict {
   'settings.themeDark': string;
   'settings.agentModelHead': string;
   'settings.modelPicker': string;
+  'settings.modelPickerPullLive': string;
   'settings.modelSourceLive': string;
   'settings.modelSourceFallback': string;
   'settings.reasoningPicker': string;

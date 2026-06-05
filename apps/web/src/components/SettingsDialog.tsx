@@ -13,7 +13,6 @@ import {
   trackSettingsAppearanceClick,
   trackSettingsByokModelsFetchResult,
   trackSettingsByokTestResult,
-  trackSettingsCliTestResult,
   trackSettingsByokFieldClick,
   trackSettingsByokProviderOptionClick,
   trackSettingsConnectorAuthResult,
@@ -30,6 +29,7 @@ import type { Locale } from '../i18n';
 import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { AgentDiagnosticRow } from './AgentDiagnosticRow';
+import { AgentHealthCheckPanel } from './AgentHealthCheckPanel';
 import { AmrLoginPill } from './AmrLoginPill';
 import {
   fetchVelaLoginStatus,
@@ -76,6 +76,8 @@ import {
 } from '../state/maxTokens';
 import type {
   AgentInfo,
+  AgentHealthCheckResult,
+  AgentHealthStatus,
   ApiProtocol,
   ApiProtocolConfig,
   AppConfig,
@@ -89,7 +91,10 @@ import type {
   ProviderModelsResponse,
   SkillSummary,
 } from '../types';
-import { testAgent, testApiProvider } from '../providers/connection-test';
+import {
+  healthcheckAgent,
+  testApiProvider,
+} from '../providers/connection-test';
 import { fetchProviderModels } from '../providers/provider-models';
 import {
   fetchConnectors,
@@ -308,6 +313,22 @@ type TestState =
   | { status: 'idle' }
   | { status: 'running' }
   | { status: 'done'; result: ConnectionTestResponse };
+
+type AgentHealthState =
+  | { status: 'idle' }
+  | { status: 'running' }
+  | { status: 'done'; result: AgentHealthCheckResult };
+
+// Verdict label for the header status pill — same strings the detail panel uses
+// for its headline, so the collapsed pill and the expanded panel agree.
+const HEALTH_OVERALL_KEY: Record<
+  Exclude<AgentHealthStatus, 'skip'>,
+  keyof Dict
+> = {
+  pass: 'settings.healthcheck.overall.pass',
+  warn: 'settings.healthcheck.overall.warn',
+  fail: 'settings.healthcheck.overall.fail',
+};
 
 const GATEWAY_API_PROTOCOLS = new Set<ApiProtocol>([
   'ollama',
@@ -546,6 +567,16 @@ const AGENT_SHORT_DESCRIPTIONS: Record<string, string> = {
   reasonix: 'DeepSeek native coding CLI',
 };
 
+// Novice-first: surface only the most common CLIs by default and tuck the long
+// tail behind a "view all" toggle so the install list never dumps ~20 cards
+// (each with PATH/install diagnostics) on someone who just wants Claude/Codex.
+const INSTALLABLE_TOP_N = 4;
+const INSTALLABLE_PRIORITY = Object.keys(AGENT_SHORT_DESCRIPTIONS);
+function installablePriority(id: string): number {
+  const idx = INSTALLABLE_PRIORITY.indexOf(id);
+  return idx === -1 ? INSTALLABLE_PRIORITY.length : idx;
+}
+
 function cleanAgentVersionLabel(
   name: string,
   version: string | null | undefined,
@@ -558,8 +589,10 @@ function cleanAgentVersionLabel(
     .trim();
 }
 
+const AMR_AGENT_ID = 'amr';
+
 function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
-  return agent.id === 'amr' ? 'Open Design AMR' : agent.name;
+  return agent.id === AMR_AGENT_ID ? 'Open Design AMR' : agent.name;
 }
 
 const AGENT_CLI_ENV_FIELDS = [
@@ -612,7 +645,7 @@ const AGENT_CLI_ENV_FIELDS = [
     agentId: 'codex',
     envKey: 'OPENAI_API_KEY',
     labelKey: 'settings.cliEnvCodexApiKey',
-    labelSuffix: 'OPENAI_API_KEY · proxy/legacy',
+    labelSuffix: 'OPENAI_API_KEY · legacy',
     placeholder: 'Paste OPENAI_API_KEY',
     secret: true,
   },
@@ -988,12 +1021,67 @@ export function SettingsDialog({
   const [agentRescanRunning, setAgentRescanRunning] = useState(false);
   const [agentRescanNotice, setAgentRescanNotice] =
     useState<RescanNotice | null>(null);
-  const [agentTestState, setAgentTestState] = useState<TestState>({
+  const [agentHealthState, setAgentHealthState] = useState<AgentHealthState>({
     status: 'idle',
   });
+  // The verdict badge sits after the agent name; hovering it (or the popover it
+  // anchors) reveals the full health-check detail. Tracked in JS rather than via
+  // CSS `:hover` because the popover must render outside the name's <button> to
+  // avoid nesting interactive fix actions inside it.
+  const [healthPopoverOpen, setHealthPopoverOpen] = useState(false);
+  // Anchor coordinates (relative to .agent-card-main) measured from the badge on
+  // open, so the popover hugs the verdict pill instead of the whole header row.
+  const [healthPopoverPos, setHealthPopoverPos] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const healthBadgeRef = useRef<HTMLSpanElement | null>(null);
+  const healthPopoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const POPOVER_WIDTH = 320;
+  const openHealthPopover = useCallback(() => {
+    if (healthPopoverTimerRef.current) {
+      clearTimeout(healthPopoverTimerRef.current);
+      healthPopoverTimerRef.current = null;
+    }
+    const badge = healthBadgeRef.current;
+    const parent = badge?.offsetParent;
+    if (badge && parent instanceof HTMLElement) {
+      const maxLeft = Math.max(8, parent.clientWidth - POPOVER_WIDTH);
+      const left = Math.min(Math.max(8, badge.offsetLeft), maxLeft);
+      const top = badge.offsetTop + badge.offsetHeight;
+      setHealthPopoverPos({ left, top });
+    }
+    setHealthPopoverOpen(true);
+  }, []);
+  const closeHealthPopoverSoon = useCallback(() => {
+    if (healthPopoverTimerRef.current) {
+      clearTimeout(healthPopoverTimerRef.current);
+    }
+    healthPopoverTimerRef.current = setTimeout(
+      () => setHealthPopoverOpen(false),
+      180,
+    );
+  }, []);
+  useEffect(
+    () => () => {
+      if (healthPopoverTimerRef.current) {
+        clearTimeout(healthPopoverTimerRef.current);
+      }
+    },
+    [],
+  );
   const [amrCardStatus, setAmrCardStatus] = useState<VelaLoginStatus | null>(null);
   const [amrCardStatusReady, setAmrCardStatusReady] = useState(false);
   const [hoveredAgentCardId, setHoveredAgentCardId] = useState<string | null>(null);
+  const [showAllInstallable, setShowAllInstallable] = useState(false);
+  // Installable cards stay clean by default for plain missing-on-PATH agents.
+  // Other unavailable states, like broken shims or invalid binary overrides,
+  // still surface immediately because their diagnostic is the recovery path.
+  const [installIntentIds, setInstallIntentIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [providerTestState, setProviderTestState] = useState<TestState>({
     status: 'idle',
   });
@@ -1003,7 +1091,11 @@ export function SettingsDialog({
   }, [amrCardStatus, onAmrLoginStatusChange]);
 
   useEffect(() => {
-    const hasAmrAgent = agents.some((agent) => agent.id === 'amr' && agent.available);
+    // AMR shows its live sign-in pill both when it's an installed CLI and in
+    // the standalone recommendation slot (where vela isn't on PATH yet), so key
+    // readiness on AMR merely being present rather than `available`. The
+    // recommendation card is the 0.9.0 marketing card, sign-in pill included.
+    const hasAmrAgent = agents.some((agent) => agent.id === 'amr');
     if (!hasAmrAgent) {
       setAmrCardStatus(null);
       setAmrCardStatusReady(false);
@@ -1036,7 +1128,7 @@ export function SettingsDialog({
   // state until Settings is closed and reopened. Refetching on focus /
   // visibility keeps the signed-in state, email, and Sign out action live.
   useEffect(() => {
-    const hasAmrAgent = agents.some((agent) => agent.id === 'amr' && agent.available);
+    const hasAmrAgent = agents.some((agent) => agent.id === 'amr');
     if (!hasAmrAgent) return;
     let cancelled = false;
     // Passive read only. Push the daemon's current status down into the card;
@@ -1098,14 +1190,14 @@ export function SettingsDialog({
         initial.apiVersion ?? '',
       );
     });
-  const agentTestAbortRef = useRef<AbortController | null>(null);
+  const agentHealthAbortRef = useRef<AbortController | null>(null);
+  const agentHealthRevisionRef = useRef(0);
   const providerTestAbortRef = useRef<AbortController | null>(null);
   const providerModelsAbortRef = useRef<AbortController | null>(null);
   const pendingAgentInstallRescanRef = useRef(false);
   // Guards the AMR catalog-chase loop so concurrent renders can't start it
   // twice (see the re-detect effect below).
   const amrRescanInFlightRef = useRef(false);
-  const agentTestRevisionRef = useRef(0);
   const providerTestRevisionRef = useRef(0);
   const providerModelsRevisionRef = useRef(0);
   const providerTestFirstResetRef = useRef(true);
@@ -1218,8 +1310,8 @@ export function SettingsDialog({
       ? cfg.agentModels?.[cfg.agentId]
       : null;
   useEffect(() => {
-    agentTestRevisionRef.current += 1;
-    setAgentTestState((state) =>
+    agentHealthRevisionRef.current += 1;
+    setAgentHealthState((state) =>
       state.status === 'running' ? state : { status: 'idle' },
     );
   }, [
@@ -1276,7 +1368,7 @@ export function SettingsDialog({
   // unmount" warning if the dialog closes while a test is still running.
   useEffect(() => {
     return () => {
-      agentTestAbortRef.current?.abort();
+      agentHealthAbortRef.current?.abort();
       providerTestAbortRef.current?.abort();
       providerModelsAbortRef.current?.abort();
     };
@@ -1314,6 +1406,17 @@ export function SettingsDialog({
     setCfg((c) => updateCurrentApiProtocolConfig(c, patch));
   const markAgentInstallIntent = () => {
     pendingAgentInstallRescanRef.current = true;
+  };
+  // Same as `markAgentInstallIntent`, but also remembers which agent the user
+  // tried to install so its detection diagnostic can surface on return.
+  const markAgentInstallIntentFor = (agentId: string) => {
+    markAgentInstallIntent();
+    setInstallIntentIds((prev) => {
+      if (prev.has(agentId)) return prev;
+      const next = new Set(prev);
+      next.add(agentId);
+      return next;
+    });
   };
   const handleRefreshAgents = async () => {
     if (agentRescanRunning) return;
@@ -1428,75 +1531,53 @@ export function SettingsDialog({
     };
   }, [amrCardStatus?.loggedIn]);
 
-  const handleTestAgent = async () => {
-    if (agentTestState.status === 'running') {
-      return;
-    }
+  const handleHealthCheck = async () => {
+    if (agentHealthState.status === 'running') return;
     const selected = agents.find((a) => a.id === cfg.agentId && a.available);
     if (!selected) return;
     const choice = cfg.agentModels?.[selected.id] ?? {};
     const controller = new AbortController();
-    const revision = agentTestRevisionRef.current;
-    agentTestAbortRef.current = controller;
-    setAgentTestState({ status: 'running' });
-    const startedAt = performance.now();
-    const cliProviderId = agentIdToTracking(selected.id);
-    const clearIfStale = () => {
-      if (agentTestAbortRef.current === controller) {
-        setAgentTestState({ status: 'idle' });
-      }
-    };
+    agentHealthRevisionRef.current += 1;
+    const revision = agentHealthRevisionRef.current;
+    agentHealthAbortRef.current?.abort();
+    agentHealthAbortRef.current = controller;
+    setHealthPopoverOpen(false);
+    setAgentHealthState({ status: 'running' });
     try {
-      const result = await testAgent(
+      const result = await healthcheckAgent(
+        selected.id,
         {
-          agentId: selected.id,
           model: choice.model || undefined,
           reasoning: choice.reasoning || undefined,
-          agentCliEnv: cfg.agentCliEnv ?? {},
         },
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      if (agentTestRevisionRef.current !== revision) {
-        clearIfStale();
-        return;
-      }
-      setAgentTestState({ status: 'done', result });
-      trackSettingsCliTestResult(analytics.track, {
-        page_name: 'settings',
-        area: 'configure_execution_mode',
-        cli_provider_id: cliProviderId,
-        result: result.ok ? 'success' : 'failed',
-        ...(result.ok ? {} : { error_code: result.kind || 'UNKNOWN' }),
-        duration_ms: Math.round(performance.now() - startedAt),
-      });
+      if (agentHealthRevisionRef.current !== revision) return;
+      setAgentHealthState({ status: 'done', result });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      if (agentTestRevisionRef.current !== revision) {
-        clearIfStale();
-        return;
-      }
-      setAgentTestState({
+      if (agentHealthRevisionRef.current !== revision) return;
+      setAgentHealthState({
         status: 'done',
         result: {
-          ok: false,
-          kind: 'unknown',
-          latencyMs: 0,
-          model: choice.model || 'default',
-          detail: err instanceof Error ? err.message : 'Test request failed',
+          agentId: selected.id,
+          agentName: displayAgentName(selected),
+          available: false,
+          overall: 'fail',
+          checks: [
+            {
+              id: 'detected',
+              status: 'fail',
+              label: err instanceof Error ? err.message : 'Health check failed',
+            },
+          ],
+          ranAt: new Date().toISOString(),
         },
       });
-      trackSettingsCliTestResult(analytics.track, {
-        page_name: 'settings',
-        area: 'configure_execution_mode',
-        cli_provider_id: cliProviderId,
-        result: 'failed',
-        error_code: err instanceof Error ? err.name : 'UNKNOWN',
-        duration_ms: Math.round(performance.now() - startedAt),
-      });
     } finally {
-      if (agentTestAbortRef.current === controller) {
-        agentTestAbortRef.current = null;
+      if (agentHealthAbortRef.current === controller) {
+        agentHealthAbortRef.current = null;
       }
     }
   };
@@ -1908,12 +1989,12 @@ export function SettingsDialog({
 
   const applyCodexDetectedPath = (detectedPath: string) => {
     setCfg((c) => updateAgentCliEnvValue(c, 'codex', 'CODEX_BIN', detectedPath));
-    setAgentTestState({ status: 'idle' });
+    setAgentHealthState({ status: 'idle' });
   };
 
   const clearCodexCustomPath = () => {
     setCfg((c) => updateAgentCliEnvValue(c, 'codex', 'CODEX_BIN', ''));
-    setAgentTestState({ status: 'idle' });
+    setAgentHealthState({ status: 'idle' });
   };
 
   const apiProtocol = cfg.apiProtocol ?? 'anthropic';
@@ -2544,8 +2625,28 @@ export function SettingsDialog({
     about: { title: t('settings.about'), subtitle: t('settings.aboutHint') },
   };
   const activeHeader = sectionHeader[activeSection];
-  const installedAgents = agents.filter((a) => a.available);
-  const unavailableAgents = agents.filter((a) => !a.available);
+  // Open Design AMR is the recommended hosted runtime, so it always leads: when
+  // it's available it sits first in "Your CLIs"; when it isn't it gets its own
+  // standalone recommendation slot rendered above "Your CLIs" (regardless of
+  // whether the user already has local CLIs), instead of being buried below.
+  const installedAgents = agents
+    .filter((a) => a.available)
+    .sort((a, b) => {
+      if (a.id === AMR_AGENT_ID) return -1;
+      if (b.id === AMR_AGENT_ID) return 1;
+      return 0;
+    });
+  const amrAgent = agents.find((a) => a.id === AMR_AGENT_ID);
+  const amrRecommendation =
+    amrAgent && !amrAgent.available ? amrAgent : null;
+  const unavailableAgents = agents
+    .filter((a) => !a.available && a.id !== AMR_AGENT_ID)
+    .sort((a, b) => installablePriority(a.id) - installablePriority(b.id));
+  const hasMoreInstallable = unavailableAgents.length > INSTALLABLE_TOP_N;
+  const visibleInstallable =
+    showAllInstallable || !hasMoreInstallable
+      ? unavailableAgents
+      : unavailableAgents.slice(0, INSTALLABLE_TOP_N);
   const initialAgentScanRunning = agentsLoading && agents.length === 0;
   const agentModelOptionLabel = (
     model: ProviderModelOption | undefined,
@@ -2645,9 +2746,17 @@ export function SettingsDialog({
       !knownModelIds.includes(configuredModel)
         ? selected.models?.[0]?.id ?? ''
         : configuredModel ?? selected.models?.[0]?.id ?? '';
-    const reasoningValue =
-      choice.reasoning ??
-      selected.reasoningOptions?.[0]?.id ?? '';
+    const reasoningDefault = selected.reasoningOptions?.[0]?.id ?? '';
+    const reasoningValue = choice.reasoning ?? reasoningDefault;
+    // Novice-first: every CLI card should read the same (just a Model picker).
+    // The reasoning-effort knob is Codex-only power-user surface, so it stays
+    // hidden unless the user has already moved it off the default — mirroring
+    // how the custom-model id field only appears once it's in use.
+    const reasoningActive =
+      hasReasoning &&
+      typeof choice.reasoning === 'string' &&
+      choice.reasoning.length > 0 &&
+      choice.reasoning !== reasoningDefault;
     const customActive =
       allowCustomModel &&
       hasModels &&
@@ -2659,17 +2768,6 @@ export function SettingsDialog({
     const selectValue = customActive
       ? CUSTOM_MODEL_SENTINEL
       : modelValue;
-    const modelSource = selected.modelsSource ?? 'fallback';
-    const modelSourceLabel =
-      modelSource === 'live'
-        ? t('settings.modelSourceLive')
-        : t('settings.modelSourceFallback');
-    const modelSourceHint =
-      modelSource === 'live'
-        ? selected.supportsCustomModel === false
-          ? t('settings.modelPickerLiveCatalogOnlyHint')
-          : t('settings.modelPickerLiveHint')
-        : t('settings.modelPickerFallbackHint');
     return (
       <div className="agent-card-config">
         {hasModels ? (
@@ -2677,15 +2775,8 @@ export function SettingsDialog({
             <label className="field">
               <span className="field-label">
                 {t('settings.modelPicker')}
-                <span
-                  className={`agent-model-source-badge ${modelSource}`}
-                  aria-hidden="true"
-                >
-                  {modelSourceLabel}
-                </span>
               </span>
-              <div className="agent-model-select-wrap">
-                <SearchableModelSelect
+              <SearchableModelSelect
                   className="inline-switcher__select settings-model-select"
                   value={selectValue}
                   aria-label={t('settings.modelPicker')}
@@ -2714,7 +2805,7 @@ export function SettingsDialog({
                     }
                   }}
                   additionalOptions={
-                    allowCustomModel
+                    allowCustomModel && customActive
                       ? [
                           {
                             value: CUSTOM_MODEL_SENTINEL,
@@ -2724,11 +2815,7 @@ export function SettingsDialog({
                       : undefined
                   }
                 />
-              </div>
             </label>
-            <p className="hint agent-model-row-hint">
-              {modelSourceHint}
-            </p>
           </>
         ) : null}
         {customActive ? (
@@ -2746,7 +2833,7 @@ export function SettingsDialog({
             />
           </label>
         ) : null}
-        {hasReasoning ? (
+        {reasoningActive ? (
           <label className="field">
             <span className="field-label">
               {t('settings.reasoningPicker')}
@@ -2772,6 +2859,192 @@ export function SettingsDialog({
             </div>
           </label>
         ) : null}
+      </div>
+    );
+  };
+
+  // One renderer for an installable (not-on-PATH) agent card, shared by the
+  // collapsed "Available to install" grid and the standalone AMR recommendation
+  // slot so the two never drift apart.
+  const renderInstallableCard = (a: AgentInfo) => {
+    const installUrl = sanitizeHttpsUrl(a.installUrl);
+    const docsUrl = sanitizeHttpsUrl(a.docsUrl);
+    const hasLinks = Boolean(installUrl || docsUrl);
+    const description = AGENT_SHORT_DESCRIPTIONS[a.id];
+    const agentName = displayAgentName(a);
+    const cardLabel = `${agentName} · ${t('common.notInstalled')}`;
+    const hasInstallIntent = installIntentIds.has(a.id);
+    const visibleDiagnostics = (a.diagnostics ?? []).filter(
+      (diagnostic) => hasInstallIntent || diagnostic.reason !== 'not-on-path',
+    );
+    const diagnosticHandlers = diagnosticHandlersForAgent(a);
+    return (
+      <div
+        key={a.id}
+        className="agent-card disabled agent-card-unavailable"
+        role="group"
+        aria-label={cardLabel}
+      >
+        <div className="agent-card-unavailable-row">
+          <AgentIcon id={a.id} size={30} />
+          <div className="agent-card-body">
+            <div className="agent-card-name">{agentName}</div>
+            {description ? (
+              <div className="agent-card-description">{description}</div>
+            ) : null}
+          </div>
+          {hasLinks ? (
+            <div className="agent-card-actions agent-card-actions--inline">
+              {docsUrl ? (
+                <a
+                  href={docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="agent-card-link agent-card-link--muted agent-card-link--icon"
+                  onClick={() => markAgentInstallIntentFor(a.id)}
+                  data-tooltip={t('settings.agentInstall.docs')}
+                  aria-label={t('settings.agentInstall.docs')}
+                >
+                  <Icon name="file" size={15} />
+                </a>
+              ) : null}
+              {installUrl ? (
+                <a
+                  href={installUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="agent-card-link agent-card-link--ghost"
+                  onClick={() => markAgentInstallIntentFor(a.id)}
+                >
+                  {t('settings.agentInstall.install')}
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {visibleDiagnostics.map((diagnostic, i) => (
+          <AgentDiagnosticRow
+            key={`${diagnostic.reason}-${i}`}
+            diagnostic={diagnostic}
+            handlers={diagnosticHandlers}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // The standalone AMR recommendation slot (shown when vela isn't detected
+  // yet) must NOT look like the plain "Available to install" cards below it.
+  // It mirrors the 0.9.0 marketing card: green mark, benefit chips, and the
+  // live sign-in pill — so AMR reads as the recommended hosted runtime, not as
+  // one more missing CLI. Detection diagnostics (e.g. "vela not found") still
+  // render below in the softened row style so the enable path stays visible.
+  const renderAmrRecommendCard = (a: AgentInfo) => {
+    const agentName = displayAgentName(a);
+    const active = cfg.agentId === a.id;
+    const amrBenefits = [
+      t('settings.amrBenefitOfficial'),
+      t('settings.amrBenefitLowerPrice'),
+      t('settings.amrBenefitManyModels'),
+    ];
+    const revealPendingCancelAction =
+      hoveredAgentCardId === a.id &&
+      amrCardStatus?.loggedIn !== true &&
+      amrCardStatus?.loginInFlight === true;
+    return (
+      <div
+        key={a.id}
+        ref={amrCardRef}
+        className={
+          'agent-card agent-card-installed agent-card-amr-recommend-card' +
+          (active ? ' active' : '') +
+          (amrHighlightActive ? ' agent-card--amr-highlight' : '')
+        }
+        onMouseEnter={() => setHoveredAgentCardId(a.id)}
+        onMouseLeave={() => {
+          if (hoveredAgentCardId === a.id) setHoveredAgentCardId(null);
+        }}
+      >
+        <div className="agent-card-main">
+          <button
+            type="button"
+            className="agent-card-select"
+            onClick={() => {
+              trackSettingsLocalCliClick(analytics.track, {
+                page_name: 'settings',
+                area: 'configure_execution_mode_local_cli',
+                element: 'cli_provider',
+                cli_provider_id: agentIdToTracking(a.id),
+                install_status: 'not_installed',
+              });
+              setCfg((c) => ({ ...c, agentId: a.id }));
+            }}
+            aria-pressed={active}
+          >
+            <AgentIcon id={a.id} size={32} />
+            <div className="agent-card-body">
+              <div className="agent-card-name agent-card-name--amr">
+                <span className="agent-card-title">{agentName}</span>
+                <span className="agent-card-benefits" aria-hidden="true">
+                  {amrBenefits.map((benefit) => (
+                    <span key={benefit} className="agent-card-benefit">
+                      {benefit}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            </div>
+          </button>
+          {amrCardStatusReady ? (
+            <span
+              className="amr-auth-anchor"
+              onMouseEnter={() => setAmrCoachmarkDismissed(true)}
+            >
+              {amrCoachmarkArmed &&
+              amrCardStatus?.loggedIn === false &&
+              !amrCoachmarkDismissed ? (
+                <span className="amr-coachmark" aria-hidden="true">
+                  <span className="amr-coachmark__ring" />
+                  <svg
+                    className="amr-coachmark__cursor"
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M9.4 13V8a1.8 1.8 0 0 1 3.6 0v4.6c.35-.55 1-.95 1.75-.95.65 0 1.25.32 1.6.85.32-.5.9-.8 1.55-.8.8 0 1.5.5 1.78 1.2.35-.3.8-.5 1.3-.5 1.1 0 2 .9 2 2v3.05a5.6 5.6 0 0 1-5.6 5.6h-2.5a5 5 0 0 1-3.75-1.7l-4.2-4.75a1.85 1.85 0 0 1 2.65-2.6L9.4 16Z"
+                      fill="#fff"
+                      stroke="#1a1a1a"
+                      strokeWidth="1.1"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              ) : null}
+              <AmrLoginPill
+                className="agent-card-amr-auth"
+                hideSignedOutStatus
+                hideSignedInStatus
+                initialStatus={amrCardStatus}
+                skipInitialRefresh
+                signInLabel={t('settings.amrAuthorize')}
+                showConsoleAction={amrCardStatus?.loggedIn === true}
+                revealPendingCancelAction={revealPendingCancelAction}
+                onStatusChange={setAmrCardStatus}
+              />
+            </span>
+          ) : (
+            <div
+              className="agent-card-amr-auth agent-card-amr-auth--placeholder"
+              aria-hidden="true"
+            />
+          )}
+        </div>
+        {/* No detection-diagnostic region here: AMR reads as the recommended
+            hosted runtime (chips + sign-in), not as a broken CLI. Enablement is
+            driven by the Authorize pill, so the "vela not found" PATH noise is
+            intentionally omitted from the recommendation card. */}
       </div>
     );
   };
@@ -3131,11 +3404,6 @@ export function SettingsDialog({
               ) : null}
           {cfg.mode === 'daemon' ? (
             <section className="settings-section">
-              <div className="section-head">
-                <div>
-                  <p className="hint">{t('settings.codeAgentHint')}</p>
-                </div>
-              </div>
               {initialAgentScanRunning ? (
                 <div className="agent-scan-card" role="status" aria-live="polite">
                   <div className="agent-scan-card__stage">
@@ -3158,13 +3426,30 @@ export function SettingsDialog({
                 </div>
               ) : (
                 <>
+                  {/* AMR is the recommended hosted runtime, so its recommend
+                      slot always leads — above "Your CLIs" — whether or not the
+                      user already has local CLIs configured. */}
+                  {amrRecommendation ? (
+                    <div className="agent-amr-recommend">
+                      {renderAmrRecommendCard(amrRecommendation)}
+                    </div>
+                  ) : null}
+                  {/* With nothing installed, a "Your CLIs (0)" header + empty
+                      card is just noise — drop the whole group and let the
+                      AMR slot + auto-expanded install list carry the page. */}
+                  {installedAgents.length > 0 ? (
                   <div className="agent-group">
                     <div className="agent-group-head">
-                      <h4>
-                        {t('settings.agentInstalledGroup', {
-                          count: installedAgents.length,
-                        })}
-                      </h4>
+                      <div className="agent-group-head-title">
+                        <h4>
+                          {t('settings.agentInstalledGroup', {
+                            count: installedAgents.length,
+                          })}
+                        </h4>
+                        <span className="hint agent-group-head-hint">
+                          {t('settings.codeAgentHint')}
+                        </span>
+                      </div>
                       <div className="agent-group-head-actions">
                         {agentRescanNotice ? (
                           <span
@@ -3188,25 +3473,21 @@ export function SettingsDialog({
                         <button
                           type="button"
                           className={
-                            'ghost icon-btn settings-rescan-btn agent-group-rescan-btn' +
+                            'ghost icon-btn settings-rescan-btn agent-group-rescan-btn agent-group-rescan-btn--icon' +
                             (agentRescanRunning ? ' loading' : '')
                           }
                           onClick={() => void handleRefreshAgents()}
                           disabled={agentRescanRunning}
-                          title={t('settings.rescanTitle')}
+                          data-tooltip={t('settings.rescanTitle')}
+                          aria-label={t('settings.rescanTitle')}
                         >
-                          {agentRescanRunning ? (
-                            <>
-                              <Icon
-                                name="spinner"
-                                size={13}
-                                className="icon-spin"
-                              />
-                              <span>{t('settings.rescanRunning')}</span>
-                            </>
-                          ) : (
-                            t('settings.rescan')
-                          )}
+                          <Icon
+                            name={agentRescanRunning ? 'spinner' : 'reload'}
+                            size={14}
+                            className={
+                              agentRescanRunning ? 'icon-spin' : undefined
+                            }
+                          />
                         </button>
                       </div>
                     </div>
@@ -3214,8 +3495,6 @@ export function SettingsDialog({
                       <div className="agent-grid agent-grid-installed">
                         {installedAgents.map((a) => {
                           const active = cfg.agentId === a.id;
-                          const running =
-                            active && agentTestState.status === 'running';
                           const isAmrAgent = a.id === 'amr';
                           const description = AGENT_SHORT_DESCRIPTIONS[a.id];
                           const agentName = displayAgentName(a);
@@ -3230,16 +3509,16 @@ export function SettingsDialog({
                             isAmrAgent
                               ? ''
                               : cleanAgentVersionLabel(a.name, a.version);
+                          const nameTitle =
+                            [versionLabel, a.path]
+                              .filter(Boolean)
+                              .join(' · ') || undefined;
                           const metaLabel =
                             a.authStatus === 'missing'
                               ? t('settings.agentAuthRequired')
                               : a.authStatus === 'unknown'
                                 ? t('settings.agentAuthUnknown')
-                                : versionLabel
-                                  ? versionLabel
-                                  : a.id === 'amr'
-                                    ? ''
-                                    : t('common.installed');
+                                : '';
                           const metaTitle =
                             a.authStatus === 'missing' ||
                             a.authStatus === 'unknown'
@@ -3300,7 +3579,10 @@ export function SettingsDialog({
                                             : '')
                                         }
                                       >
-                                        <span className="agent-card-title">
+                                        <span
+                                          className="agent-card-title"
+                                          title={nameTitle}
+                                        >
                                           {agentName}
                                         </span>
                                         {isAmrAgent ? (
@@ -3329,6 +3611,32 @@ export function SettingsDialog({
                                               {description}
                                             </span>
                                           </>
+                                        ) : null}
+                                        {active &&
+                                        !isAmrAgent &&
+                                        agentHealthState.status === 'done' ? (
+                                          <span
+                                            ref={healthBadgeRef}
+                                            className={
+                                              'agent-health-badge agent-health-badge--' +
+                                              agentHealthState.result.overall
+                                            }
+                                            onMouseEnter={openHealthPopover}
+                                            onMouseLeave={closeHealthPopoverSoon}
+                                          >
+                                            <span
+                                              className="agent-health-badge__dot"
+                                              data-status={
+                                                agentHealthState.result.overall
+                                              }
+                                              aria-hidden="true"
+                                            />
+                                            {t(
+                                              HEALTH_OVERALL_KEY[
+                                                agentHealthState.result.overall
+                                              ],
+                                            )}
+                                          </span>
                                         ) : null}
                                       </div>
                                       {metaLabel ? (
@@ -3404,26 +3712,117 @@ export function SettingsDialog({
                                   <button
                                     type="button"
                                     className={
-                                      'ghost icon-btn settings-test-btn agent-card-test-btn' +
-                                      (running ? ' loading' : '')
+                                      'ghost icon-btn settings-test-btn agent-card-test-btn agent-card-healthcheck-btn' +
+                                      (agentHealthState.status === 'running'
+                                        ? ' loading'
+                                        : '')
                                     }
-                                    onClick={() => void handleTestAgent()}
-                                    disabled={running}
-                                    title={t('settings.testTitle')}
+                                    onClick={() => void handleHealthCheck()}
+                                    disabled={
+                                      agentHealthState.status === 'running'
+                                    }
+                                    title={
+                                      agentHealthState.status === 'done'
+                                        ? t('settings.healthcheck.rerun')
+                                        : t('settings.healthcheck.run')
+                                    }
                                   >
-                                    {running ? (
+                                    {agentHealthState.status === 'running' ? (
                                       <>
                                         <Icon
                                           name="spinner"
                                           size={13}
                                           className="icon-spin"
                                         />
-                                        <span>{t('settings.test')}</span>
+                                        <span>
+                                          {t('settings.healthcheck.button')}
+                                        </span>
                                       </>
                                     ) : (
-                                      t('settings.test')
+                                      t('settings.healthcheck.button')
                                     )}
                                   </button>
+                                ) : null}
+                                {active &&
+                                !isAmrAgent &&
+                                agentHealthState.status === 'done' ? (
+                                  // Detail popover for the name-row verdict
+                                  // badge. Rendered here (a sibling of the name
+                                  // <button>) so its fix actions aren't nested
+                                  // inside that button; anchored under the name
+                                  // via CSS and toggled by JS hover intent.
+                                  <div
+                                    className={
+                                      'agent-health-popover' +
+                                      (healthPopoverOpen ? ' is-open' : '')
+                                    }
+                                    style={
+                                      healthPopoverPos
+                                        ? {
+                                            left: healthPopoverPos.left,
+                                            top: healthPopoverPos.top,
+                                          }
+                                        : undefined
+                                    }
+                                    onMouseEnter={openHealthPopover}
+                                    onMouseLeave={closeHealthPopoverSoon}
+                                  >
+                                    <div className="agent-health-popover-card">
+                                      <AgentHealthCheckPanel
+                                        className="agent-health-panel--floating"
+                                        hideHeader
+                                        result={agentHealthState.result}
+                                        handlers={{
+                                          onRescan: () =>
+                                            void handleRefreshAgents(),
+                                        }}
+                                      />
+                                      {(() => {
+                                        const codexRepair =
+                                          cfg.agentId === 'codex' &&
+                                          agentHealthState.result.smoke
+                                            ? codexPathRepairState(
+                                                agentHealthState.result.smoke,
+                                              )
+                                            : null;
+                                        const codexStrings = codexRepair
+                                          ? codexPathStrings(locale)
+                                          : null;
+                                        if (!codexRepair || !codexStrings) {
+                                          return null;
+                                        }
+                                        return (
+                                          <div className="settings-test-actions">
+                                            <span className="settings-test-actions-hint">
+                                              {codexStrings.repairHint}
+                                            </span>
+                                            <div className="settings-test-actions-row">
+                                              {codexRepair.canUseDetected ? (
+                                                <button
+                                                  type="button"
+                                                  className="settings-test-btn"
+                                                  onClick={() =>
+                                                    applyCodexDetectedPath(
+                                                      codexRepair.detectedPath,
+                                                    )
+                                                  }
+                                                >
+                                                  {codexStrings.useDetected}
+                                                </button>
+                                              ) : null}
+                                              <button
+                                                type="button"
+                                                className="ghost icon-btn settings-rescan-btn"
+                                                onClick={clearCodexCustomPath}
+                                              >
+                                                {codexStrings.clearCustom}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
                                 ) : null}
                               </div>
                               {(a.diagnostics ?? []).map((diagnostic, i) => (
@@ -3436,103 +3835,15 @@ export function SettingsDialog({
                               {active ? renderAgentModelConfig(a) : null}
                             </div>
                           );
-                          if (active && agentTestState.status !== 'idle') {
-                            const resultRow = (
-                              <div
-                                key={`${a.id}__test-result`}
-                                className="agent-test-result-row"
-                              >
-                                {agentTestState.status === 'running' ? (
-                                  <p
-                                    className="settings-test-status running"
-                                    role="status"
-                                    aria-live="polite"
-                                  >
-                                    {t('settings.testRunning')}
-                                  </p>
-                                ) : (
-                                  <>
-                                    <p
-                                      className={
-                                        'settings-test-status ' +
-                                        testStatusVariant(agentTestState.result)
-                                      }
-                                      role={
-                                        agentTestState.result.ok
-                                          ? 'status'
-                                          : 'alert'
-                                      }
-                                    >
-                                      {renderTestMessage(
-                                        agentTestState.result,
-                                        'cli',
-                                      )}
-                                    </p>
-                                    {!agentTestState.result.ok ? (
-                                      <div className="settings-test-actions">
-                                        <div className="settings-test-actions-row">
-                                          <button
-                                            type="button"
-                                            className="ghost icon-btn settings-test-btn"
-                                            onClick={() => void handleTestAgent()}
-                                          >
-                                            <Icon name="reload" size={13} />
-                                            <span>{t('settings.testRetry')}</span>
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ) : null}
-                                    {cfg.agentId === 'codex' && (() => {
-                                      const repair = codexPathRepairState(
-                                        agentTestState.result,
-                                      );
-                                      if (!repair) return null;
-                                      const codexStrings = codexPathStrings(locale);
-                                      return (
-                                        <div className="settings-test-actions">
-                                          <span className="settings-test-actions-hint">
-                                            {codexStrings.repairHint}
-                                          </span>
-                                          <div className="settings-test-actions-row">
-                                            {repair.canUseDetected ? (
-                                              <button
-                                                type="button"
-                                                className="settings-test-btn"
-                                                onClick={() =>
-                                                  applyCodexDetectedPath(
-                                                    repair.detectedPath,
-                                                  )
-                                                }
-                                              >
-                                                {codexStrings.useDetected}
-                                              </button>
-                                            ) : null}
-                                            <button
-                                              type="button"
-                                              className="ghost icon-btn settings-rescan-btn"
-                                              onClick={clearCodexCustomPath}
-                                            >
-                                              {codexStrings.clearCustom}
-                                            </button>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-                                  </>
-                                )}
-                              </div>
-                            );
-                            return [cardEl, resultRow];
-                          }
+                          // The health-check verdict + details now live in the
+                          // header status pill's hover popover, so no standalone
+                          // result row is appended below the card.
                           return [cardEl];
                         })}
                       </div>
-                    ) : (
-                      <div className="empty-card">
-                        {t('settings.noAgentsDetected')}
-                      </div>
-                    )}
+                    ) : null}
                   </div>
+                  ) : null}
                   {unavailableAgents.length > 0 ? (
                     <details
                       className="agent-install-collapse"
@@ -3546,79 +3857,23 @@ export function SettingsDialog({
                         </span>
                       </summary>
                       <div className="agent-grid agent-grid-unavailable">
-                        {unavailableAgents.map((a) => {
-                          const installUrl = sanitizeHttpsUrl(a.installUrl);
-                          const docsUrl = sanitizeHttpsUrl(a.docsUrl);
-                          const hasLinks = Boolean(installUrl || docsUrl);
-                          const description = AGENT_SHORT_DESCRIPTIONS[a.id];
-                          const agentName = displayAgentName(a);
-                          const diagnosticHandlers = diagnosticHandlersForAgent(a);
-                          const cardLabel = `${agentName} · ${t('common.notInstalled')}`;
-                          return (
-                            <div
-                              key={a.id}
-                              className="agent-card disabled agent-card-unavailable"
-                              role="group"
-                              aria-label={cardLabel}
-                            >
-                              <div className="agent-card-unavailable-row">
-                                <AgentIcon id={a.id} size={30} />
-                                <div className="agent-card-body">
-                                  <div className="agent-card-name">
-                                    {agentName}
-                                  </div>
-                                  {description ? (
-                                    <div className="agent-card-description">
-                                      {description}
-                                    </div>
-                                  ) : null}
-                                </div>
-                                {hasLinks ? (
-                                  <div className="agent-card-actions agent-card-actions--inline">
-                                    {docsUrl ? (
-                                      <a
-                                        href={docsUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="agent-card-link agent-card-link--muted agent-card-link--icon"
-                                        onClick={markAgentInstallIntent}
-                                        title={t('settings.agentInstall.docs')}
-                                        aria-label={t('settings.agentInstall.docs')}
-                                      >
-                                        <Icon name="file" size={15} />
-                                      </a>
-                                    ) : null}
-                                    {installUrl ? (
-                                      <a
-                                        href={installUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="agent-card-link agent-card-link--ghost"
-                                        onClick={markAgentInstallIntent}
-                                      >
-                                        {t('settings.agentInstall.install')}
-                                      </a>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                              </div>
-                              {/* Why is it unavailable? not-on-path vs a broken
-                                  shim vs a bad *_BIN override each get a
-                                  distinct, actionable line. It spans the full
-                                  card width on its own row below the
-                                  logo/name/links so it never crowds the inline
-                                  Docs/Install actions. */}
-                              {(a.diagnostics ?? []).map((diagnostic, i) => (
-                                <AgentDiagnosticRow
-                                  key={`${diagnostic.reason}-${i}`}
-                                  diagnostic={diagnostic}
-                                  handlers={diagnosticHandlers}
-                                />
-                              ))}
-                            </div>
-                          );
-                        })}
+                        {visibleInstallable.map((a) =>
+                          renderInstallableCard(a),
+                        )}
                       </div>
+                      {hasMoreInstallable ? (
+                        <button
+                          type="button"
+                          className="agent-installable-toggle"
+                          onClick={() => setShowAllInstallable((v) => !v)}
+                          aria-expanded={showAllInstallable}
+                        >
+                          {showAllInstallable
+                            ? t('settings.agentInstallShowLess')
+                            : t('settings.agentInstallShowAll')}
+                          <Icon name="chevron-down" size={13} />
+                        </button>
+                      ) : null}
                     </details>
                   ) : null}
                   {/*

@@ -899,6 +899,19 @@
   font-weight: 650;
   color: var(--text);
 }
+/* Title + inline hint share the left side; the hint reads as a quiet caption
+   beside "Your CLIs (N)" instead of taking its own line above the list. */
+.agent-group-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.agent-group-head-hint {
+  margin: 0;
+  color: var(--text-muted);
+}
 .agent-group-head-actions {
   display: inline-flex;
   align-items: center;
@@ -909,12 +922,102 @@
   min-width: 92px;
   min-height: 32px;
 }
+.agent-group-rescan-btn--icon {
+  position: relative;
+  min-width: 0;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.agent-group-rescan-btn--icon:hover:not(:disabled) {
+  color: var(--text);
+}
+.agent-group-rescan-btn--icon svg {
+  flex: 0 0 auto;
+}
+/* Hover/focus tooltip (mirrors the viewer-action-icon pattern) so the icon-only
+   Rescan keeps a discoverable label without the slow native title delay. */
+.agent-group-rescan-btn--icon[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 7px);
+  right: 0;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg-panel);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.agent-group-rescan-btn--icon[data-tooltip]:hover::after,
+.agent-group-rescan-btn--icon[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Open Design AMR's standalone recommendation slot: sits at the top (no CLIs)
+   or directly under "Your CLIs", so it reads as the lead option rather than
+   one of the long-tail installable cards. */
+.agent-amr-recommend {
+  margin-top: 10px;
+}
+/* The recommendation slot renders the full AMR marketing card (chips + sign-in
+   pill). The fill stays clean white (no red wash), but a soft accent-tinted
+   border plus a gentle accent glow lift it above the neutral CLI cards so it
+   reads as the featured/recommended option that ties into the terracotta
+   benefit chips. */
+.agent-amr-recommend .agent-card-amr-recommend-card {
+  background: var(--bg-panel);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--text) 6%, transparent),
+    0 8px 22px color-mix(in srgb, var(--accent) 13%, transparent);
+}
 .agent-install-collapse {
   margin-top: 10px;
   padding: 10px 12px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
+  background: var(--bg-panel);
+}
+.agent-installable-toggle {
+  appearance: none;
+  margin: 8px 0 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.agent-installable-toggle svg {
+  flex: 0 0 auto;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* No chevron-up glyph in the set, so flip the chevron-down to point up once
+   the list is expanded ("Show less"). */
+.agent-installable-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.agent-installable-toggle:hover {
+  color: var(--text);
 }
 .agent-install-collapse-summary {
   list-style: none;
@@ -922,8 +1025,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
+  /* Match the sibling collapsible headers ("Memory model", "CLI config
+     location") so the three section titles read at the same weight and size
+     instead of "Available to install" looking like a smaller, secondary row. */
+  color: var(--text);
+  font-size: 13px;
   font-weight: 600;
   user-select: none;
 }
@@ -1070,6 +1176,8 @@
   display: flex;
   align-items: stretch;
   min-width: 0;
+  /* Anchor for the health-check detail popover. */
+  position: relative;
 }
 .agent-card-select {
   flex: 1;
@@ -1085,48 +1193,144 @@
   text-align: left;
   cursor: pointer;
 }
+/* A quiet, right-aligned text button — no divider, no full-height tinted cell,
+   so the name row reads as one continuous row instead of two panels. The hover
+   affordance is the subtle background from the shared ghost/icon-btn styles;
+   the text color stays put (no accent shift) on hover. */
 .agent-card-test-btn {
-  align-self: stretch;
+  align-self: center;
   flex-shrink: 0;
-  min-width: 112px;
-  margin: 0;
-  padding: 0 18px;
+  margin: 0 8px 0 0;
+  padding: 6px 8px;
   border: 0;
-  border-left: 1px solid var(--border-soft);
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text);
+  color: var(--text-muted);
   font-weight: 600;
 }
 .agent-card-test-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-tint) 58%, transparent);
-  color: var(--accent-strong);
+  color: var(--text-muted);
 }
-.agent-card:hover:not(.disabled) {
+/* Health-check verdict badge — a compact, color-coded status chip that sits
+   right after the agent name (the Health check button stays on the right for
+   re-runs). Hovering it reveals the full checklist popover. */
+/* When the verdict badge is present, stop the tagline from growing so the badge
+   sits immediately after the name text instead of being pushed to the far edge
+   of the name row. */
+.agent-card-name:has(.agent-health-badge) .agent-card-tagline {
+  flex: 0 1 auto;
+}
+.agent-health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: 2px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: default;
+}
+.agent-health-badge__dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong, var(--border));
+}
+.agent-health-badge__dot[data-status='pass'] {
+  background: var(--success, #3fa65a);
+}
+.agent-health-badge__dot[data-status='warn'] {
+  background: var(--warning, #d9a441);
+}
+.agent-health-badge__dot[data-status='fail'] {
+  background: var(--danger, #d9534f);
+}
+.agent-health-badge--pass {
+  color: var(--success, #3fa65a);
+}
+.agent-health-badge--warn {
+  color: color-mix(in srgb, var(--warning, #d9a441) 86%, var(--text));
+}
+.agent-health-badge--fail {
+  color: var(--danger, #d9534f);
+}
+/* Detail popover, anchored under the name row. It lives outside the name
+   <button> (so its fix actions aren't nested in a button) and is positioned
+   against .agent-card-main. JS hover-intent toggles `.is-open`; the transparent
+   `padding-top` bridges the gap between the badge and the card. */
+.agent-health-popover {
+  position: absolute;
+  top: 100%;
+  left: 56px;
+  z-index: 30;
+  width: 320px;
+  max-width: min(360px, calc(100% - 56px));
+  padding-top: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    visibility 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.agent-health-popover.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.agent-health-popover-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--text) 16%, transparent);
+  text-align: left;
+  font-size: 12px;
+}
+/* Flatten the panel when it floats inside the popover card so the result reads
+   as a single white module — no border/tint box nested inside the card. The
+   descendant selector outranks the panel module's own `.root` border/bg. */
+.agent-health-popover-card .agent-health-panel--floating {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+/* The installed card clips its inner content (`overflow: hidden`), which would
+   crop the health popover. Lift the clip only while the popover is open so it
+   can escape the card box; the card's content is otherwise unaffected. */
+.agent-card-installed:has(.agent-health-popover.is-open) {
+  overflow: visible;
+}
+/* Hover affordance only on non-selected cards. The active card is already the
+   committed choice, so reacting to hover on it (incl. its name area) reads as
+   an accidental state change rather than useful feedback. */
+.agent-card:hover:not(.disabled):not(.active) {
   border-color: var(--border-strong);
 }
 .agent-card.active {
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  /* Thicker, accent outline: a 1px border plus a 1px ring reads as a ~2px
+     stroke without the layout shift that bumping border-width would cause
+     across the grid. */
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
   background: var(--bg-panel);
   box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
     0 1px 0 color-mix(in srgb, var(--bg-panel) 88%, transparent) inset,
     0 10px 28px color-mix(in srgb, var(--text) 9%, transparent);
-}
-.agent-card.active::before {
-  content: '';
-  position: absolute;
-  inset: 12px auto 12px 0;
-  width: 4px;
-  border-radius: 0 999px 999px 0;
-  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 56%, var(--selected)));
-}
-.agent-card-installed.active .agent-card-main {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent-tint) 32%, var(--bg-panel)),
-      color-mix(in srgb, var(--accent-tint) 10%, var(--bg-panel))
-    );
 }
 .agent-card-installed.active .agent-card-select {
   min-height: 78px;
@@ -1148,8 +1352,14 @@
   cursor: not-allowed;
   opacity: 0.55;
 }
+/* Installable cards aren't "disabled" in a faded sense — they're real,
+   actionable Install targets. Keep them at full opacity (no gray wash) and
+   instead express their lower priority through softer text colors below. */
 .agent-card.disabled.agent-card-unavailable {
-  opacity: 0.72;
+  opacity: 1;
+}
+.agent-grid-unavailable .agent-card-name {
+  color: color-mix(in srgb, var(--text) 62%, var(--text-muted));
 }
 /* Unavailable cards stack vertically: the logo/name/links live in a single
    top row, and any diagnostic reason gets its own full-width row underneath
@@ -1157,6 +1367,11 @@
 .agent-card.agent-card-unavailable {
   flex-direction: column;
   align-items: stretch;
+  /* Center the stacked content in the card's min-height so a single-row card
+     (no diagnostic) doesn't sit flush against the top edge with a large gap
+     below; when a diagnostic row is present the content fills the height and
+     this is a no-op. */
+  justify-content: center;
   gap: 0;
 }
 .agent-card-unavailable-row {
@@ -1208,6 +1423,7 @@
    the inline action row stays aligned, but square and borderless. The accessible
    name lives in title/aria-label, surfaced as a hover tooltip. */
 .agent-card-link--icon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1218,6 +1434,33 @@
 .agent-card-link--icon:hover {
   background: var(--bg-subtle);
   text-decoration: none;
+}
+/* Styled hover/focus tooltip for the icon-only Docs link (mirrors the Rescan
+   icon) so the file glyph reveals "Docs" without the slow native title delay. */
+.agent-card-link--icon[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 6px);
+  right: 0;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg-panel);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.agent-card-link--icon[data-tooltip]:hover::after,
+.agent-card-link--icon[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 /* Install link: primary affordance for an unavailable card, styled as
    a ghost button (transparent + outlined) so it reads as a real
@@ -1465,6 +1708,11 @@
 .agent-cli-env input {
   background-color: var(--bg-subtle);
 }
+/* Placeholders document the expected input format, so render them italic to
+   read as guidance; user-typed values stay upright (the default). */
+.agent-cli-env input::placeholder {
+  font-style: italic;
+}
 /*
   Generic Settings card — wraps a single panel of related controls in a
   white-on-soft-border container so users get an obvious "this lump of
@@ -1669,41 +1917,6 @@
   font-size: 11px;
   letter-spacing: 0.06em;
 }
-.agent-model-source-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 18px;
-  padding: 2px 6px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg-subtle);
-  color: var(--text-muted);
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.agent-model-source-badge.live {
-  border-color: var(--green-border);
-  background: var(--green-bg);
-  color: var(--green);
-}
-.agent-model-source-badge.fallback {
-  min-height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 11.5px;
-  font-weight: 500;
-}
-.agent-model-source-badge.fallback::before {
-  content: '·';
-  margin-right: 6px;
-  color: var(--text-muted);
-}
 .agent-card-config .hint,
 .agent-model-row .hint { margin: 0; font-size: 11.5px; }
 
@@ -1844,18 +2057,16 @@
 .settings-model-select--byok {
   min-width: min(420px, 100%);
 }
+/* Native <select> controls (e.g. the reasoning picker) hide their platform
+   arrow and get a custom chevron Icon overlaid via .agent-model-select-chevron.
+   The searchable model picker is a <button> and draws its own chevron through
+   .inline-switcher__select, so these rules intentionally only target select. */
 .agent-model-select-wrap select {
   appearance: none;
   -webkit-appearance: none;
   background-image: none;
   padding-right: 28px;
   width: 100%;
-}
-.agent-model-select-wrap .model-select-searchable select {
-  background:
-    color-mix(in srgb, var(--bg-subtle) 82%, var(--bg-panel))
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2374716b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>")
-    no-repeat right 10px center;
 }
 .agent-card-config .agent-model-select-wrap select {
   min-height: 36px;
