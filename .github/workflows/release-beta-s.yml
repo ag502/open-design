@@ -309,7 +309,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
-          clean: false
+          clean: true
           fetch-depth: 1
           lfs: false
           path: _release-metadata
@@ -390,7 +390,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
-          clean: false
+          clean: true
           fetch-depth: 1
           lfs: false
           path: _release-build
@@ -418,7 +418,6 @@ jobs:
           BUILD_JSON_PATH: ${{ runner.temp }}/release-build/mac_arm64/build.json
           BUILD_LOG_PATH: ${{ runner.temp }}/release-build/mac_arm64/build.log
           CSC_KEYCHAIN: /Library/Keychains/open-design-release-signing.keychain
-          PATH: /usr/local/libexec/open-design/wrappers:${{ env.PATH }}
           RELEASE_BUILD_TARGET: ${{ inputs.mac_arm64_target }}
           RELEASE_NAMESPACE: release-beta
           RELEASE_OUTPUTS_PATH: ${{ runner.temp }}/release-build/mac_arm64/outputs.json
@@ -433,8 +432,12 @@ jobs:
           TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
+          export PATH="/usr/local/libexec/open-design/wrappers:$PATH"
           fnm exec --using=24 -- bash .github/workflow/scripts/release/build-platform.sh
 
       - name: Write mac_arm64 release report
@@ -455,6 +458,9 @@ jobs:
           REPORT_TITLE: self-hosted mac_arm64 beta build
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           fnm exec --using=24 -- node --experimental-strip-types .github/workflow/scripts/release/report/write-report.ts
@@ -502,6 +508,9 @@ jobs:
           RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           fnm exec --using=24 -- node --experimental-strip-types .github/workflow/scripts/release/storage/publish-platform.ts
@@ -524,14 +533,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
-          clean: false
+          clean: true
           fetch-depth: 1
           lfs: false
 
       - name: Prepare self-hosted Windows toolchain
         shell: pwsh
         run: |
-          & "C:\Users\runner\.cargo\bin\fnm.exe" exec --using=24 -- corepack prepare pnpm@10.33.2 --activate
+          & "C:\Users\runner\.cargo\bin\fnm.exe" exec --using=24 -- npm install --global pnpm@10.33.2
           & "C:\Users\runner\.cargo\bin\fnm.exe" exec --using=24 -- pnpm install --frozen-lockfile --prefer-offline
 
       - name: Probe Windows signing capability
@@ -667,7 +676,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
-          clean: false
+          clean: true
           fetch-depth: 1
           lfs: false
 
@@ -712,6 +721,9 @@ jobs:
           WIN_X64_RESULT: ${{ needs.build_win_x64.result }}
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           fnm exec --using=24 -- node --experimental-strip-types .github/workflow/scripts/release/storage/publish-beta-metadata.ts
@@ -737,6 +749,9 @@ jobs:
           WIN_X64_RESULT: ${{ needs.build_win_x64.result }}
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           fnm exec --using=24 -- node --experimental-strip-types .github/workflow/scripts/release/storage/verify-beta-metadata.ts
@@ -747,6 +762,9 @@ jobs:
           RELEASE_SUMMARY_PATH: ${{ runner.temp }}/release-metadata/summary.md
         run: |
           set -euo pipefail
+          if ! command -v rehash >/dev/null 2>&1; then
+            rehash() { hash -r; }
+          fi
           # shellcheck disable=SC1090
           source "$OPEN_DESIGN_RELEASE_PROFILE"
           fnm exec --using=24 -- node --experimental-strip-types .github/workflow/scripts/release/storage/summary-beta.ts
