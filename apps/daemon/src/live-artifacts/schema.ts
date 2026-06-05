@@ -470,14 +470,26 @@ function validateDaemonRefreshRequiredInput(
   issues: LiveArtifactValidationIssue[],
 ): void {
   if (effectiveTool !== 'project_files.read_json') return;
-  // Mirror selectJsonPath (refresh.ts): the first of path/file/name names the file.
-  const selectorKey = (['path', 'file', 'name'] as const).find(
-    (key) => typeof input[key] === 'string' && (input[key] as string).trim().length > 0,
-  );
+  // Mirror selectJsonPath (refresh.ts) precedence AND type rules. It reads
+  // path → file → name through optionalString() + `??`, so the first alias that
+  // is *present* (not undefined) is the selector — even a non-string or empty
+  // value, which makes optionalString()/validateProjectPath() throw at refresh
+  // rather than falling through to a later alias. Resolving by "first non-empty
+  // string" instead would accept e.g. { path: 123, file: 'ok.json' } here while
+  // refresh fails forever, recreating the persisted-but-unrefreshable class.
+  const selectorKey = (['path', 'file', 'name'] as const).find((key) => input[key] !== undefined);
   if (selectorKey === undefined) {
     issues.push({
       path: `${path}.path`,
       message: `${path}.path is required for project_files.read_json sources (or provide ${path}.file / ${path}.name)`,
+    });
+    return;
+  }
+  const selector = input[selectorKey];
+  if (typeof selector !== 'string' || selector.trim().length === 0) {
+    issues.push({
+      path: `${path}.${selectorKey}`,
+      message: `${path}.${selectorKey} must be a non-empty string for project_files.read_json sources`,
     });
     return;
   }
@@ -486,7 +498,7 @@ function validateDaemonRefreshRequiredInput(
   // same. Validate the resolved name selector here so a traversal/absolute target
   // is rejected at creation instead of persisting a source that only fails on refresh.
   if (selectorKey === 'name') {
-    validateRelativePath(input[selectorKey] as string, `${path}.${selectorKey}`, issues);
+    validateRelativePath(selector, `${path}.${selectorKey}`, issues);
   }
 }
 

@@ -350,6 +350,39 @@ describe('live artifact schema validation', () => {
     }
   });
 
+  it('rejects an invalid earlier read_json alias even when a later alias is valid', () => {
+    // selectJsonPath resolves path → file → name through `??`; a present-but-invalid
+    // path/file is a hard error there and never falls through, so it must be rejected
+    // at creation rather than persisting an artifact that only fails on refresh.
+    const cases = [
+      { input: { path: 123, file: 'reports/data.json' }, expectedPath: 'input.document.sourceJson.input.path' },
+      { input: { path: '', file: 'reports/data.json' }, expectedPath: 'input.document.sourceJson.input.path' },
+      { input: { path: '   ', name: 'data.json' }, expectedPath: 'input.document.sourceJson.input.path' },
+      { input: { file: 42, name: 'data.json' }, expectedPath: 'input.document.sourceJson.input.file' },
+    ];
+    for (const { input, expectedPath } of cases) {
+      const result = validateLiveArtifactCreateInput({
+        ...validCreateInput(),
+        document: {
+          ...validCreateInput().document,
+          sourceJson: {
+            type: 'local_file',
+            toolName: 'project_files.read_json',
+            input,
+            refreshPermission: 'manual_refresh_granted_for_read_only',
+          },
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.issues).toEqual(expect.arrayContaining([
+          expect.objectContaining({ path: expectedPath }),
+        ]));
+      }
+    }
+  });
+
   it('rejects oversized bounded JSON payloads', () => {
     const oversized = Object.fromEntries(Array.from({ length: 100 }, (_, index) => [`field${index}`, 'x'.repeat(3_000)]));
     const result = validateBoundedJsonObject(oversized, 'data');
