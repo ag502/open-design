@@ -54,7 +54,6 @@ const metadataDir = required("RELEASE_METADATA_DIR");
 const manifestDir = required("RELEASE_MANIFEST_DIR");
 const outputsPath = required("RELEASE_OUTPUTS_PATH");
 const requestedAssetVersionSuffix = optional("RELEASE_ASSET_SUFFIX");
-const requestedVersionPrefix = optional("RELEASE_VERSION_PREFIX");
 const latestPrefix = `${releaseChannel}/latest`;
 const currentCommit = optional("RELEASE_COMMIT");
 const currentRunId = Number(optional("RELEASE_RUN_ID", "0"));
@@ -166,9 +165,13 @@ async function publishLatestPlatformObjects(manifests: Record<string, PlatformMa
     const feedName = manifest.feed?.name;
     if (feedName == null || feedName.length === 0) continue;
 
-    const versionFeed = await getStorageObject({ ...storage, objectKey: `${versionPrefix}/${feedName}` });
+    const feedVersionPrefix = manifest.r2?.versionPrefix;
+    if (feedVersionPrefix == null || feedVersionPrefix.length === 0) {
+      throw new Error(`published ${target} platform manifest is missing r2.versionPrefix for ${feedName}`);
+    }
+    const versionFeed = await getStorageObject({ ...storage, objectKey: `${feedVersionPrefix}/${feedName}` });
     if (versionFeed == null) {
-      throw new Error(`expected versioned feed object not found: ${versionPrefix}/${feedName}`);
+      throw new Error(`expected versioned feed object not found: ${feedVersionPrefix}/${feedName}`);
     }
     const feedPath = join(metadataDir, "latest-feeds", feedName);
     mkdirSync(join(metadataDir, "latest-feeds"), { recursive: true });
@@ -199,35 +202,6 @@ function validateManifest(target: string, manifest: PlatformManifest): string | 
     return `versionPrefix=${String(manifest.r2?.versionPrefix)}`;
   }
   return null;
-}
-
-function resolvedPrefixFromManifests(manifests: Record<string, PlatformManifest>): string {
-  if (requestedVersionPrefix.length > 0) return requestedVersionPrefix;
-  if (requestedAssetVersionSuffix !== "auto") {
-    return `${releaseChannel}/versions/${releaseVersion}${requestedAssetVersionSuffix}`;
-  }
-
-  const readyManifests = Object.values(manifests).filter((manifest) => manifest.status === "published");
-  const feedPrefixes = readyManifests
-    .filter((manifest) => typeof manifest.feed?.name === "string" && manifest.feed.name.length > 0)
-    .map((manifest) => manifest.r2?.versionPrefix)
-    .filter((prefix): prefix is string => typeof prefix === "string" && prefix.length > 0);
-  const prefixes = feedPrefixes.length > 0
-    ? [...new Set(feedPrefixes)]
-    : [...new Set(readyManifests
-        .map((manifest) => manifest.r2?.versionPrefix)
-        .filter((prefix): prefix is string => typeof prefix === "string" && prefix.length > 0))];
-
-  if (prefixes.length === 1) return prefixes[0];
-  if (prefixes.length === 0) {
-    throw new Error("RELEASE_ASSET_SUFFIX=auto could not resolve a version prefix from ready platform manifests");
-  }
-  throw new Error(`RELEASE_ASSET_SUFFIX=auto found multiple ready version prefixes: ${prefixes.join(", ")}`);
-}
-
-function suffixFromVersionPrefix(prefix: string): string {
-  const basePrefix = `${releaseChannel}/versions/${releaseVersion}`;
-  return prefix.startsWith(basePrefix) ? prefix.slice(basePrefix.length) : requestedAssetVersionSuffix;
 }
 
 const expectedTargets: string[] = [];
@@ -273,9 +247,15 @@ let releaseState = "failed";
 if (expectedTargets.length > 0 && readyTargets.length === expectedTargets.length) releaseState = "complete";
 else if (readyTargets.length > 0) releaseState = "partial";
 
+let assetVersionSuffix = requestedAssetVersionSuffix;
+if (assetVersionSuffix === "auto") {
+  const readyManifests = readyTargets.map((target) => releaseTargets[target]).filter((manifest) => manifest != null);
+  const allReadyTargetsSigned = readyManifests.length > 0 && readyManifests.every((manifest) => manifest.signed === true);
+  assetVersionSuffix = allReadyTargetsSigned ? ".signed" : ".unsigned";
+}
+const versionPrefix = optional("RELEASE_VERSION_PREFIX", `${releaseChannel}/versions/${releaseVersion}${assetVersionSuffix}`);
+
 const latestMetadataUpdated = releaseState === "complete";
-const versionPrefix = resolvedPrefixFromManifests(releaseTargets);
-const assetVersionSuffix = suffixFromVersionPrefix(versionPrefix);
 const metadata = {
   assetVersionSuffix,
   baseVersion: required("BASE_VERSION"),

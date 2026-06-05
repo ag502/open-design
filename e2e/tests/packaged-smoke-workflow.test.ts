@@ -180,7 +180,6 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("scripts/release-beta.ts");
     expect(workflow).not.toContain('git fetch --force --depth=1 origin "+refs/tags/open-design-v*:refs/tags/open-design-v*"');
     expect(workflow).toContain("release-beta-s requires at least one target to be enabled");
-    expect(workflow).toContain("release-beta-s win_x64 publish requires win_x64_target=nsis or all");
     expect(workflow).toContain("beta_version: ${{ inputs.publish && steps.reserve.outputs.beta_version || inputs.release_version != '' && inputs.release_version || steps.beta.outputs.beta_version }}");
     expect(workflow).toContain("if: ${{ inputs.publish }}");
     expect(workflow).toContain("Reject unsupported self-hosted mac_x64");
@@ -190,8 +189,6 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("needs: metadata");
     expect(workflow).toContain('-ReleaseTarget win_x64');
     expect(workflow).toContain('-ReleaseVersion "${{ needs.metadata.outputs.beta_version }}"');
-    expect(workflow).toContain("-IncludeZip ${{ inputs.win_x64_target == 'all' && '$true' || '$false' }}");
-    expect(workflow).toContain("WIN_INCLUDE_ZIP: ${{ inputs.win_x64_target == 'all' }}");
     expect(workflow).toContain('OD_BETA_WINDOWS_SIGNING_ENABLED: ${{ steps.sign_probe.outputs.enabled }}');
     expect(workflow).toContain('OD_BETA_WINDOWS_SIGNING_PROBED: ${{ steps.sign_probe.outputs.probed }}');
     expect(workflow).toContain('OD_BETA_WINDOWS_SIGNTOOL_PATH: ${{ steps.sign_probe.outputs.signtool_path }}');
@@ -236,6 +233,8 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain(".github/workflow/scripts/release/storage/publish-beta-metadata.ts");
     expect(workflow).toContain("RELEASE_ASSET_SUFFIX: auto");
     expect(workflow).toContain("RELEASE_MANIFEST_DIR: ${{ runner.temp }}/release-platform-manifests");
+    expect(workflow).toContain("-IncludeZip $${{ inputs.win_x64_target == 'all' || inputs.win_x64_target == 'zip' }}");
+    expect(workflow).toContain("release-beta-s publish requires win_x64_target=nsis or all");
     expect(workflow).not.toContain("open-design-beta-s-win-x64-publish-manifest");
     expect(workflow).not.toContain("open-design-beta-s-mac-arm64-publish-manifest");
     expect(workflow).toContain('STATE_SOURCE: ${{ needs.metadata.outputs.state_source }}');
@@ -248,9 +247,10 @@ describe("packaged smoke workflow", () => {
     expect(publishBetaMetadataScript).toContain("manifest.github?.commit !== currentCommit");
     expect(publishBetaMetadataScript).toContain("manifest.platformKey !== target");
     expect(publishBetaMetadataScript).toContain("manifest.r2.versionPrefix.includes(`/versions/${releaseVersion}`)");
+    expect(publishBetaMetadataScript).toContain('if (assetVersionSuffix === "auto")');
+    expect(publishBetaMetadataScript).toContain('assetVersionSuffix = allReadyTargetsSigned ? ".signed" : ".unsigned";');
+    expect(publishBetaMetadataScript).toContain("const feedVersionPrefix = manifest.r2?.versionPrefix;");
     expect(publishBetaMetadataScript).toContain("refusing stale ${def.target} platform manifest");
-    expect(publishBetaMetadataScript).toContain('requestedAssetVersionSuffix !== "auto"');
-    expect(publishBetaMetadataScript).toContain("resolvedPrefixFromManifests");
     expect(publishBetaMetadataScript).toContain("publishLatestPlatformObjects");
     expect(platformPublishScript).not.toContain("await upload(join(releaseAssetsDir, name), `${latestPrefix}/${name}`");
     expect(platformPublishScript).not.toContain("await upload(manifestPath, `${latestPrefix}/platforms/${target}.json`");
@@ -510,7 +510,7 @@ describe("packaged smoke workflow", () => {
     }
   });
 
-  it("accepts target-first win_x64 platform manifests in beta metadata publish", async () => {
+  it("resolves auto asset suffix from target-first win_x64 platform manifests in beta metadata publish", async () => {
     const fixture = await startReleaseMetadataObjectStore({
       "beta/versions/1.2.3-beta.4.unsigned/latest.yml": "versioned updater feed",
     });
@@ -586,6 +586,7 @@ describe("packaged smoke workflow", () => {
       });
 
       const metadata = JSON.parse(await readFile(join(runnerTemp, "release-metadata", "metadata.json"), "utf8"));
+      expect(metadata.assetVersionSuffix).toBe(".unsigned");
       expect(metadata.readyTargets).toEqual(["win_x64"]);
       expect(metadata.platforms.win.r2.versionPrefix).toBe("beta/versions/1.2.3-beta.4.unsigned");
       expect(metadata.releaseTargets.win_x64.r2.versionPrefix).toBe("beta/versions/1.2.3-beta.4.unsigned");
