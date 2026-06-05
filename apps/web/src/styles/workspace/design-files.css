@@ -38,6 +38,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  min-width: 0;
   padding: 0 20px 6px;
   font-size: 14px;
   color: var(--text-muted);
@@ -53,40 +54,59 @@
 }
 .df-breadcrumb-btn:hover { color: var(--text); background: var(--bg-subtle); }
 .df-breadcrumb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.df-breadcrumb-segment { display: inline-flex; align-items: center; }
+.df-breadcrumb-segment {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
 .df-breadcrumb-sep { padding: 0 2px; color: var(--text-faint); font-size: 12px; user-select: none; }
-.df-breadcrumb-current { padding: 2px 4px; color: var(--text-strong); font-weight: 600; font-size: 14px; }
-/* Single-line top toolbar: left = up + refresh + breadcrumbs, right = file actions. */
+.df-breadcrumb-current {
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 4px;
+  color: var(--text-strong);
+  font-weight: 600;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Responsive top toolbar: breadcrumbs keep context while actions wrap when the list pane is narrow. */
 .df-topbar {
   margin: 0 20px 8px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  row-gap: 6px;
+  flex-wrap: wrap;
 }
 .df-topbar-left {
   display: flex;
   align-items: center;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 128px;
 }
 .df-topbar-left .df-breadcrumbs {
   padding: 0;
   margin: 0;
   min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
 }
 .df-topbar-right {
   display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 .df-actions {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 .df-actions button {
   background: transparent;
@@ -98,6 +118,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 .df-actions button:hover:not(:disabled) {
   background: var(--bg-subtle);

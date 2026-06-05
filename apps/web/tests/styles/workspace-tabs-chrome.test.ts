@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 const shellCss = readFileSync(new URL('../../src/styles/shell.css', import.meta.url), 'utf8');
 const routinesCss = readFileSync(new URL('../../src/styles/viewer/routines.css', import.meta.url), 'utf8');
 const entryLayoutCss = readFileSync(new URL('../../src/styles/home/entry-layout.css', import.meta.url), 'utf8');
+const drawerCss = readFileSync(new URL('../../src/styles/workspace/drawer.css', import.meta.url), 'utf8');
 
 function cssDeclarations(css: string, selector: string): string {
   const blocks: string[] = [];
@@ -105,6 +106,31 @@ describe('workspace tabs chrome styles', () => {
     expect(ruleValue(preview, 'box-sizing')).toBe('border-box');
     expect(routinesCss).not.toContain('.workspace-shell .workspace-tab.is-active::before');
     expect(routinesCss).not.toContain('.workspace-shell .workspace-tab.is-active::after');
+  });
+
+  it('preserves an open-file tab hit area before project actions compress', () => {
+    const fileWorkspaceTabs = cssDeclarations(drawerCss, '.ws-tabs-bar');
+    const fileWorkspaceActions = cssDeclarations(drawerCss, '.ws-tabs-actions');
+    const fileWorkspaceProjectActions = cssDeclarations(drawerCss, '.ws-tabs-project-actions');
+    const workingDirPill = cssDeclarations(routinesCss, '.app .ws-tabs-actions .working-dir-pill');
+    const workingDirTrigger = cssDeclarations(
+      routinesCss,
+      '.app .ws-tabs-actions .working-dir-pill-trigger',
+    );
+    const workingDirMenu = cssDeclarations(routinesCss, '.app .ws-tabs-actions .working-dir-pill-menu');
+
+    expect(ruleValue(fileWorkspaceTabs, 'flex')).toBe('1 1 224px');
+    expect(ruleValue(fileWorkspaceTabs, 'min-width')).toBe('224px');
+    expect(ruleValue(fileWorkspaceActions, 'min-width')).toBe('0');
+    expect(ruleValue(fileWorkspaceActions, 'flex')).toBe('0 1 auto');
+    expect(ruleValue(fileWorkspaceProjectActions, 'min-width')).toBe('0');
+    expect(ruleValue(fileWorkspaceProjectActions, 'flex-shrink')).toBe('1');
+    expect(ruleValue(workingDirPill, 'min-width')).toBe('44px');
+    expect(ruleValue(workingDirPill, 'max-width')).toBe('min(220px, 24vw)');
+    expect(ruleValue(workingDirTrigger, 'max-width')).toBe('100%');
+    expect(ruleValue(workingDirMenu, 'top')).toBe('calc(100% + 6px)');
+    expect(ruleValue(workingDirMenu, 'bottom')).toBe('auto');
+    expect(ruleValue(workingDirMenu, 'right')).toBe('0');
   });
 
   it('uses a rounded highlight for inactive workspace tab hover', () => {

@@ -1363,9 +1363,9 @@
   flex-wrap: nowrap;
   /* Size to the opened tabs so the nearby "+" reads as part of the tab strip.
      When space gets tight, this item still shrinks and scrolls internally so
-     the right-side action cluster keeps its reserved space. */
-  flex: 0 1 auto;
-  min-width: 0;
+     open file tabs keep a clickable floor before right-side actions compress. */
+  flex: 1 1 224px;
+  min-width: 224px;
   height: 100%;
   /* thinner scrollbar to avoid overlap */
   scrollbar-width: thin;
@@ -1381,10 +1381,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
-  /* Pin to the right edge and reserve space: the tab bar may grow but the
-     auto margin keeps a gap, and flex-shrink:0 guarantees this cluster is
-     never compressed by long/numerous file tabs. */
+  min-width: 0;
+  flex: 0 1 auto;
+  /* Pin to the right edge. Long project actions can compress first so the
+     opened file tabs keep their minimum hit area. */
   margin-inline-start: auto;
 }
 .ws-tabs-file-actions,
@@ -1393,6 +1393,10 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+.ws-tabs-project-actions {
+  min-width: 0;
+  flex-shrink: 1;
 }
 /* The present button is wrapped in an inline-block .present-wrap that
    doesn't vertically center its child; make it a flex item so the icon

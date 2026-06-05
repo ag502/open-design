@@ -44,4 +44,20 @@ describe('Design Files preview list styles', () => {
     expect(ruleValue(rowSub, 'overflow')).toBe('hidden');
     expect(ruleValue(rowSubPart, 'text-overflow')).toBe('ellipsis');
   });
+
+  it('wraps narrow file-list toolbar actions instead of overlapping breadcrumbs', () => {
+    const topbar = cssDeclarations(designFilesCss, '.df-topbar');
+    const topbarRight = cssDeclarations(designFilesCss, '.df-topbar-right');
+    const actions = cssDeclarations(designFilesCss, '.df-actions');
+    const breadcrumbs = cssDeclarations(designFilesCss, '.df-topbar-left .df-breadcrumbs');
+    const breadcrumbCurrent = cssDeclarations(designFilesCss, '.df-breadcrumb-current');
+
+    expect(ruleValue(topbar, 'flex-wrap')).toBe('wrap');
+    expect(ruleValue(topbar, 'row-gap')).toBe('6px');
+    expect(ruleValue(topbarRight, 'min-width')).toBe('0');
+    expect(ruleValue(actions, 'flex-wrap')).toBe('wrap');
+    expect(ruleValue(actions, 'min-width')).toBe('0');
+    expect(ruleValue(breadcrumbs, 'overflow')).toBe('hidden');
+    expect(ruleValue(breadcrumbCurrent, 'text-overflow')).toBe('ellipsis');
+  });
 });
