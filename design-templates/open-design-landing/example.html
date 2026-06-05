@@ -208,6 +208,52 @@ body::before {
   justify-content: space-between;
   gap: 24px;
 }
+@media (min-width: 1081px) {
+  /* Header spans the full viewport width (overriding the shared .container
+   * max-width) so the brand sits near the left edge and the side actions
+   * near the right edge, rather than aligned to the 1360px content column. */
+  .nav .nav-inner {
+    max-width: none;
+    /* Clear the fixed 46px decorative side-rails (plus breathing room) so
+     * the brand and side actions never collide with the edge lines. */
+    padding-left: 60px;
+    padding-right: 60px;
+  }
+  /* Three-zone header: the brand and side clusters take equal flexible
+   * width on either side, so the centered nav sits on (or very near) the
+   * bar's midline regardless of how wide the action cluster is — without the
+   * overlap an absolutely-centered nav causes at mid widths. The brand stays
+   * left-aligned in its column and the side actions stay right-aligned in
+   * theirs. */
+  .nav-inner > .brand {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+  .nav-inner > .nav-side {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+  .nav-inner > nav[data-nav-primary] {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Scale the header chrome up a step so the bar reads as substantial across
+   * the now-full-width layout, rather than small elements floating in extra
+   * whitespace. Desktop-only; sizes return to base below 1081px. Selectors
+   * are deliberately one level more specific than the base rules below
+   * (which appear later in source) so these win without !important. */
+  .nav .nav-inner .brand-logo { height: 44px; }
+  .nav-inner .nav-links { gap: 44px; }
+  .nav-inner .nav-links a { font-size: 16px; }
+  .nav-inner .nav-side { gap: 14px; }
+  .nav-inner .nav-side .nav-cta.ghost { font-size: 13px; }
+  .nav-inner .nav-side .locale-trigger { font-size: 13px; }
+  .nav-inner .nav-side .nav-amr img { width: 68px; height: auto; }
+}
 .brand {
   display: inline-flex;
   align-items: center;

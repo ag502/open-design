@@ -420,14 +420,26 @@ body::before {
     padding-left: 60px;
     padding-right: 60px;
   }
+  /* Three-zone header: the brand and side clusters take equal flexible
+   * width on either side, so the centered nav sits on (or very near) the
+   * bar's midline regardless of how wide the action cluster is — without the
+   * overlap an absolutely-centered nav causes at mid widths. The brand stays
+   * left-aligned in its column and the side actions stay right-aligned in
+   * theirs. */
+  .nav-inner > .brand {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+  .nav-inner > .nav-side {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-end;
+  }
   .nav-inner > nav[data-nav-primary] {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     display: flex;
     justify-content: center;
-  }
-  .nav-inner > .brand,
-  .nav-inner > .nav-side {
-    flex: 0 0 auto;
   }
 
   /* Scale the header chrome up a step so the bar reads as substantial across
