@@ -326,12 +326,19 @@ jobs:
                 return false;
               }
 
+              recentRuns.sort((left, right) => {
+                const leftCreatedAt = new Date(left.created_at || left.run_started_at || left.updated_at).getTime();
+                const rightCreatedAt = new Date(right.created_at || right.run_started_at || right.updated_at).getTime();
+                return (Number.isFinite(rightCreatedAt) ? rightCreatedAt : 0) - (Number.isFinite(leftCreatedAt) ? leftCreatedAt : 0);
+              });
+
               for (const candidate of recentRuns) {
                 if (candidate.id === currentRun.id) continue;
-                if (!['failure', 'timed_out'].includes(candidate.conclusion)) continue;
                 const candidateCreatedAt = new Date(candidate.created_at || candidate.run_started_at || candidate.updated_at).getTime();
-                if (Number.isFinite(candidateCreatedAt) && candidateCreatedAt < cutoff) continue;
                 if (Number.isFinite(currentCreatedAt) && Number.isFinite(candidateCreatedAt) && candidateCreatedAt > currentCreatedAt) continue;
+                if (Number.isFinite(candidateCreatedAt) && candidateCreatedAt < cutoff) break;
+                if (candidate.conclusion === 'success') return false;
+                if (!['failure', 'timed_out'].includes(candidate.conclusion)) continue;
 
                 let candidateJobs = [];
                 try {

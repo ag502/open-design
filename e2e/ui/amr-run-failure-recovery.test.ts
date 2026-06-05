@@ -371,6 +371,7 @@ async function setupAmrWorkspace(
     agentCliEnv: {
       amr: {
         VELA_BIN: velaBin,
+        HOME: homeDir,
         VELA_LINK_URL: 'http://localhost:18081',
         VELA_RUNTIME_KEY: 'fake-runtime-key',
         ...(options.profile ? { OPEN_DESIGN_AMR_PROFILE: options.profile } : {}),
