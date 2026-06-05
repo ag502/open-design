@@ -258,7 +258,6 @@ export function ProjectDesignSystemPicker({
                       event.preventDefault();
                       selectDesignSystem(null);
                     }}
-                    onClick={() => selectDesignSystem(null)}
                   >
                     <div className="project-ds-picker-option-head">
                       <span className="project-ds-picker-option-title">{t('designSystemPicker.noneTitle')}</span>
@@ -287,7 +286,6 @@ export function ProjectDesignSystemPicker({
                           event.preventDefault();
                           selectDesignSystem(d.id);
                         }}
-                        onClick={() => selectDesignSystem(d.id)}
                         data-testid={`project-ds-picker-option-${d.id}`}
                       >
                         <div className="project-ds-picker-option-head">
