@@ -132,13 +132,9 @@ jobs:
                 }
                 const mergedAt = new Date(pull.merged_at);
                 if (mergedAt < since) {
-                  break;
+                  continue;
                 }
                 pulls.push(pull);
-              }
-              const last = response.data[response.data.length - 1];
-              if (!last || (last.merged_at && new Date(last.merged_at) < since)) {
-                break;
               }
             }
 
