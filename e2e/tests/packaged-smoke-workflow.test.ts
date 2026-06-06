@@ -67,8 +67,17 @@ describe("packaged smoke workflow", () => {
 
     expect(job).toContain("runs-on: windows-latest");
     expect(job).toContain("needs.change_scopes.outputs.tools_pack_tests_required == 'true'");
-    expect(job).toContain("pnpm --filter @open-design/tools-pack test -- tests/launcher-payload.test.ts");
+    expect(job).toContain("pnpm --filter @open-design/tools-pack exec vitest run tests/launcher-payload.test.ts");
     expect(validate).toContain("windows_tools_pack_payload_tests");
+  });
+
+  it("[P2] limits manual blob guard checks to changed files against main", async () => {
+    const workflow = await readFile(ciWorkflowPath, "utf8");
+    const blobGuard = sectionBetween(workflow, "  blob_guard:", "  nix_validation:");
+
+    expect(blobGuard).toContain('${{ github.event_name }}" = "workflow_dispatch"');
+    expect(blobGuard).toContain("git merge-base origin/main HEAD");
+    expect(blobGuard).toContain('git diff --name-only --diff-filter=AMR "$base" HEAD');
   });
 
   it("[P2] preserves beta linux AppImage smoke reports for platform publication", async () => {

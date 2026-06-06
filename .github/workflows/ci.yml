@@ -171,6 +171,9 @@ jobs:
             else
               git diff --name-only --diff-filter=AMR "$before" "$after" > "$changed_files"
             fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && git rev-parse --verify origin/main >/dev/null 2>&1; then
+            base="$(git merge-base origin/main HEAD)"
+            git diff --name-only --diff-filter=AMR "$base" HEAD > "$changed_files"
           else
             git ls-files > "$changed_files"
           fi
@@ -402,7 +405,7 @@ jobs:
         uses: ./.github/actions/setup-workspace
 
       - name: Windows launcher payload archive tests
-        run: pnpm --filter @open-design/tools-pack test -- tests/launcher-payload.test.ts
+        run: pnpm --filter @open-design/tools-pack exec vitest run tests/launcher-payload.test.ts
 
   daemon_workspace_tests:
     name: Daemon workspace tests
