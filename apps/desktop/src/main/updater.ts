@@ -1268,6 +1268,8 @@ try {
   }
 
   Write-HelperLog ("observed pid={0} exit; opening installer" -f $TargetPid)
+  Write-HelperLog "waiting for launch handoff"
+  Start-Sleep -Milliseconds 1500
   Start-Process -FilePath $InstallerPath -WorkingDirectory (Split-Path -Parent $InstallerPath)
   Write-HelperLog "installer launch requested"
 } catch {
@@ -1427,7 +1429,7 @@ async function launchWindowsInstallerAfterQuit(
         "-LogPath",
         logPath,
       ],
-      { stdio: "ignore", windowsHide: true },
+      { detached: true, stdio: "ignore", windowsHide: true },
     );
     child.unref();
     return "";

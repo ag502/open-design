@@ -624,6 +624,98 @@ describe("desktop updater", () => {
     }
   });
 
+  it("relaunches Windows launcher payloads through the installed executable after quit", async () => {
+    const root = makeRoot();
+    const fixture = await createUpdaterFixture({
+      artifactBody: "open design windows installer fixture",
+      channel: "beta",
+      includePayload: true,
+      payloadBody: "open design windows payload fixture",
+      platform: "win",
+      version: "1.0.0-beta.2",
+    });
+    const launcherRuntimePath = join(root, "launcher", "runtime.json");
+    const launcherRoot = root;
+    const launches: Array<{ appPid: number; installerPath: string; root: string }> = [];
+    try {
+      await mkdir(join(root, "launcher"), { recursive: true });
+      await mkdir(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions", "1.0.0-beta.1"), { recursive: true });
+      await writeFile(
+        launcherRuntimePath,
+        `${JSON.stringify({
+          active: { generation: 0, version: "1.0.0-beta.1" },
+          channel: "beta",
+          lastSuccessful: { generation: 0, version: "1.0.0-beta.1" },
+          namespace: "release-beta-win",
+          schemaVersion: LAUNCHER_SCHEMA_VERSION,
+        })}\n`,
+      );
+      const updater = createDesktopUpdater({
+        arch: "x64",
+        currentVersion: "1.0.0-beta.1",
+        downloadRoot: join(root, "updates"),
+        env: {
+          ...updaterEnv(fixture.metadataUrl, "win32"),
+          [DESKTOP_UPDATE_ENV.CURRENT_VERSION]: "1.0.0-beta.1",
+          [DESKTOP_UPDATE_ENV.OPEN_DRY_RUN]: "0",
+        },
+        launcherRoot,
+        launcherRuntimePath,
+        namespace: "release-beta-win",
+        source: SIDECAR_SOURCES.PACKAGED,
+      }, {
+        extractLauncherPayloadArchive: async ({ destinationRoot }) => {
+          await mkdir(join(destinationRoot, "payload"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
+          await writeFile(
+            join(destinationRoot, "manifest.json"),
+            `${JSON.stringify({
+              channel: "beta",
+              entry: {
+                cwd: "payload",
+                executable: "payload/Open Design.exe",
+              },
+              namespace: "release-beta-win",
+              payloadRoot: "payload",
+              platform: "win32",
+              schemaVersion: LAUNCHER_SCHEMA_VERSION,
+              version: "1.0.0-beta.2",
+            })}\n`,
+          );
+        },
+        launchInstallerAfterQuit: async (input) => {
+          launches.push({
+            appPid: input.appPid,
+            installerPath: input.installerPath,
+            root: input.root,
+          });
+          return "";
+        },
+        processExecPath: "C:\\Program Files\\Open Design Beta\\Open Design.exe",
+        processPid: 4244,
+      });
+
+      const checked = await updater.checkForUpdates();
+      expect(checked.artifact?.type).toBe("payload");
+
+      const installed = await updater.installUpdate();
+
+      expect(installed.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
+      expect(installed.installResult?.path).toBe(checked.downloadPath);
+      expect(installed.installResult?.dryRun).toBe(false);
+      expect(launches).toEqual([
+        {
+          appPid: 4244,
+          installerPath: "C:\\Program Files\\Open Design Beta\\Open Design.exe",
+          root: await realpath(join(root, "updates")),
+        },
+      ]);
+    } finally {
+      await fixture.close();
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("cleans failed launcher payload staging without deleting an existing version root", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
@@ -931,7 +1023,7 @@ describe("desktop updater", () => {
       expect(spawned).toHaveLength(1);
       expect(unref).toHaveBeenCalledTimes(1);
       expect(spawned[0]?.command).toEqual(expect.stringContaining(join("System32", "WindowsPowerShell", "v1.0", "powershell.exe")));
-      expect(spawned[0]?.options).toEqual({ stdio: "ignore", windowsHide: true });
+      expect(spawned[0]?.options).toEqual({ detached: true, stdio: "ignore", windowsHide: true });
       const args = spawned[0]?.args ?? [];
       const launcherPath = args.at(args.indexOf("-File") + 1);
       const scriptPath = args.at(args.indexOf("-HelperPath") + 1);
@@ -963,6 +1055,7 @@ describe("desktop updater", () => {
       expect(launcher).toContain("Remove-Item -LiteralPath $PSCommandPath");
       const script = await readFile(scriptPath ?? "", "utf8");
       expect(script).toContain("Get-Process -Id $TargetPid");
+      expect(script).toContain("Start-Sleep -Milliseconds 1500");
       expect(script).toContain("Start-Process -FilePath $InstallerPath");
       expect(script).toContain("Remove-Item -LiteralPath $PSCommandPath");
 

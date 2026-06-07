@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1019,6 +1019,26 @@ async function printPackagedLogs(): Promise<void> {
     console.error(`[${app}] ${entry.logPath}`);
     console.error(entry.lines.join('\n') || '(no log lines)');
   }
+  await printUpdaterHelperLogs();
+  await printLauncherRuntimeSnapshot();
+}
+
+async function printUpdaterHelperLogs(): Promise<void> {
+  const helpersRoot = join(runtimeNamespaceRoot, 'updates', 'helpers');
+  const entries = await readdir(helpersRoot).catch(() => []);
+  for (const entry of entries.filter((name) => name.endsWith('.log')).sort()) {
+    const logPath = join(helpersRoot, entry);
+    const content = await readFile(logPath, 'utf8').catch(() => '');
+    console.error(`[updater-helper] ${logPath}`);
+    console.error(content.trim() || '(no log lines)');
+  }
+}
+
+async function printLauncherRuntimeSnapshot(): Promise<void> {
+  const runtimePath = join(runtimeNamespaceRoot, 'launcher', 'channels', updateScenario.channel, 'namespaces', namespace, 'runtime.json');
+  const content = await readFile(runtimePath, 'utf8').catch(() => null);
+  console.error(`[launcher-runtime] ${runtimePath}`);
+  console.error(content?.trim() ?? '(missing)');
 }
 
 function assertHealthEvalValue(value: unknown): HealthEvalValue {
