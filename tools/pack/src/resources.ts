@@ -135,14 +135,19 @@ export async function resolveChromiumBundleRoots(executablePath: string): Promis
   if (!match) return [primaryRoot];
   const revision = match[1];
   const parent = dirname(primaryRoot);
-  const variants = [
+  const roots = [primaryRoot];
+  const optionalVariants = [
     join(parent, `chromium-${revision}`),
     join(parent, `chromium_headless_shell-${revision}`),
-  ];
-  const roots: string[] = [];
-  for (const variantRoot of variants) {
-    await access(variantRoot);
-    roots.push(variantRoot);
+  ].filter((variantRoot) => variantRoot !== primaryRoot);
+  for (const variantRoot of optionalVariants) {
+    try {
+      await access(variantRoot);
+      roots.push(variantRoot);
+    } catch {
+      // Some Playwright installs ship only one Chromium variant. Keep
+      // packaging the variant that actually backs chromium.launch().
+    }
   }
   return roots;
 }

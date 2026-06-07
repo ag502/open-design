@@ -10914,7 +10914,7 @@ export async function startServer({
   // pipeline never blocks the agent run.
   const executePipelineForRun = async (args) => {
     const { run, snapshot, runs, db: dbHandle } = args;
-    if (!snapshot?.pipeline?.stages?.length) {
+    if (!snapshot?.pipeline) {
       return { outcomes: [], lastSignalsByStage: new Map() };
     }
     const env = { maxIterations: readPluginEnvKnobs().maxDevloopIterations };

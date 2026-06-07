@@ -405,6 +405,53 @@ describe("copyBundledPlaywrightChromium", () => {
     }
   });
 
+  it("copies the headed Chromium tree even when the headless shell tree is absent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-playwright-headed-only-"));
+    const resourceRoot = join(root, "resources", "open-design");
+    const sourceExecutablePath = join(
+      root,
+      "ms-playwright",
+      "chromium-1234",
+      "chrome-linux",
+      "chrome",
+    );
+
+    try {
+      await mkdir(dirname(sourceExecutablePath), { recursive: true });
+      await writeFile(sourceExecutablePath, "#!/bin/sh\nexit 0\n", "utf8");
+      await chmod(sourceExecutablePath, 0o755);
+      await writeFile(
+        join(root, "ms-playwright", "chromium-1234", "chrome-linux", "LICENSE"),
+        "license\n",
+        "utf8",
+      );
+
+      const copied = await copyBundledPlaywrightChromium({
+        workspaceRoot: root,
+        resourceRoot,
+        sourceExecutablePath,
+      });
+
+      expect(copied.sourceRoots).toEqual([
+        join(root, "ms-playwright", "chromium-1234"),
+      ]);
+      expect(copied.targetRoots).toEqual([
+        join(resourceRoot, "ms-playwright", "chromium-1234"),
+      ]);
+      await expect(
+        readFile(
+          join(resourceRoot, "ms-playwright", "chromium-1234", "chrome-linux", "LICENSE"),
+          "utf8",
+        ),
+      ).resolves.toBe("license\n");
+      await expect(
+        access(join(resourceRoot, "ms-playwright", "chromium_headless_shell-1234")),
+      ).rejects.toThrow();
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
   it("copies the daemon-resolved Playwright revision trees into packaged resources", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-playwright-launch-"));
     const resourceRoot = join(root, "resources", "open-design");
