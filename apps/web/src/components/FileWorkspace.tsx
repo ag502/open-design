@@ -232,6 +232,7 @@ interface SketchState {
 export const DESIGN_FILES_TAB = '__design_files__';
 export const DESIGN_SYSTEM_TAB = '__design_system__';
 const QUESTIONS_TAB = '__questions__';
+const GENERATING_TAB = '__generating__';
 const BROWSER_TAB_PREFIX = '__browser__:';
 // Keep at most this many embedded-browser `<webview>`s mounted at once. Each is
 // a full out-of-process Chromium guest (timers, JS, network, a GPU surface), so
@@ -574,6 +575,39 @@ export function FileWorkspace({
     [designSystemProject, messages, streaming, activeTab, visibleFiles, liveArtifacts, artifactHtml, conversationError],
   );
 
+  // True when the Design Files tab has nothing to attach: no files, no live
+  // artifacts, no folders. Mirrors DesignFilesPanel's own empty-state gate so
+  // the "Design files" composer context and the empty placeholder agree on
+  // when the tab is actually empty. Reused below to suppress the auto-attached
+  // workspace context for a brand-new/empty project and to scope the
+  // Generating tab to the first-run (empty) case.
+  const designFilesTabIsEmpty =
+    visibleFiles.length === 0
+    && liveArtifactEntries.length === 0
+    && projectFolders.length === 0;
+
+  // The generation status now lives in its own transient tab (like the
+  // Questions tab) instead of taking over the Design Files content area — so
+  // the user can switch to Design Files while a run is in flight. Scoped to the
+  // empty (first-run) project: a populated project keeps its file browser while
+  // generating, exactly as before — there are already file tabs to watch, and
+  // `buildGenerationPreviewState` defers to an open artifact/file anyway.
+  const showGeneratingTab = Boolean(generationPreview) && designFilesTabIsEmpty;
+  const generatingTabTitle =
+    generationPreview?.phase === 'failed'
+      ? t('generationPreview.failedTitle')
+      : generationPreview?.phase === 'stopped'
+        ? t('generationPreview.stoppedTitle')
+        : generationPreview?.phase === 'awaiting-input'
+          ? t('generationPreview.awaitingTitle')
+          : t('generationPreview.title');
+  const generatingTabIcon: IconName =
+    generationPreview?.phase === 'failed'
+      ? 'close'
+      : generationPreview?.phase === 'stopped'
+        ? 'stop'
+        : 'sparkles';
+
   // Pull the persisted active tab in when the parent's hydration completes
   // (or on project switch). Fall back to the Design Files browser so a
   // fresh project lands in a useful place.
@@ -712,7 +746,12 @@ export function FileWorkspace({
   // back to the last remaining tab. Skip transient activeTab values
   // (DESIGN_FILES_TAB, pending sketches) since those aren't in persistedTabs.
   useEffect(() => {
-    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB || activeTab === QUESTIONS_TAB) return;
+    if (
+      activeTab === DESIGN_FILES_TAB
+      || activeTab === DESIGN_SYSTEM_TAB
+      || activeTab === QUESTIONS_TAB
+      || activeTab === GENERATING_TAB
+    ) return;
     if (isBrowserTabId(activeTab)) {
       if (!browserTabs.some((tab) => tab.id === activeTab)) {
         setActiveTab(DESIGN_FILES_TAB);
@@ -822,6 +861,28 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, showQuestionsTab]);
 
+  // Auto-focus the Generating tab the moment a run surfaces it (rising edge
+  // only). After that the user is free to switch to Design Files — we don't
+  // yank them back, because `showGeneratingTab` stays true without a new
+  // transition while the run continues. The ref starts `false` so a run that
+  // is already active at mount (a fresh project's first turn, or a reattach)
+  // still counts as a rising edge and focuses the tab.
+  const previousShowGeneratingTabRef = useRef(false);
+  useEffect(() => {
+    const justAppeared = !previousShowGeneratingTabRef.current && showGeneratingTab;
+    previousShowGeneratingTabRef.current = showGeneratingTab;
+    if (justAppeared) setActiveTab(GENERATING_TAB);
+  }, [showGeneratingTab]);
+
+  // When the run resolves (the produced file opens, or the status clears) the
+  // transient tab disappears; if it was active, fall back to the default tab.
+  useEffect(() => {
+    if (activeTab === GENERATING_TAB && !showGeneratingTab) {
+      setActiveTab(defaultRootTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, showGeneratingTab]);
+
   function openFile(name: string) {
     setUploadError(null);
     // Read from the ref, not the `persistedTabs` prop closure: this path is
@@ -859,9 +920,9 @@ export function FileWorkspace({
   }
 
   function activateWorkspaceTab(tabId: string) {
-    if (tabId === QUESTIONS_TAB) {
+    if (tabId === QUESTIONS_TAB || tabId === GENERATING_TAB) {
       setUploadError(null);
-      setActiveTab(QUESTIONS_TAB);
+      setActiveTab(tabId);
       return;
     }
     const sketchEntry = sketches[tabId];
@@ -1462,6 +1523,8 @@ export function FileWorkspace({
       };
     }
     if (activeTab === DESIGN_FILES_TAB) {
+      // Nothing to reference yet — don't auto-stage an empty "Design files" chip.
+      if (designFilesTabIsEmpty) return null;
       const trimmedDir = uploadDir.trim();
       const label = trimmedDir.split('/').filter(Boolean).pop() || t('workspace.designFiles');
       return {
@@ -1533,6 +1596,7 @@ export function FileWorkspace({
     activeTab,
     browserTabs,
     conversations,
+    designFilesTabIsEmpty,
     designSystemProject,
     resolvedDir,
     t,
@@ -1566,11 +1630,12 @@ export function FileWorkspace({
     if (designSystemProject) ids.push(DESIGN_SYSTEM_TAB);
     ids.push(DESIGN_FILES_TAB);
     if (showQuestionsTab) ids.push(QUESTIONS_TAB);
+    if (showGeneratingTab) ids.push(GENERATING_TAB);
     for (const entry of orderedWorkspaceTabs) {
       ids.push(entry.kind === 'browser' ? entry.browserTab.id : entry.name);
     }
     return ids;
-  }, [designSystemProject, orderedWorkspaceTabs, showQuestionsTab]);
+  }, [designSystemProject, orderedWorkspaceTabs, showGeneratingTab, showQuestionsTab]);
 
   const workspaceContexts = useMemo<WorkspaceContextItem[]>(() => {
     const out: WorkspaceContextItem[] = [];
@@ -1722,30 +1787,6 @@ export function FileWorkspace({
 
   const isActiveSketch = activeFile?.kind === 'sketch' && isSketchName(activeFile.name);
   const activeSketch = activeFile && isActiveSketch ? sketches[activeFile.name] : null;
-  // The design-files tab is the default landing tab, so while a run is in
-  // flight and no previewable artifact exists yet the progress card must take
-  // over its empty "Creations will appear here" state rather than leave an idle
-  // empty list. (Pre-#3516 the preview branch rendered before the design-files
-  // branch with no tab guard; the composer rewrite added an `activeTab !==
-  // DESIGN_FILES_TAB` clause here that hid the progress card on the default
-  // tab.) But the override is scoped to the *empty* design-files tab: a
-  // populated project keeps its file browser while generating. The condition
-  // mirrors DesignFilesPanel's own empty-state gate exactly (no files, no live
-  // artifacts, no folders), so the card only wins where the panel would have
-  // shown its empty placeholder.
-  const designFilesTabIsEmpty =
-    visibleFiles.length === 0
-    && liveArtifactEntries.length === 0
-    && projectFolders.length === 0;
-  const showGenerationPreview = Boolean(generationPreview)
-    && activeTab !== DESIGN_SYSTEM_TAB
-    && (activeTab !== DESIGN_FILES_TAB || designFilesTabIsEmpty)
-    && !isBrowserTabId(activeTab)
-    && !isSideChatTabId(activeTab)
-    && !isTerminalTabId(activeTab)
-    && !activeLiveArtifact
-    && !activeFile;
-
   // The "+" launcher's create-new actions come from the registry. `openTab`
   // reuses the same tab-state path as opening a file so a new terminal:<id>
   // tab is focused; `createBrowser` opens an embedded browser tab.
@@ -1871,6 +1912,23 @@ export function FileWorkspace({
                 <Icon name="help-circle" size={13} />
               </span>
               <span className="ws-tab-label">{t('questions.tabLabel')}</span>
+            </button>
+          ) : null}
+          {showGeneratingTab ? (
+            <button
+              type="button"
+              className={`ws-tab generating-tab ${activeTab === GENERATING_TAB ? 'active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === GENERATING_TAB}
+              tabIndex={0}
+              data-testid="generating-tab"
+              onClick={() => setActiveTab(GENERATING_TAB)}
+              title={generatingTabTitle}
+            >
+              <span className="tab-icon" aria-hidden>
+                <Icon name={generatingTabIcon} size={13} />
+              </span>
+              <span className="ws-tab-label">{generatingTabTitle}</span>
             </button>
           ) : null}
           {orderedWorkspaceTabs.map((entry) => {
@@ -2105,7 +2163,7 @@ export function FileWorkspace({
             onConnectRepo={onConnectRepo}
             githubConnected={githubConnected}
           />
-        ) : showGenerationPreview && generationPreview ? (
+        ) : activeTab === GENERATING_TAB && generationPreview ? (
           <GenerationPreviewStage
             model={generationPreview}
             onRetry={
