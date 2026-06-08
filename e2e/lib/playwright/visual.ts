@@ -197,6 +197,25 @@ export async function configureVisualPage(page: Page, options: VisualPageOptions
     await fulfillGet(route, { projects });
   });
 
+  await page.route('**/api/projects/*/upload', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      json: {
+        files: [
+          {
+            name: 'visual-reference.txt',
+            originalName: 'visual-reference.txt',
+            path: 'visual-reference.txt',
+            size: 55,
+          },
+        ],
+      },
+    });
+  });
+
   await page.route('**/api/routines', async (route) => {
     await fulfillGet(route, { routines: [] });
   });
@@ -222,6 +241,36 @@ export async function configureVisualPage(page: Page, options: VisualPageOptions
     await route.fulfill({
       contentType: 'text/html',
       body: `<!doctype html><html><body><main><h1>${escapeHtml(id)} preview</h1></main></body></html>`,
+    });
+  });
+
+  await page.route('**/api/plugins/*/apply', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').at(-2) ?? 'plugin');
+    await route.fulfill({
+      json: {
+        ok: true,
+        query: `Design a ${id} concept.`,
+        contextItems: [],
+        inputs: [],
+        assets: [],
+        mcpServers: [],
+        trust: 'trusted',
+        capabilitiesGranted: ['prompt:inject'],
+        capabilitiesRequired: ['prompt:inject'],
+        appliedPlugin: {
+          snapshotId: `visual-snapshot-${id}`,
+          pluginId: id,
+          pluginVersion: '1.0.0',
+          manifestSourceDigest: 'a'.repeat(64),
+          inputs: {},
+          resolvedContext: { items: [] },
+          capabilitiesGranted: ['prompt:inject'],
+        },
+      },
     });
   });
 

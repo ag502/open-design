@@ -16,8 +16,14 @@ const VISUAL_CLI_AGENTS = [
     available: true,
     version: '2.1.31',
     models: [
+      { id: 'default', label: 'Default (CLI config)' },
       { id: 'sonnet-alias', label: 'Sonnet (alias)' },
       { id: 'opus-alias', label: 'Opus (alias)' },
+      { id: 'haiku-alias', label: 'Haiku (alias)' },
+      { id: 'sonnet-nightly', label: 'Sonnet Nightly' },
+      { id: 'opus-nightly', label: 'Opus Nightly' },
+      { id: 'sonnet-4.5', label: 'Sonnet 4.5' },
+      { id: 'opus-4.5', label: 'Opus 4.5' },
     ],
   },
   {
@@ -30,6 +36,9 @@ const VISUAL_CLI_AGENTS = [
       { id: 'default', label: 'Default (CLI config)' },
       { id: 'gpt-5.4', label: 'GPT-5.4' },
       { id: 'gpt-5.4-mini', label: 'GPT-5.4-Mini' },
+      { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3-Codex-Spark' },
+      { id: 'gpt-5.3', label: 'GPT-5.3' },
+      { id: 'gpt-5.2', label: 'GPT-5.2' },
     ],
   },
 ] as const;
@@ -166,6 +175,33 @@ test('[P2] captures the home staged attachment surface', async ({ page }) => {
   await captureVisual(page, 'visual-home-staged-attachment');
 });
 
+test('[P2] captures the home plugin use staged surface', async ({ page }) => {
+  await configureVisualPage(page);
+  await gotoVisualHome(page);
+
+  const home = page.getByTestId('entry-view-home');
+  await home.getByTestId('plugins-home-use-visual-prototype-starter').click({ force: true });
+  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Prototype Starter');
+  await expect(page.getByTestId('home-hero-input')).toBeVisible();
+
+  await captureVisual(page, 'visual-home-plugin-use-staged');
+});
+
+test('[P2] captures the home plugin use with query surface', async ({ page }) => {
+  await configureVisualPage(page);
+  await gotoVisualHome(page);
+
+  const home = page.getByTestId('entry-view-home');
+  const card = home.locator('article.plugins-home__card[data-plugin-id="visual-prototype-starter"]');
+  await card.hover();
+  await home.getByTestId('plugins-home-use-menu-visual-prototype-starter').click({ force: true });
+  await home.getByTestId('plugins-home-use-with-query-visual-prototype-starter').click();
+  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Prototype Starter');
+  await expect(page.getByTestId('home-hero-input')).toContainText('Design a {{topic}} prototype.');
+
+  await captureVisual(page, 'visual-home-plugin-use-with-query');
+});
+
 test('[P2] captures the new project modal surface', async ({ page }) => {
   await configureVisualPage(page);
   await gotoVisualHome(page);
@@ -225,6 +261,21 @@ test('[P2] captures the design systems page surface', async ({ page }) => {
   await captureVisual(page, 'visual-design-systems');
 });
 
+test('[P2] captures the design system detail preview surface', async ({ page }) => {
+  await configureVisualPage(page);
+  await gotoVisualHome(page);
+
+  await ensureRailOpen(page);
+  await page.getByTestId('entry-nav-design-systems').click();
+  await page.getByRole('tab', { name: 'Official presets' }).click();
+  await page.getByTestId('design-system-preview-agentic').click();
+  await expect(page.getByRole('dialog', { name: /Agentic/i })).toBeVisible();
+  await expect(page.locator('.ds-modal-stage-iframe-scaler iframe')).toBeVisible();
+  await waitForVisualFonts(page);
+
+  await captureVisual(page, 'visual-design-system-detail');
+});
+
 test('[P2] captures the plugins page surface', async ({ page }) => {
   await configureVisualPage(page);
   await gotoVisualHome(page);
@@ -269,6 +320,20 @@ test('[P2] captures the integrations use everywhere surface', async ({ page }) =
   await captureVisual(page, 'visual-integrations-use-everywhere');
 });
 
+test('[P2] captures the integrations MCP surface', async ({ page }) => {
+  await configureVisualPage(page);
+  await gotoVisualHome(page);
+
+  await ensureRailOpen(page);
+  await page.getByTestId('entry-nav-integrations').click();
+  await page.getByTestId('integrations-tab-mcp').click();
+  await expect(page.getByTestId('integrations-tab-mcp')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText(/MCP/i).first()).toBeVisible();
+  await waitForVisualFonts(page);
+
+  await captureVisual(page, 'visual-integrations-mcp');
+});
+
 test('[P2] captures the tasks page surface', async ({ page }) => {
   await configureVisualPage(page);
   await gotoVisualHome(page);
@@ -295,6 +360,17 @@ test('[P2] captures the project workspace surface', async ({ page }) => {
   await captureVisual(page, 'visual-project-workspace');
 });
 
+test('[P2] captures the workspace staged contexts surface', async ({ page }) => {
+  await configureVisualPage(page);
+  await gotoVisualHome(page);
+  await gotoVisualWorkspace(page);
+
+  await expect(page.getByTestId('staged-contexts')).toContainText('Design Files');
+  await waitForVisualFonts(page);
+
+  await captureVisual(page, 'visual-workspace-staged-contexts');
+});
+
 test('[P2] captures the topbar execution switcher surface', async ({ page }) => {
   await configureVisualPage(page);
   await gotoVisualHome(page);
@@ -304,6 +380,25 @@ test('[P2] captures the topbar execution switcher surface', async ({ page }) => 
   await expect(page.getByTestId('inline-model-switcher-mode-daemon')).toBeVisible();
 
   await captureVisual(page, 'visual-topbar-execution-switcher');
+});
+
+test('[P2] captures the topbar local CLI model dropdown surface', async ({ page }) => {
+  await configureVisualPage(page, {
+    agents: VISUAL_CLI_AGENTS,
+    config: {
+      agentId: 'claude',
+      agentModels: { claude: { model: 'default', reasoning: 'default' } },
+    },
+  });
+  await gotoVisualHome(page);
+
+  await page.getByTestId('inline-model-switcher-chip').click();
+  await expect(page.getByTestId('inline-model-switcher-popover')).toBeVisible();
+  await page.getByTestId('inline-model-switcher-agent-model').click();
+  await expect(page.getByTestId('inline-model-switcher-agent-model-popover')).toBeVisible();
+  await expect(page.getByTestId('inline-model-switcher-agent-model-search')).toBeVisible();
+
+  await captureVisual(page, 'visual-topbar-local-cli-model-dropdown');
 });
 
 test('[P2] captures the topbar BYOK execution switcher surface', async ({ page }) => {
@@ -324,6 +419,27 @@ test('[P2] captures the topbar BYOK execution switcher surface', async ({ page }
   await expect(page.getByTestId('inline-model-switcher-mode-api')).toHaveAttribute('aria-selected', 'true');
 
   await captureVisual(page, 'visual-topbar-byok-switcher');
+});
+
+test('[P2] captures the topbar BYOK model dropdown surface', async ({ page }) => {
+  await configureVisualPage(page, {
+    config: {
+      mode: 'api',
+      apiKey: 'sk-visual',
+      apiProtocol: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      agentId: null,
+    },
+  });
+  await gotoVisualHome(page);
+
+  await page.getByTestId('inline-model-switcher-chip').click();
+  await expect(page.getByTestId('inline-model-switcher-popover')).toBeVisible();
+  await page.getByTestId('inline-model-switcher-api-model').click();
+  await expect(page.getByTestId('inline-model-switcher-api-model-popover')).toBeVisible();
+
+  await captureVisual(page, 'visual-topbar-byok-model-dropdown');
 });
 
 test('[P2] captures the avatar menu surface', async ({ page }) => {
@@ -357,6 +473,27 @@ test('[P2] captures the avatar local agent list surface', async ({ page }) => {
   await captureVisual(page, 'visual-avatar-local-agent-list');
 });
 
+test('[P2] captures the avatar local agent model dropdown surface', async ({ page }) => {
+  await configureVisualPage(page, {
+    agents: VISUAL_CLI_AGENTS,
+    config: {
+      agentId: 'claude',
+      agentModels: { claude: { model: 'default', reasoning: 'default' } },
+    },
+  });
+  await gotoVisualHome(page);
+  await gotoVisualWorkspace(page);
+
+  const menu = await openAvatarMenu(page);
+  const modelSelect = menu.locator('.avatar-model-section [role="combobox"]').first();
+  await expect(modelSelect).toBeVisible();
+  await modelSelect.click();
+  await expect(page.getByTestId('avatar-model-popover')).toBeVisible();
+  await expect(page.getByTestId('avatar-model-search')).toBeVisible();
+
+  await captureVisual(page, 'visual-project-avatar-model-dropdown');
+});
+
 test('[P2] captures the settings execution surface', async ({ page }) => {
   await configureVisualPage(page);
   await gotoVisualHome(page);
@@ -387,6 +524,30 @@ test('[P2] captures the settings local CLI surface', async ({ page }) => {
   await waitForVisualFonts(page);
 
   await captureVisual(page, 'visual-settings-local-cli');
+});
+
+test('[P2] captures the settings local CLI model dropdown surface', async ({ page }) => {
+  await configureVisualPage(page, {
+    agents: VISUAL_CLI_AGENTS,
+    config: {
+      agentId: 'codex',
+      agentModels: { codex: { model: 'default', reasoning: 'default' } },
+    },
+  });
+  await gotoVisualHome(page);
+  await gotoVisualWorkspace(page);
+
+  const dialog = await openSettingsDetailsFromHeader(page);
+  await dialog.getByRole('tab', { name: /Local CLI/i }).click();
+  await dialog.getByTestId('settings-agent-select-codex').click();
+  const modelSelect = dialog.locator('.agent-card.active [role="combobox"]').first();
+  await expect(modelSelect).toBeVisible();
+  await modelSelect.click();
+  await expect(page.getByTestId('settings-agent-model-popover-codex')).toBeVisible();
+  await expect(page.getByTestId('settings-agent-model-search-codex')).toBeVisible();
+  await waitForVisualFonts(page);
+
+  await captureVisual(page, 'visual-settings-local-cli-model-dropdown');
 });
 
 test('[P2] captures the settings BYOK surface', async ({ page }) => {
@@ -424,6 +585,32 @@ test('[P2] captures the settings BYOK OpenAI surface', async ({ page }) => {
   await waitForVisualFonts(page);
 
   await captureVisual(page, 'visual-settings-byok-openai');
+});
+
+test('[P2] captures the settings BYOK model dropdown surface', async ({ page }) => {
+  await configureVisualPage(page, {
+    config: {
+      mode: 'api',
+      apiKey: 'sk-visual',
+      apiProtocol: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      agentId: null,
+    },
+  });
+  await gotoVisualHome(page);
+  await gotoVisualWorkspace(page);
+
+  const dialog = await openSettingsDetailsFromHeader(page);
+  await dialog.getByRole('tab', { name: 'BYOK' }).click();
+  await dialog.getByRole('tab', { name: 'OpenAI', exact: true }).click();
+  const modelSelect = dialog.getByRole('combobox', { name: 'Model', exact: true });
+  await expect(modelSelect).toBeVisible();
+  await modelSelect.click();
+  await expect(page.getByTestId('settings-byok-model-popover')).toBeVisible();
+  await waitForVisualFonts(page);
+
+  await captureVisual(page, 'visual-settings-byok-model-dropdown');
 });
 
 async function openAvatarMenu(page: Parameters<typeof configureVisualPage>[0]) {
