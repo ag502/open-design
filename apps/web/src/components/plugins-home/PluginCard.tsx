@@ -114,11 +114,21 @@ export function PluginCard({
         aria-label={title}
         onClick={() => onOpenDetails(record)}
         onKeyDown={(event) => {
+          // Only act on keys aimed at the card itself. Without this guard,
+          // Enter/Space pressed on the nested ↗ external-link anchor bubbles
+          // here, gets preventDefault()'d, and opens the detail modal instead
+          // of the anchor's own page — blocking keyboard users from the
+          // open-in-new-tab control.
+          if (event.currentTarget !== event.target) return;
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             onOpenDetails(record);
           }
         }}
+        // Equivalent test hook to the rich card's "Details" button: the
+        // whole gallery tile opens the detail modal, so e2e/visual flows
+        // that click `plugins-home-details-<id>` keep working.
+        data-testid={`plugins-home-details-${record.id}`}
       >
         <div className="plugins-home__gallery-bar">
           <span className="plugins-home__gallery-dot" aria-hidden />
