@@ -71,6 +71,7 @@ export interface TraceArtifactObjectSource {
 interface ObjectRelayConfig {
   url: string;
   authorizeUrl: string;
+  uploadsEnabled: boolean;
   timeoutMs: number;
   objectMaxBytes: number;
   objectBatchMaxBytes: number;
@@ -168,6 +169,7 @@ function readRelayConfig(env: NodeJS.ProcessEnv): ObjectRelayConfig | null {
   return {
     url,
     authorizeUrl: inferAuthorizeUrl(url),
+    uploadsEnabled: env.NODE_ENV === 'test',
     timeoutMs: parsePositiveInt(
       env.OPEN_DESIGN_OBJECT_RELAY_TIMEOUT_MS ?? env.OPEN_DESIGN_TELEMETRY_TIMEOUT_MS,
       10_000,
@@ -637,6 +639,15 @@ export async function buildTraceObjectManifests(
   if (sources.length === 0) return undefined;
 
   const manifests = sources.map((source) => manifestBase(source, opts, now));
+
+  if (!config.uploadsEnabled) {
+    return groupManifests(
+      manifests.map((entry) => ({
+        ...entry,
+        reason: entry.reason ?? 'object_upload_authority_unavailable',
+      })),
+    );
+  }
 
   const relayResults = await postObjectBatch(config, opts, manifests, sources);
   const resultByRef = new Map(relayResults.map((result) => [result.storage_ref, result]));

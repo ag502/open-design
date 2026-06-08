@@ -21,6 +21,8 @@ Object ingest accepts a short-lived upload token signed by Worker-held
 authority. Public metadata-only authorization is disabled until the Worker can
 verify a trusted telemetry authority for the requested objects. The long-lived
 signing secret stays in the Worker and is never packaged into the daemon/client.
+Until that trusted authority exists, production daemon telemetry emits trace-safe
+object manifests only and does not attempt object authorization or upload.
 
 Local development can bypass the relay by setting direct `LANGFUSE_PUBLIC_KEY`
 and `LANGFUSE_SECRET_KEY` environment variables for the daemon. Packaged

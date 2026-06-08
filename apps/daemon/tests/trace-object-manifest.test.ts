@@ -235,38 +235,12 @@ describe('buildTraceObjectManifests', () => {
     expect(manifests?.artifactManifest).toHaveLength(101);
   });
 
-  it('uses worker-issued upload authority in production-like configuration', async () => {
+  it('keeps production relay configuration manifest-only without calling worker authorization', async () => {
     const projectsRoot = path.join(dataDir, 'projects');
     const projectDir = path.join(projectsRoot, 'proj-1');
     await mkdir(projectDir, { recursive: true });
     await writeFile(path.join(projectDir, 'artifact.txt'), 'release artifact');
-    const fetchSpy = vi.fn(async (url: string, init: RequestInit) => {
-      const parsed = JSON.parse(init.body as string) as {
-        upload_token?: string;
-        objects: Array<{ storage_ref: string; content_base64?: string }>;
-      };
-      if (url.includes('/api/objects/authorize')) {
-        expect(parsed.objects).toHaveLength(1);
-        expect(parsed.objects[0]).toMatchObject({
-          storage_ref: expect.stringContaining('/artifact/'),
-          object_class: 'artifact',
-          size_bytes: 'release artifact'.length,
-        });
-        expect(parsed.objects[0]).toHaveProperty('sha256');
-        return new Response(JSON.stringify({ upload_token: 'upload-token' }), { status: 200 });
-      }
-      expect(parsed.upload_token).toBe('upload-token');
-      return new Response(
-        JSON.stringify({
-          objects: parsed.objects.map((object) => ({
-            storage_ref: object.storage_ref,
-            status: 'available',
-            size_bytes: Buffer.from(object.content_base64!, 'base64').byteLength,
-          })),
-        }),
-        { status: 200 },
-      );
-    });
+    const fetchSpy = vi.fn();
 
     const manifests = await buildTraceObjectManifests({
       installationId: 'install-1',
@@ -286,9 +260,15 @@ describe('buildTraceObjectManifests', () => {
       now: () => new Date('2026-06-08T00:00:00.000Z'),
     });
 
-    expect(manifests?.completeness).toBe('complete');
+    expect(manifests?.completeness).toBe('partial');
     expect(projectFileReadTracker.calls).toBe(1);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(manifests?.artifactManifest?.[0]).toMatchObject({
+      status: 'unavailable',
+      stored_in_open_design: false,
+      reason: 'object_upload_authority_unavailable',
+      size_bytes: 'release artifact'.length,
+    });
   });
 
   it('skips over-limit project files before loading their contents', async () => {
