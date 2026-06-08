@@ -119,9 +119,8 @@ jobs:
           CI regenerated a patch for `nix/pnpm-deps.nix` and uploaded it as the
           `nix-hash-refresh` artifact for this run.
 
-          - same-repo PRs: the follow-up `nix-hash-autofix` workflow will try to
-            push the hash-only patch back to the PR branch automatically;
-          - fork PRs: a PR comment will include the patch and artifact guidance.
+          Apply the patch from the artifact to refresh the generated Nix pnpm
+          dependency hash, then rerun this workflow.
           EOF
               ;;
             no-change)
