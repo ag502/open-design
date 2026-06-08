@@ -282,6 +282,38 @@ describe('telemetry worker', () => {
     expect(put).not.toHaveBeenCalled();
   });
 
+  it('rate limits unsigned object batches by IP before reading the body', async () => {
+    const put = vi.fn(async () => ({}));
+    const limiter = makeRateLimiter(false);
+    const unreadableBody = new ReadableStream({
+      pull(controller) {
+        controller.error(new Error('object body should not be read'));
+      },
+    });
+    const response = await worker.fetch(
+      new Request('https://telemetry.open-design.ai/api/objects/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '203.0.113.10',
+          'X-Open-Design-Telemetry': 'object-ingestion-v1',
+        },
+        body: unreadableBody,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' }),
+      {
+        ...env,
+        TELEMETRY_IP_RATE_LIMITER: limiter,
+        TRACE_OBJECT_BUCKET: { put },
+        TRACE_OBJECT_UPLOAD_SECRET: objectUploadSecret,
+      },
+    );
+
+    expect(response.status).toBe(429);
+    expect(limiter.limit).toHaveBeenCalledWith({ key: 'ip:203.0.113.10' });
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('rejects signed-looking object batches when server upload authority is absent', async () => {
     const put = vi.fn(async () => ({}));
     const response = await worker.fetch(

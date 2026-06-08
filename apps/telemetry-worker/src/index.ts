@@ -146,8 +146,7 @@ function findObjectClientId(value: unknown): string | null {
     : null;
 }
 
-async function enforceRateLimits(
-  request: Request,
+async function enforceClientRateLimit(
   env: Env,
   parsedBody: unknown,
   findClientId: (value: unknown) => string | null = findTraceUserId,
@@ -160,6 +159,10 @@ async function enforceRateLimits(
     if (!success) return jsonResponse(429, { error: 'rate limit exceeded' });
   }
 
+  return null;
+}
+
+async function enforceIpRateLimit(request: Request, env: Env): Promise<Response | null> {
   const ip = request.headers.get('CF-Connecting-IP')?.trim();
   if (ip && env.TELEMETRY_IP_RATE_LIMITER) {
     const { success } = await env.TELEMETRY_IP_RATE_LIMITER.limit({
@@ -169,6 +172,17 @@ async function enforceRateLimits(
   }
 
   return null;
+}
+
+async function enforceRateLimits(
+  request: Request,
+  env: Env,
+  parsedBody: unknown,
+  findClientId: (value: unknown) => string | null = findTraceUserId,
+): Promise<Response | null> {
+  return (
+    await enforceClientRateLimit(env, parsedBody, findClientId)
+  ) ?? enforceIpRateLimit(request, env);
 }
 
 async function readBoundedBody(request: Request): Promise<string | Response> {
@@ -359,6 +373,9 @@ async function handleObjectBatchRequest(request: Request, env: Env): Promise<Res
     return jsonResponse(415, { error: 'content-type must be application/json' });
   }
 
+  const ipRateLimitResponse = await enforceIpRateLimit(request, env);
+  if (ipRateLimitResponse) return ipRateLimitResponse;
+
   const batchMaxBytes = parsePositiveInt(
     env.TRACE_OBJECT_BATCH_MAX_BYTES,
     DEFAULT_OBJECT_BATCH_MAX_BYTES,
@@ -381,8 +398,7 @@ async function handleObjectBatchRequest(request: Request, env: Env): Promise<Res
     return jsonResponse(400, { error: validationError });
   }
 
-  const rateLimitResponse = await enforceRateLimits(
-    request,
+  const rateLimitResponse = await enforceClientRateLimit(
     env,
     parsed,
     findObjectClientId,
