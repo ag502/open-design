@@ -634,6 +634,59 @@ describe('buildTracePayload', () => {
     expect(trace.metadata.artifact_manifest_truncated).toBe(true);
   });
 
+  it('caps attachment manifests and prompt-build refs at 50 entries', () => {
+    const many = Array.from({ length: 75 }, (_, i) => ({
+      attachment_id: `att-${i}`,
+      object_class: 'attachment' as const,
+      storage_ref: `od://objects/workspaces/unknown/projects/proj-1/runs/run-1/attachment/att-${i}`,
+      status: 'ok' as const,
+      project_id: 'proj-1',
+      run_id: 'run-1',
+      workspace_id: null,
+      size_bytes: i + 1,
+      sha256: `sha256:att-${i}`,
+      mime_type: 'application/pdf',
+      extension: 'pdf',
+      redacted: false,
+      truncated: false,
+      stored_in_open_design: true,
+      retention_policy: 'project_lifetime' as const,
+      access_scope: 'project' as const,
+      sensitivity: 'private' as const,
+      source: 'user_upload' as const,
+      expires_at: null,
+      approved_by: null,
+    }));
+    const batch = buildTracePayload(
+      makeCtx({
+        attachmentManifest: many,
+        manifestCompleteness: 'complete',
+        prefs: { metrics: true, content: false, artifactManifest: true },
+        run: {
+          runId: 'run-1',
+          status: 'succeeded',
+          startedAt: 1_700_000_000_000,
+          endedAt: 1_700_000_004_500,
+          timingMarks: {
+            promptBuildStartAt: 1_700_000_000_100,
+            promptBuildEndAt: 1_700_000_000_200,
+          },
+        },
+      }),
+    );
+    const trace = (batch[0] as any).body;
+    const promptBuild = bodyOf(batch, 'span-create', 'prompt-build');
+
+    expect(trace.metadata.attachment_manifest).toHaveLength(50);
+    expect(trace.metadata.attachment_manifest_truncated).toBe(true);
+    expect(promptBuild.input.ingredients.attachment_refs).toHaveLength(50);
+    expect(promptBuild.input.ingredients.attachment_refs_truncated).toBe(true);
+    expect(promptBuild.input.ingredients.attachment_refs.at(-1)).toMatchObject({
+      attachment_id: 'att-49',
+      sha256: 'sha256:att-49',
+    });
+  });
+
   it('keeps eventsSummary metadata regardless of content / artifact gates', () => {
     const batch = buildTracePayload(makeCtx());
     const trace = (batch[0] as any).body;

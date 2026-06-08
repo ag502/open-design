@@ -504,6 +504,14 @@ function objectRefSummary(
   }));
 }
 
+function cappedManifestEntries<T>(entries: T[] | undefined): T[] | undefined {
+  return entries ? entries.slice(0, ARTIFACTS_MAX_ITEMS) : undefined;
+}
+
+function manifestTruncated(entries: unknown[] | undefined): true | undefined {
+  return entries && entries.length > ARTIFACTS_MAX_ITEMS ? true : undefined;
+}
+
 function tokenUsageSummary(
   usage: MessageSummary['usage'],
 ): Record<string, unknown> | undefined {
@@ -815,7 +823,9 @@ function buildTimingSpanBodies(
           skill_id: ctx.turn?.skillId ?? null,
           design_system_id: ctx.turn?.designSystemId ?? null,
           user_request_available: Boolean(ctx.message.prompt),
-          attachment_refs: objectRefSummary(ctx.attachmentManifest) ?? [],
+          attachment_refs:
+            objectRefSummary(cappedManifestEntries(ctx.attachmentManifest)) ?? [],
+          attachment_refs_truncated: manifestTruncated(ctx.attachmentManifest),
         },
       },
       output: {
@@ -1012,17 +1022,17 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
       ? true
       : undefined;
   const attachmentManifest = wantsArtifacts
-    ? ctx.attachmentManifest
+    ? cappedManifestEntries(ctx.attachmentManifest)
+    : undefined;
+  const attachmentManifestTruncated = wantsArtifacts
+    ? manifestTruncated(ctx.attachmentManifest)
     : undefined;
   const artifactManifest = wantsArtifacts
-    ? ctx.artifactManifest?.slice(0, ARTIFACTS_MAX_ITEMS)
+    ? cappedManifestEntries(ctx.artifactManifest)
     : undefined;
-  const artifactManifestTruncated =
-    wantsArtifacts
-      && Array.isArray(ctx.artifactManifest)
-      && ctx.artifactManifest.length > ARTIFACTS_MAX_ITEMS
-      ? true
-      : undefined;
+  const artifactManifestTruncated = wantsArtifacts
+    ? manifestTruncated(ctx.artifactManifest)
+    : undefined;
 
   const tokens = ctx.message.usage
     ? {
@@ -1099,6 +1109,7 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
     artifacts: artifactsList,
     artifactsTruncated,
     attachment_manifest: attachmentManifest,
+    attachment_manifest_truncated: attachmentManifestTruncated,
     artifact_manifest: artifactManifest,
     artifact_manifest_truncated: artifactManifestTruncated,
     manifest_completeness: wantsArtifacts

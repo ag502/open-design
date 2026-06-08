@@ -232,7 +232,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
       await reportRunCompletedFromDaemon({
         db: makeDbWithListMessages({ 'conv-1': messages }),
         dataDir,
-        run: makeRun() as any,
+        run: makeRun({ agentId: 'qoder' }) as any,
         fetchImpl: fetchSpy as any,
       });
     } finally {
@@ -273,6 +273,10 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(write.parentObservationId).toBe('run-id-1-agent');
     expect(write.metadata.toolName).toBe('Write');
     expect(usage.parentObservationId).toBe('run-id-1-agent');
+    expect(usage.input).toEqual({
+      source: 'qoder',
+      event_type: 'usage',
+    });
     expect(usage.output.usage).toEqual({ input_tokens: 100, output_tokens: 200 });
     expect(artifacts.parentObservationId).toBe('run-id-1-agent');
     expect(artifacts.input).toEqual({
@@ -362,7 +366,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     // useful telemetry but varies between dev / CI environments — assert
     // its presence by prefix rather than pinning a value.
     expect(trace.tags).toEqual(
-      expect.arrayContaining(['open-design', 'project:proj-1', 'agent:claude']),
+      expect.arrayContaining(['open-design', 'project:proj-1', 'agent:qoder']),
     );
     expect((trace.tags as string[]).some((t) => t.startsWith('os:'))).toBe(true);
     expect(trace.metadata.eventsSummary.toolCalls).toBe(2);

@@ -331,11 +331,20 @@ function collectAgentEvents(
   events: DaemonRunRecord['events'],
   runStartedAt: number,
   runEndedAt: number,
+  agentId: string | null | undefined,
 ): AgentEventSummary[] {
   const out: AgentEventSummary[] = [];
   const statusCounts = new Map<string, number>();
   let thinkingCount = 0;
   let usageCount = 0;
+  const source =
+    typeof agentId === 'string' && agentId.trim().length > 0
+      ? agentId.trim()
+      : undefined;
+  const eventInput = (eventType: string): Record<string, unknown> => ({
+    ...(source ? { source } : {}),
+    event_type: eventType,
+  });
   for (const rec of events) {
     if (rec.event !== 'agent') continue;
     const data = rec.data as
@@ -368,10 +377,7 @@ function collectAgentEvents(
         id: `status-${label}-${index}`,
         name: `agent-status:${label}`,
         timestamp,
-        input: {
-          source: 'claude-code-stream',
-          event_type: 'status',
-        },
+        input: eventInput('status'),
         output: {
           label,
           ...(typeof data.model === 'string' ? { model: data.model } : {}),
@@ -385,10 +391,7 @@ function collectAgentEvents(
         id: `thinking-start-${index}`,
         name: 'agent-thinking-start',
         timestamp,
-        input: {
-          source: 'claude-code-stream',
-          event_type: 'thinking_start',
-        },
+        input: eventInput('thinking_start'),
         output: {
           status: 'started',
         },
@@ -401,10 +404,7 @@ function collectAgentEvents(
         id: `usage-${index}`,
         name: 'agent-usage',
         timestamp,
-        input: {
-          source: 'claude-code-stream',
-          event_type: 'usage',
-        },
+        input: eventInput('usage'),
         output: {
           usage: data.usage,
           ...(typeof data.costUsd === 'number' ? { cost_usd: data.costUsd } : {}),
@@ -829,7 +829,7 @@ export async function reportRunCompletedFromDaemon(
       artifactManifest: manifests.artifactManifest,
       manifestCompleteness: manifests.completeness,
       tools: collectToolCalls(run.events, startedAt, endedAt),
-      agentEvents: collectAgentEvents(run.events, startedAt, endedAt),
+      agentEvents: collectAgentEvents(run.events, startedAt, endedAt, run.agentId),
       eventsSummary: summarizeEvents(run.events, durationMs),
       prefs,
       ...(turn ? { turn } : {}),
