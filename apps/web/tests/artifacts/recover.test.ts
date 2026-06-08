@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { recoverHtmlArtifactFromPrecedingDocument } from '../../src/artifacts/recover';
+import { recoverHtmlArtifactFromPrecedingDocument, recoverStandaloneHtmlDocument } from '../../src/artifacts/recover';
 
 const completeHtml = '<!doctype html><html><head><title>Demo</title></head><body><main><h1>Recovered artifact</h1></main></body></html>';
 
@@ -58,5 +58,27 @@ describe('recoverHtmlArtifactFromPrecedingDocument', () => {
       identifier: 'demo',
       sourceText,
     })).toBe(html);
+  });
+});
+
+describe('recoverStandaloneHtmlDocument', () => {
+  it('recovers a response that is itself a complete HTML document', () => {
+    expect(recoverStandaloneHtmlDocument(`\n${completeHtml}\n`)).toBe(completeHtml);
+  });
+
+  it('does not recover HTML embedded in prose', () => {
+    expect(recoverStandaloneHtmlDocument(`Here is the page:\n${completeHtml}`)).toBeNull();
+  });
+
+  it('does not recover a document followed by trailing prose', () => {
+    expect(recoverStandaloneHtmlDocument(`${completeHtml}\nI also updated the layout.`)).toBeNull();
+  });
+
+  it('does not recover partial snippets', () => {
+    expect(recoverStandaloneHtmlDocument('<main><h1>Snippet</h1></main>')).toBeNull();
+  });
+
+  it('does not recover document-shaped output missing a closing html tag', () => {
+    expect(recoverStandaloneHtmlDocument('<!doctype html><html><body><main><h1>Missing close</h1></main></body>')).toBeNull();
   });
 });

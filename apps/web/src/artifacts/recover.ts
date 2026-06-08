@@ -66,3 +66,9 @@ export function recoverHtmlArtifactFromPrecedingDocument({
   const candidate = beforeArtifact.slice(htmlStart, htmlClose + closeMatch[0].length).trim();
   return validateHtmlArtifact(candidate).ok ? candidate : null;
 }
+
+export function recoverStandaloneHtmlDocument(sourceText: string | null | undefined): string | null {
+  const candidate = String(sourceText || '').replace(/^﻿/, '').trim();
+  if (!/<\/html\s*>$/i.test(candidate)) return null;
+  return validateHtmlArtifact(candidate).ok ? candidate : null;
+}
