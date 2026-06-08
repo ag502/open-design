@@ -42,6 +42,12 @@ function artifactPreviewFrame(page: Page) {
   return page.frameLocator(ACTIVE_ARTIFACT_PREVIEW_SELECTOR);
 }
 
+function stagedAttachmentName(page: Page, name: string): Locator {
+  return page
+    .locator('[data-testid="staged-attachments"], [data-testid="staged-contexts"]')
+    .getByText(name, { exact: true });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((key) => {
     window.localStorage.setItem(
@@ -1577,8 +1583,7 @@ async function runFileMentionFlow(
   await expect(page.getByTestId('mention-popover')).toBeVisible();
   await page.getByTestId('mention-popover').getByRole('button', { name: /reference\.txt/i }).click();
   await expect(page.getByTestId('chat-composer-input')).toHaveText('Review @reference.txt ');
-  await expect(page.getByTestId('staged-attachments')).toBeVisible();
-  await expect(page.getByTestId('staged-attachments').getByText('reference.txt', { exact: true })).toBeVisible();
+  await expect(stagedAttachmentName(page, 'reference.txt')).toBeVisible();
   await expect(page.getByTestId('chat-send')).toBeEnabled();
 
   const runRequestPromise = page.waitForRequest(isCreateRunRequest);
@@ -1636,10 +1641,7 @@ async function runFileUploadSendFlow(
   });
   await expect((await uploadResponse).ok()).toBeTruthy();
 
-  await expect(page.getByTestId('staged-attachments')).toBeVisible();
-  await expect(
-    page.getByTestId('staged-attachments').getByText('reference.txt', { exact: true }),
-  ).toBeVisible();
+  await expect(stagedAttachmentName(page, 'reference.txt')).toBeVisible();
   await expect(page.getByText('reference.txt', { exact: true })).toBeVisible();
 
   await sendPrompt(page, entry.prompt);
