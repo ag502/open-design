@@ -2704,6 +2704,7 @@ export function ProjectView({
             },
             onError: (err) => {
               const errorCode = (err as Error & { code?: string }).code;
+              const resumable = (err as Error & { resumable?: boolean }).resumable === true;
               textBuffer.flush();
               textBuffer.cancel();
               unregisterTextBuffer();
@@ -2715,6 +2716,7 @@ export function ProjectView({
                   ...prev,
                   runStatus: 'failed',
                   endedAt: prev.endedAt ?? Date.now(),
+                  resumable,
                 }),
                 true,
               );
@@ -3403,6 +3405,7 @@ export function ProjectView({
         onError: (err: Error) => {
           const endedAt = Date.now();
           const errorCode = (err as Error & { code?: string }).code;
+          const resumable = (err as Error & { resumable?: boolean }).resumable === true;
           textBuffer.flush();
           textBuffer.cancel();
           cancelSendTextBuffer();
@@ -3414,6 +3417,7 @@ export function ProjectView({
             runStatus: config.mode === 'api' || prev.runId || isActiveRunStatus(prev.runStatus)
               ? 'failed'
               : prev.runStatus,
+            resumable,
           }));
           if (runCommentAttachments.length > 0) {
             void patchAttachedStatuses(runCommentAttachments, 'failed');
