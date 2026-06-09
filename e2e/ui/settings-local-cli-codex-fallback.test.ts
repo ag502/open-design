@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
+import { openSettingsDialog } from '../lib/playwright/amr.js';
 
 const STORAGE_KEY = 'open-design:config';
 const LOCALE_KEY = 'open-design:locale';
 const OPEN_SETTINGS_LABEL = /Open settings|打开设置|開啟設定|Account & settings/i;
-const SETTINGS_MENU_LABEL = /Settings|设置|設定/i;
 const LOCAL_CLI_LABEL = /Local CLI|本机 CLI|本地 CLI/i;
 
 test.describe.configure({ timeout: 30_000 });
@@ -155,21 +155,7 @@ async function openLocalCliSettings(
   });
 
   await gotoEntryHome(page);
-  await page.getByRole('button', { name: OPEN_SETTINGS_LABEL }).first().click();
-  const dialog = page.locator('.modal-settings[role="dialog"]');
-  const menu = page.getByRole('menu');
-  await expect
-    .poll(async () => {
-      if (await dialog.isVisible().catch(() => false)) return 'dialog';
-      if (await menu.isVisible().catch(() => false)) return 'menu';
-      return 'pending';
-    })
-    .not.toBe('pending');
-  if (await menu.isVisible().catch(() => false)) {
-    await menu.getByRole('menuitem', { name: SETTINGS_MENU_LABEL }).click();
-  }
-
-  await expect(dialog).toBeVisible();
+  const dialog = await openSettingsDialog(page);
   await dialog.getByRole('tab', { name: LOCAL_CLI_LABEL }).click();
   const codexCard = dialog
     .locator('[data-testid="settings-agent-select-codex"], .agent-card-select', {
