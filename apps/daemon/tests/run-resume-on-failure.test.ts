@@ -141,6 +141,36 @@ describe('resume-on-failure runtime', () => {
       expect(args).not.toContain('--resume');
     }
   });
+
+  it('does not flag a text-only drop with no committed block as resumable', async () => {
+    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-resume-textonly-bin-'));
+    const { bin: fakeClaude } = await writeTextOnlyUpstreamClaude(binDir, 'claude-textonly');
+
+    delete process.env.POSTHOG_KEY;
+    delete process.env.POSTHOG_HOST;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_BASE_URL;
+    delete process.env.OPEN_DESIGN_TELEMETRY_RELAY_URL;
+
+    started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    await putConfig(started.url, {
+      agentId: 'claude',
+      agentCliEnv: { claude: { CLAUDE_BIN: fakeClaude } },
+      telemetry: { metrics: true, content: false, artifactManifest: false },
+      privacyDecisionAt: Date.now(),
+    });
+
+    const conversationId = await createConversation(started.url);
+
+    // Streamed text (so the side-effect gate suppresses the blind retry) but NO
+    // committed tool_use / artifact block. A few tokens reaching the UI is not a
+    // resume boundary — there may be nothing committed to continue — so the run
+    // must NOT be resumable even though it produced "output".
+    const failed = await sendRunAndWait(started.url, conversationId);
+    expect(failed.status).toBe('failed');
+    expect(failed.resumable).not.toBe(true);
+  });
 });
 
 function snapshotEnv(): Record<string, string | undefined> {
@@ -161,9 +191,10 @@ function restoreEnv(env: Record<string, string | undefined>): void {
   }
 }
 
-// Fake Claude CLI: first invocation emits a text block then dies with an
-// upstream 503 (resumable + output-seen); every later invocation succeeds.
-// Records argv per invocation so the test can assert --session-id / --resume.
+// Fake Claude CLI: first invocation commits a tool_use block (a real resume
+// boundary) then dies with an upstream 503 (resumable); every later invocation
+// succeeds. Records argv per invocation so the test can assert
+// --session-id / --resume.
 async function writeResumableClaude(
   dir: string,
   name: string,
@@ -188,18 +219,27 @@ try { attempts = Number(fs.readFileSync(counterPath, 'utf8')) || 0; } catch {}
 fs.writeFileSync(counterPath, String(attempts + 1));
 fs.appendFileSync(argsLogPath, JSON.stringify(process.argv.slice(2)) + '\\n');
 console.log(JSON.stringify({ type: 'system', subtype: 'init', model: 'claude-resume-test' }));
-console.log(JSON.stringify({
-  type: 'assistant',
-  message: {
-    id: 'msg-resume-' + attempts,
-    content: [{ type: 'text', text: 'Working on it' + attempts + '.' }],
-    stop_reason: attempts === 0 ? null : 'end_turn'
-  }
-}));
 if (attempts === 0) {
+  // Commit a tool_use block (a real resume boundary) before the upstream drop.
+  console.log(JSON.stringify({
+    type: 'assistant',
+    message: {
+      id: 'msg-resume-0',
+      content: [{ type: 'tool_use', id: 'toolu_resume0', name: 'Bash', input: { command: 'echo working' } }],
+      stop_reason: 'tool_use'
+    }
+  }));
   process.stderr.write('Upstream request failed: HTTP 503 stream disconnected before completion.\\n');
   setTimeout(() => process.exit(1), 20);
 } else {
+  console.log(JSON.stringify({
+    type: 'assistant',
+    message: {
+      id: 'msg-resume-' + attempts,
+      content: [{ type: 'text', text: 'Recovered after resume.' }],
+      stop_reason: 'end_turn'
+    }
+  }));
   setTimeout(() => process.exit(0), 20);
 }
 `, 'utf8');
@@ -234,6 +274,28 @@ setTimeout(() => process.exit(1), 20);
 `, 'utf8');
   await chmod(bin, 0o755);
   return { bin, argsLogPath };
+}
+
+// Fake Claude CLI that streams a TEXT block (sets userVisibleOutputSeen) but
+// commits no tool_use / artifact block, then fails with an upstream drop.
+async function writeTextOnlyUpstreamClaude(
+  dir: string,
+  name: string,
+): Promise<{ bin: string }> {
+  const bin = path.join(dir, name);
+  await writeFile(bin, `#!/usr/bin/env node
+if (process.argv.includes('--version')) { console.log('claude-code 1.0.0-resume-textonly'); process.exit(0); }
+if (process.argv.includes('--help')) { console.log('Usage: claude -p [--include-partial-messages]'); process.exit(0); }
+console.log(JSON.stringify({ type: 'system', subtype: 'init', model: 'claude-resume-test' }));
+console.log(JSON.stringify({
+  type: 'assistant',
+  message: { id: 'msg-textonly', content: [{ type: 'text', text: 'Half an answer before the drop.' }], stop_reason: null }
+}));
+process.stderr.write('Upstream request failed: HTTP 503 stream disconnected before completion.\\n');
+setTimeout(() => process.exit(1), 20);
+`, 'utf8');
+  await chmod(bin, 0o755);
+  return { bin };
 }
 
 async function putConfig(url: string, patch: Record<string, unknown>): Promise<void> {

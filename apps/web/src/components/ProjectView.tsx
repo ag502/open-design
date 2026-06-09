@@ -127,7 +127,7 @@ import {
   type SaveMessageOptions,
   waitGeneratedPluginShareTask,
 } from '../state/projects';
-import type { AppliedPluginSnapshot, ChatSessionMode, InstalledPluginRecord, WorkspaceContextItem } from '@open-design/contracts';
+import type { AppliedPluginSnapshot, ChatAnalyticsEntryFrom, ChatSessionMode, InstalledPluginRecord, WorkspaceContextItem } from '@open-design/contracts';
 import type {
   AgentEvent,
   AgentInfo,
@@ -218,6 +218,10 @@ type ProjectChatSendMeta = ChatSendMeta & {
   queueOnly?: boolean;
   retryOfAssistantId?: string;
   sessionMode?: ChatSessionMode;
+  /** Overrides the run_created / run_finished `entry_from` analytics prop for
+   *  this send (e.g. 'resume_continue' from the resumable-failure Continue
+   *  action). Behavior never depends on it; it only shapes PostHog props. */
+  entryFrom?: ChatAnalyticsEntryFrom;
 };
 
 export function mergeSavedPreviewComment(current: PreviewComment[], saved: PreviewComment): PreviewComment[] {
@@ -3460,6 +3464,13 @@ export function ProjectView({
               },
             }
           : undefined;
+        // A caller-supplied entry_from (e.g. 'resume_continue' from the
+        // resumable-failure Continue action) overrides the DS default so the
+        // run is attributed to the affordance that started it.
+        const runAnalyticsHints =
+          meta?.entryFrom
+            ? { ...(dsAnalyticsHints ?? {}), entryFrom: meta.entryFrom }
+            : dsAnalyticsHints;
         void streamViaDaemon({
           agentId: config.agentId,
           history: nextHistory,
@@ -3484,7 +3495,7 @@ export function ProjectView({
           model: choice?.model ?? null,
           reasoning: choice?.reasoning ?? null,
           locale,
-          ...(dsAnalyticsHints ? { analyticsHints: dsAnalyticsHints } : {}),
+          ...(runAnalyticsHints ? { analyticsHints: runAnalyticsHints } : {}),
           onRunCreated: (runId) => {
             const pinnedAssistant = {
               ...latestAssistantMsg,
@@ -3756,16 +3767,22 @@ export function ProjectView({
   // the failed run's CLI session, so this turn resumes it (`--resume`) and the
   // agent continues from its committed work instead of restarting. Mirrors the
   // "Continue remaining tasks" affordance; unlike Retry it does not replay the
-  // prior turn from scratch.
+  // prior turn from scratch. Tagged `entryFrom: 'resume_continue'` so
+  // run_created / run_finished can quantify how often resume fires and whether
+  // it recovers (the whole point is to show the mechanism lowers failure rate).
   const handleResumeRun = useCallback(
     (_assistantMessage: ChatMessage) => {
       if (currentConversationActionDisabled) return;
+      // Phrased to be correct whether or not a committed boundary exists: the
+      // daemon only flags `resumable` when a tool/artifact block was committed,
+      // but keep the wording robust so it never claims work the agent can't see.
       const prompt =
         'The previous turn was interrupted by a transient failure. ' +
-        'Continue from where you left off — keep the work already done and ' +
-        'finish the original request. Inspect the current project files as ' +
-        'needed before making further changes.';
-      void handleSend(prompt, [], []);
+        'If your last response was cut off, continue it from where you left ' +
+        'off and keep any work already completed; otherwise complete the ' +
+        'original request. Inspect the current project files as needed before ' +
+        'making further changes.';
+      void handleSend(prompt, [], [], { entryFrom: 'resume_continue' });
     },
     [currentConversationActionDisabled, handleSend],
   );

@@ -73,7 +73,11 @@ export type ChatAnalyticsEntryFrom =
   | 'chat_composer'
   | 'design_system_create'
   | 'onboarding_design_system'
-  | 'regenerate_from_review';
+  | 'regenerate_from_review'
+  // A turn started by the "Continue the run" affordance on a resumable failed
+  // run. Lets run_created / run_finished isolate resume-continuations so the
+  // recovery mechanism's usage and success rate are measurable.
+  | 'resume_continue';
 
 export type ChatAnalyticsLengthBucket =
   | '0'

@@ -11847,13 +11847,23 @@ export async function startServer({
       // id is the one we actually drove this attempt with: the resumed id when
       // continuing, otherwise the freshly minted id we passed via --session-id.
       //
-      // Gate on actual committed/streamed work this attempt: a single-turn
-      // disconnect that produced nothing has no session content to continue, so
-      // it stays a from-scratch restart (handled by the auto-retry above or a
-      // manual Retry). Resume only when there is a committed boundary to pick
-      // up — the same side-effect signal that suppresses a blind retry.
+      // Gate on a real *committed* boundary this attempt, not merely on bytes
+      // having reached the UI. A completed tool_use / artifact / live-artifact
+      // corresponds to a block the agent has committed to its session (Claude
+      // commits a tool_use block before running the tool), so `--resume` has
+      // something concrete to pick up. We deliberately EXCLUDE
+      // `userVisibleOutputSeen`: it flips true on the first streamed text
+      // delta, but a single-turn drop can stream a few tokens with
+      // `output_tokens == 0` and never commit a text block — resuming that
+      // continues from the prior user turn (nothing to pick up), which is
+      // exactly the "resume something with nothing to continue" case this
+      // feature is meant to avoid. A text-only turn that is cut therefore stays
+      // a from-scratch restart (auto-retry above or a manual Retry).
+      // NOTE: `userVisibleOutputSeen` cannot by itself distinguish "half a text
+      // block, zero commit" from "a committed text block then more streaming";
+      // until the stream exposes a committed-text signal, tool/artifact blocks
+      // are the only reliable resume boundary.
       const committedWorkSeen = !!(
-        sideEffects.userVisibleOutputSeen ||
         sideEffects.toolCallSeen ||
         sideEffects.artifactWriteSeen ||
         sideEffects.liveArtifactSeen

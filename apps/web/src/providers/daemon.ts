@@ -995,10 +995,15 @@ async function consumeDaemonRun({
           if (event.event === 'error') {
             onRunStatus?.('failed');
             const data = event.data as SseErrorPayload;
-            // The explicit error frame precedes the `end` frame (and we return
-            // here), so the resumable flag — computed by the daemon only at run
-            // finalize — is not on this payload. Read it from the authoritative
-            // run-status record before surfacing the error.
+            // The explicit error frame precedes the `end` frame (which DOES
+            // carry `resumable`), but we return here without reading `end`, so
+            // fetch the authoritative run status instead. The daemon computes
+            // `resumable` at finalize, just after emitting this error frame;
+            // its emit->finish path is synchronous and far faster than this
+            // network round-trip, so the fetched status reliably reflects the
+            // final flag. Cost: one extra HTTP round-trip per error-framed
+            // failure. (If this ever races, the worst case is a missed Continue
+            // affordance, never a wrong recovery.)
             const failedStatus = await fetchChatRunStatus(runId).catch(() => null);
             handlers.onError(
               markErrorResumable(daemonSseError(data), failedStatus?.resumable === true),
