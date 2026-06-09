@@ -1021,6 +1021,46 @@ describe('ProjectView conversation run isolation', () => {
     expect(screen.getByTestId('conversation-latest-runs').textContent).toContain('conv-a:running');
   });
 
+  it('does not surface a stale failure banner when an interrupted reattached run errors late', async () => {
+    // conv-a starts with a reattached run in flight (the screenshot scenario:
+    // the agent was already streaming when the user queued a turn).
+    let reattachHandlers: { onError: (err: Error) => void } | null = null;
+    reattachDaemonRun.mockImplementation(async (input: unknown) => {
+      reattachHandlers = (input as { handlers: { onError: (err: Error) => void } }).handlers;
+      return new Promise<void>(() => {});
+    });
+    streamViaDaemon.mockImplementation(async (input: unknown) => {
+      const options = input as {
+        onRunCreated?: (runId: string) => void;
+        onRunStatus?: (status: NonNullable<ChatMessage['runStatus']>) => void;
+      };
+      options.onRunCreated?.('run-replacement');
+      options.onRunStatus?.('running');
+    });
+
+    renderProjectView();
+
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-a'));
+    await waitFor(() => expect(screen.getByTestId('streaming-state').textContent).toBe('streaming'));
+
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(screen.getByTestId('send-queued-0').textContent).toBe('hello from b'));
+
+    // Interrupt the reattached run; the queued send flushes as the replacement.
+    fireEvent.click(screen.getByTestId('send-queued-0'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('streaming-state').textContent).toBe('streaming');
+
+    // The superseded reattached run errors late (lost terminal SSE). It must
+    // not paint a global failure banner over the live replacement run.
+    await act(async () => {
+      reattachHandlers?.onError(new Error('daemon stream disconnected before run completed'));
+    });
+
+    expect(screen.getByTestId('chat-error').textContent).toBe('');
+    expect(screen.getByTestId('streaming-state').textContent).toBe('streaming');
+  });
+
   it('auto-starts queued sends one at a time after the active run completes', async () => {
     let finishReattach: (() => void) | null = null;
     let reattachHandlers: { onDone: () => void } | null = null;
