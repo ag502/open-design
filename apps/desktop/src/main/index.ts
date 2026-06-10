@@ -648,6 +648,55 @@ export async function runDesktopMain(
     void shutdown().finally(() => process.exit(0));
   }
 
+  console.info("[open-design desktop] starting desktop IPC server", { ipc: runtime.ipc });
+  ipcServer = await createJsonIpcServer({
+    socketPath: runtime.ipc,
+    handler: async (message: unknown) => {
+      const request = normalizeDesktopSidecarMessage(message);
+      const activeDesktop = desktop;
+      switch (request.type) {
+        case SIDECAR_MESSAGES.STATUS:
+          return activeDesktop == null
+            ? {
+                pid: process.pid,
+                state: "idle",
+                updatedAt: new Date().toISOString(),
+                url: null,
+                update: await updater.status(),
+                windowVisible: false,
+              }
+            : { ...activeDesktop.status(), update: await updater.status() };
+        case SIDECAR_MESSAGES.SHUTDOWN:
+          setImmediate(() => {
+            shutdownAndExit();
+          });
+          return { accepted: true };
+      }
+      if (activeDesktop == null) {
+        throw new Error("desktop runtime is not initialized");
+      }
+      switch (request.type) {
+        case SIDECAR_MESSAGES.EVAL:
+          return await activeDesktop.eval(request.input as DesktopEvalInput);
+        case SIDECAR_MESSAGES.SCREENSHOT:
+          return await activeDesktop.screenshot(request.input as DesktopScreenshotInput);
+        case SIDECAR_MESSAGES.CONSOLE:
+          return activeDesktop.console();
+        case SIDECAR_MESSAGES.SHOW:
+          activeDesktop.show();
+          return { accepted: true };
+        case SIDECAR_MESSAGES.CLICK:
+          return await activeDesktop.click(request.input as DesktopClickInput);
+        case SIDECAR_MESSAGES.EXPORT_PDF:
+          return await activeDesktop.exportPdf(request.input as DesktopExportPdfInput);
+        case SIDECAR_MESSAGES.UPDATE:
+          return await updater.handle((request.input as DesktopUpdateInput).action);
+      }
+    },
+  });
+  console.info("[open-design desktop] desktop IPC server listening", { ipc: runtime.ipc });
+
+  console.info("[open-design desktop] creating desktop runtime");
   desktop = await createDesktopRuntime({
     desktopAuthSecret,
     discoverUrl: options.discoverWebUrl ?? createWebDiscovery(runtime),
@@ -666,6 +715,7 @@ export async function runDesktopMain(
     splashStartedAt: options.splashStartedAt,
     updater,
   });
+  console.info("[open-design desktop] desktop runtime created");
   options.onDesktopReady?.({ show: () => desktop?.show() });
   disposeMenu = installDesktopMenu(runtime, options);
   removeDiagnosticsIpc = registerDesktopDiagnosticsIpc(runtime);
@@ -683,41 +733,6 @@ export async function runDesktopMain(
     if (shuttingDown) return;
     event.preventDefault();
     void shutdown().finally(() => process.exit(0));
-  });
-
-  ipcServer = await createJsonIpcServer({
-    socketPath: runtime.ipc,
-    handler: async (message: unknown) => {
-      const request = normalizeDesktopSidecarMessage(message);
-      const activeDesktop = desktop;
-      if (activeDesktop == null) {
-        throw new Error("desktop runtime is not initialized");
-      }
-      switch (request.type) {
-        case SIDECAR_MESSAGES.STATUS:
-          return { ...activeDesktop.status(), update: await updater.status() };
-        case SIDECAR_MESSAGES.EVAL:
-          return await activeDesktop.eval(request.input as DesktopEvalInput);
-        case SIDECAR_MESSAGES.SCREENSHOT:
-          return await activeDesktop.screenshot(request.input as DesktopScreenshotInput);
-        case SIDECAR_MESSAGES.CONSOLE:
-          return activeDesktop.console();
-        case SIDECAR_MESSAGES.SHOW:
-          activeDesktop.show();
-          return { accepted: true };
-        case SIDECAR_MESSAGES.CLICK:
-          return await activeDesktop.click(request.input as DesktopClickInput);
-        case SIDECAR_MESSAGES.EXPORT_PDF:
-          return await activeDesktop.exportPdf(request.input as DesktopExportPdfInput);
-        case SIDECAR_MESSAGES.UPDATE:
-          return await updater.handle((request.input as DesktopUpdateInput).action);
-        case SIDECAR_MESSAGES.SHUTDOWN:
-          setImmediate(() => {
-            shutdownAndExit();
-          });
-          return { accepted: true };
-      }
-    },
   });
 
   app.on("before-quit", (event) => {

@@ -34,6 +34,17 @@ describe("desktop updater host boundary", () => {
     expect(scheduleBody).not.toContain("showUpdateResultDialog");
   });
 
+  it("starts desktop IPC before creating the BrowserWindow runtime", () => {
+    const main = source("src/main/index.ts");
+    const ipcStart = main.indexOf("ipcServer = await createJsonIpcServer");
+    const runtimeStart = main.indexOf("desktop = await createDesktopRuntime");
+    expect(ipcStart).toBeGreaterThanOrEqual(0);
+    expect(runtimeStart).toBeGreaterThan(ipcStart);
+    const startupIpcBody = main.slice(ipcStart, runtimeStart);
+    expect(startupIpcBody).toContain('state: "idle"');
+    expect(startupIpcBody).toContain("desktop runtime is not initialized");
+  });
+
   it("keeps updater actions out of native desktop menus", () => {
     const main = source("src/main/index.ts");
     expect(main).not.toContain("Check for Updates");
