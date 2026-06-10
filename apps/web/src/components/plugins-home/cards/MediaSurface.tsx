@@ -27,9 +27,20 @@ interface Props {
   // their poster instead of all spinning up decodes + clip downloads at once.
   inView: boolean;
   visible?: boolean;
+  // `approaching` (a margin tighter than `inView`, wider than `visible`) warms
+  // the FULL clip into the HTTP cache before the tile is visible, so playback
+  // starts instantly on scroll-in instead of buffering from the +faststart
+  // header at the moment it appears. Decoding still waits for `visible`.
+  approaching?: boolean;
 }
 
-export function MediaSurface({ preview, pluginTitle, inView, visible = inView }: Props) {
+export function MediaSurface({
+  preview,
+  pluginTitle,
+  inView,
+  visible = inView,
+  approaching = false,
+}: Props) {
   const [hovering, setHovering] = useState(false);
   // Track per-URL poster load failure so a 404 / decode error / dead
   // host swaps in the typographic fallback instead of leaving the
@@ -153,11 +164,13 @@ export function MediaSurface({ preview, pluginTitle, inView, visible = inView }:
           muted
           playsInline
           loop
-          // `metadata` paints the first frame off the +faststart header (moov +
-          // a few frames) instead of waiting on the whole file, so tiles show
-          // fast and don't all saturate the network buffering full clips up
-          // front; the idle hold buffers the pan span before hover.
-          preload={idlePlays ? 'metadata' : 'none'}
+          // Tiered preload so scroll-in is instant without saturating the
+          // network on first paint. In the wide mount margin: `metadata` (moov +
+          // first frame off the +faststart header). Once `approaching` (or
+          // hovering): `auto`, warming the whole clip into the HTTP cache a row
+          // or two ahead so it plays without a buffering beat. Hover-only video
+          // templates stay `none` until hovered.
+          preload={approaching || hovering ? 'auto' : idlePlays ? 'metadata' : 'none'}
           // Look like an inert iframe thumbnail: no native controls or PiP, and
           // clicks fall through to the card (open detail) instead of the video.
           disablePictureInPicture

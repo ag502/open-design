@@ -37,6 +37,14 @@ const VIDEO_POSTER: MediaPreviewSpec = {
   imageOnly: false,
 };
 
+// A baked hover-pan clip: `loopHoldMs` set => idlePlays, so the <video> mounts
+// across the wide margin and we can assert its tiered preload.
+const BAKED_CLIP: MediaPreviewSpec = {
+  ...VIDEO_POSTER,
+  videoUrl: 'https://example.invalid/clip.mp4',
+  loopHoldMs: 2500,
+};
+
 afterEach(() => {
   cleanup();
 });
@@ -112,5 +120,39 @@ describe('MediaSurface broken-poster fallback (#2955)', () => {
       <MediaSurface preview={VIDEO_POSTER} pluginTitle="Video example" inView={true} />,
     );
     expect(container.querySelector('.plugins-home__media-badge')).toBeNull();
+  });
+});
+
+describe('MediaSurface tiered clip preload (scroll-in prefetch)', () => {
+  it('preloads only metadata while mounted in the wide margin but not yet approaching', () => {
+    const { container } = render(
+      <MediaSurface
+        preview={BAKED_CLIP}
+        pluginTitle="Clip"
+        inView={true}
+        approaching={false}
+        visible={false}
+      />,
+    );
+    const video = container.querySelector('video');
+    expect(video).not.toBeNull();
+    expect(video!.getAttribute('preload')).toBe('metadata');
+  });
+
+  it('warms the full clip (preload=auto) once approaching, before it becomes visible', () => {
+    // The whole point of the prefetch tier: the bytes are in the HTTP cache a
+    // row or two ahead, so playback starts instantly on scroll-in instead of
+    // buffering from the +faststart header at the moment the tile appears.
+    const { container } = render(
+      <MediaSurface
+        preview={BAKED_CLIP}
+        pluginTitle="Clip"
+        inView={true}
+        approaching={true}
+        visible={false}
+      />,
+    );
+    const video = container.querySelector('video');
+    expect(video!.getAttribute('preload')).toBe('auto');
   });
 });

@@ -42,6 +42,14 @@ export function PreviewSurface({ pluginId, pluginTitle, preview, eager = false }
     rootMargin: eager ? '1800px' : '1500px',
     once: false,
   });
+  //  - `approaching` (a row or two out): warm the FULL clip into the HTTP cache
+  //    so it plays instantly on scroll-in. Tighter than `keep` so a fast scroll
+  //    over the whole gallery doesn't prefetch every clip's bytes at once — only
+  //    the next rows in front of the viewport.
+  const { ref: approachingRef, inView: approaching } = useInView<HTMLDivElement>({
+    rootMargin: eager ? '1200px' : '1000px',
+    once: false,
+  });
   const { ref: visibleRef, inView: visible } = useInView<HTMLDivElement>({
     rootMargin: '0px',
     once: false,
@@ -50,9 +58,10 @@ export function PreviewSurface({ pluginId, pluginTitle, preview, eager = false }
     (node: HTMLDivElement | null) => {
       nearRef.current = node;
       keepRef.current = node;
+      approachingRef.current = node;
       visibleRef.current = node;
     },
-    [nearRef, keepRef, visibleRef],
+    [nearRef, keepRef, approachingRef, visibleRef],
   );
 
   return (
@@ -66,6 +75,7 @@ export function PreviewSurface({ pluginId, pluginTitle, preview, eager = false }
           preview={preview}
           pluginTitle={pluginTitle}
           inView={keep}
+          approaching={approaching}
           visible={visible}
         />
       ) : preview.kind === 'html' ? (
