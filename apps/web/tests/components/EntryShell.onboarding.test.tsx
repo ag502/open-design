@@ -769,6 +769,81 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/subscribe'))).toBe(false);
   });
 
+  it('reports about_you_submit exactly once when jumping to the newsletter step via the stepper', async () => {
+    globalThis.fetch = vi.fn(async () =>
+      jsonResponse({
+        loggedIn: true,
+        profile: 'prod',
+        configPath: '/x',
+        user: { id: 'u', email: 'user@example.com' },
+      }),
+    ) as typeof fetch;
+    renderOnboarding();
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Continue$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'About you' })).toBeTruthy();
+    });
+    chooseDropdownOption('Your role', 'Engineer');
+
+    // Jump straight to the newsletter step via the clickable stepper,
+    // bypassing the primary Continue CTA. The survey snapshot must still
+    // fire exactly once — on the final Finish — not zero times.
+    fireEvent.click(screen.getByRole('button', { name: /Stay updated/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Stay in the loop' })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Finish setup/i }));
+
+    const aboutYouSubmits = trackedEvents('ui_click')
+      .map(([, payload]) => payload as Record<string, unknown>)
+      .filter((payload) => payload.element === 'about_you_submit');
+    expect(aboutYouSubmits).toHaveLength(1);
+    expect(aboutYouSubmits[0]).toMatchObject({ role: 'engineer' });
+  });
+
+  it('reports about_you_submit exactly once across a Back-then-Continue detour', async () => {
+    globalThis.fetch = vi.fn(async () =>
+      jsonResponse({
+        loggedIn: true,
+        profile: 'prod',
+        configPath: '/x',
+        user: { id: 'u', email: 'user@example.com' },
+      }),
+    ) as typeof fetch;
+    renderOnboarding();
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Continue$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'About you' })).toBeTruthy();
+    });
+    chooseDropdownOption('Your role', 'Engineer');
+
+    // About you -> Newsletter
+    fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Stay in the loop' })).toBeTruthy();
+    });
+    // Back -> About you
+    fireEvent.click(screen.getByRole('button', { name: /^Back$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'About you' })).toBeTruthy();
+    });
+    // Continue -> Newsletter again, then finish.
+    fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Stay in the loop' })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Finish setup/i }));
+
+    // The detour crosses the About-you step twice, but the snapshot must
+    // not double-fire.
+    const aboutYouSubmits = trackedEvents('ui_click')
+      .map(([, payload]) => payload as Record<string, unknown>)
+      .filter((payload) => payload.element === 'about_you_submit');
+    expect(aboutYouSubmits).toHaveLength(1);
+  });
+
   it('persists the BYOK config before finishing onboarding', async () => {
     globalThis.fetch = vi.fn(async (input, init) => {
       const url = String(input);

@@ -1142,6 +1142,10 @@ function OnboardingView({
   // PR #2453 follow-up).
   const onboardingStartedAtRef = useRef<number>(Date.now());
   const lifecycleReportedRef = useRef(false);
+  // Guards `about_you_submit` to exactly one emit per onboarding session,
+  // independent of how many times the user crosses the About-you step via
+  // the clickable stepper or Back/Continue.
+  const aboutYouReportedRef = useRef(false);
   function currentRuntimeType(): TrackingOnboardingRuntimeType {
     if (runtime === 'amr') return 'amr_cloud';
     if (runtime === 'local') return 'local_cli';
@@ -1417,6 +1421,18 @@ function OnboardingView({
       return;
     }
     if (isLastStep) {
+      // Emit the About-you survey snapshot on the completion path, before
+      // the continue/complete pair. Reading `profileRef` captures the
+      // user's final role / org size / use case / discovery source picks
+      // even on a fast Finish. Gating it here — rather than when the user
+      // leaves the About-you step — keeps it exactly-once no matter how the
+      // final step was reached: primary CTA, Back-then-Continue, or a
+      // forward jump via the clickable stepper. `emitAboutYouSubmit` is
+      // additionally idempotent per session (see its `aboutYouReportedRef`
+      // guard). The snapshot click + the survey fields on
+      // `onboarding_complete_result` give the funnel two independent
+      // carriers for the same data.
+      emitAboutYouSubmit();
       const newsletterEmail = profileRef.current.email;
       const shouldSubmitNewsletter =
         NEWSLETTER_EMAIL_RE.test(newsletterEmail.trim().toLowerCase());
@@ -1433,20 +1449,6 @@ function OnboardingView({
       clearOnboardingSessionId();
       onFinish();
       return;
-    }
-    if (step === 1) {
-      // Emit the About-you survey snapshot FIRST, before the continue
-      // click, when the user moves past the About-you step. This is the
-      // bombproof carrier for the user's role / org size / use case /
-      // discovery source picks: per-dropdown clicks are racy on a fast
-      // click-through (the user can pick all four dropdowns and click
-      // Continue inside one ~3s window, and PostHog's posthog-js client
-      // may not flush the individual rows in time). The snapshot click +
-      // the survey fields on `onboarding_complete_result` give the
-      // funnel two independent paths for the same data — the completion
-      // snapshot also covers a user who jumps straight to the Newsletter
-      // step via the step indicator.
-      emitAboutYouSubmit();
     }
     emitOnboardingClick('continue', 'continue');
     setStep((current) => current + 1);
@@ -1555,9 +1557,26 @@ function OnboardingView({
   // the latest state. `'unknown'` covers an untouched field on the
   // About-you step (the spec keeps the wire type open-string so a new
   // role / use-case option doesn't force a contract bump).
+  //
+  // This now fires from the completion path (the final Newsletter step),
+  // so it stamps the About-you step coordinates explicitly instead of
+  // reading the live `step` via `emitOnboardingClick`: the event describes
+  // the About-you submission, not whatever step the user finished on. The
+  // `aboutYouReportedRef` guard keeps it exactly-once per session.
   function emitAboutYouSubmit(): void {
+    if (aboutYouReportedRef.current) return;
+    const onboardingSessionId = onboardingSessionIdRef.current;
+    if (!onboardingSessionId) return;
+    aboutYouReportedRef.current = true;
     const snapshot = profileRef.current;
-    emitOnboardingClick('about_you_submit', 'continue', {
+    trackOnboardingClick(analytics.track, {
+      page_name: 'onboarding',
+      area: 'about_you',
+      element: 'about_you_submit',
+      action: 'continue',
+      step_index: '2',
+      step_name: 'about_you',
+      onboarding_session_id: onboardingSessionId,
       role: snapshot.role || 'unknown',
       organization_size: snapshot.orgSize || 'unknown',
       use_cases: snapshot.useCase.length > 0 ? snapshot.useCase : ['unknown'],
