@@ -223,6 +223,14 @@ const WEB_STANDALONE_APP_NODE_MODULES = "apps/web/node_modules";
 // of the standalone tree and the audit aborts the packaged build.
 const STANDALONE_HOISTED_PEER_DEPS = ["react", "react-dom", "styled-jsx"];
 
+async function symlinkDirectoryForWorkspaceBuild(target: string, linkPath: string): Promise<void> {
+  if (process.platform === "win32") {
+    await symlink(target, linkPath, "junction");
+    return;
+  }
+  await symlink(relative(dirname(linkPath), target), linkPath, "dir");
+}
+
 async function hoistStandaloneNextPeerDeps(standaloneRoot: string): Promise<void> {
   const appNodeModules = join(standaloneRoot, WEB_STANDALONE_APP_NODE_MODULES);
   const pnpmRoot = join(standaloneRoot, "node_modules", ".pnpm");
@@ -250,12 +258,11 @@ async function hoistStandaloneNextPeerDeps(standaloneRoot: string): Promise<void
     if (!match) continue;
     const target = join(pnpmRoot, match, "node_modules", pkg);
     if (!(await pathExists(target))) continue;
-    const relativeTarget = relative(dirname(linkPath), target);
     // Idempotent re-run: drop any pre-existing entry (stale symlink
     // from a previous build with different react/react-dom versions)
     // before recreating, so repeated invocations don't EEXIST.
     if (existing) await unlink(linkPath).catch(() => undefined);
-    await symlink(relativeTarget, linkPath);
+    await symlinkDirectoryForWorkspaceBuild(target, linkPath);
   }
 }
 

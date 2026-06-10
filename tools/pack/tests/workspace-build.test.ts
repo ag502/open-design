@@ -82,6 +82,16 @@ async function writeOutputs(root: string, value: string): Promise<void> {
   }
 }
 
+async function writeStandalonePeerDeps(root: string): Promise<void> {
+  const pnpmRoot = join(root, "apps/web/.next/standalone/node_modules/.pnpm");
+  for (const directory of ["react@18.3.1", "react-dom@18.3.1_react@18.3.1", "styled-jsx@5.1.6_react@18.3.1"]) {
+    const packageName = directory.split("@")[0]!;
+    const packageRoot = join(pnpmRoot, directory, "node_modules", packageName);
+    await mkdir(packageRoot, { recursive: true });
+    await writeFile(join(packageRoot, "package.json"), `${JSON.stringify({ name: packageName }, null, 2)}\n`, "utf8");
+  }
+}
+
 function createConfig(root: string, cacheRoot: string): ToolPackConfig {
   return {
     containerized: false,
@@ -164,6 +174,29 @@ describe("ensureWorkspaceBuildArtifacts", () => {
       const aliasBuckets = await readdir(aliasesRoot);
       expect(aliasBuckets).toHaveLength(1);
       expect(await readFile(join(aliasesRoot, aliasBuckets[0]!, "alias.json"), "utf8")).toContain("win.workspace-build");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("hoists standalone web peer deps with Windows-compatible directory links", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-workspace-build-peer-deps-"));
+    const cache = new ToolPackCache(join(root, ".cache"));
+    const config = createConfig(root, cache.root);
+
+    try {
+      await writeWorkspace(root);
+      await ensureWorkspaceBuildArtifacts(config, cache, async () => {
+        await writeOutputs(root, "build");
+        await writeStandalonePeerDeps(root);
+      });
+
+      expect(await readFile(join(root, "apps/web/.next/standalone/apps/web/node_modules/react/package.json"), "utf8"))
+        .toContain('"name": "react"');
+      expect(await readFile(join(root, "apps/web/.next/standalone/apps/web/node_modules/react-dom/package.json"), "utf8"))
+        .toContain('"name": "react-dom"');
+      expect(await readFile(join(root, "apps/web/.next/standalone/apps/web/node_modules/styled-jsx/package.json"), "utf8"))
+        .toContain('"name": "styled-jsx"');
     } finally {
       await rm(root, { force: true, recursive: true });
     }
