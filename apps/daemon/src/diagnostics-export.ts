@@ -32,6 +32,7 @@ interface ResolvedAgentHomes {
   amrOpenCodeHome: string | null;
   claudeConfigDir: string | null;
   codexHome: string | null;
+  openCodeXdgDataHome: string | null;
 }
 
 // Resolve each agent CLI's effective home (OPENCODE_TEST_HOME / CLAUDE_CONFIG_DIR
@@ -41,7 +42,12 @@ interface ResolvedAgentHomes {
 // only looking under the hardcoded defaults, and cannot drift from the spawn
 // path. Returns nulls on any failure; the collector then falls back to defaults.
 async function resolveAgentHomes(dataDir: string | null | undefined): Promise<ResolvedAgentHomes> {
-  const empty: ResolvedAgentHomes = { amrOpenCodeHome: null, claudeConfigDir: null, codexHome: null };
+  const empty: ResolvedAgentHomes = {
+    amrOpenCodeHome: null,
+    claudeConfigDir: null,
+    codexHome: null,
+    openCodeXdgDataHome: null,
+  };
   if (!dataDir) return empty;
   try {
     const appConfig = await readAppConfig(dataDir);
@@ -59,6 +65,11 @@ async function resolveAgentHomes(dataDir: string | null | undefined): Promise<Re
       amrOpenCodeHome: clean(envFor('amr').OPENCODE_TEST_HOME),
       claudeConfigDir: clean(envFor('claude').CLAUDE_CONFIG_DIR),
       codexHome: clean(envFor('codex').CODEX_HOME),
+      // OpenCode resolves its data/log dir from XDG_DATA_HOME; sandbox mode
+      // rewrites that (sandbox-mode.ts), so read the EFFECTIVE value from the
+      // opencode spawn env rather than the host's, or the sweep misses the
+      // logs in a sandboxed runtime.
+      openCodeXdgDataHome: clean(envFor('opencode').XDG_DATA_HOME),
     };
   } catch {
     return empty;
@@ -148,7 +159,7 @@ export function createDiagnosticsExportHandler(options: DiagnosticsHandlerOption
           amrOpenCodeHome: agentHomes.amrOpenCodeHome,
           claudeConfigDir: agentHomes.claudeConfigDir,
           codexHome: agentHomes.codexHome,
-          xdgDataHome: process.env.XDG_DATA_HOME ?? null,
+          xdgDataHome: agentHomes.openCodeXdgDataHome ?? process.env.XDG_DATA_HOME ?? null,
         })),
       ];
       const username = safeUsername();
