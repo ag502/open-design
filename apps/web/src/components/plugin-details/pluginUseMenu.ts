@@ -14,11 +14,26 @@ import type { PreviewPrimaryActionMenuItem } from '../PreviewModal';
 
 type TranslateUseMenu = (
   key:
+    | 'preview.usePlugin'
     | 'preview.usePluginOnly'
     | 'preview.usePluginOnlyDesc'
     | 'preview.replicateContent'
     | 'preview.replicateContentDesc',
 ) => string;
+
+// Primary CTA for the detail modal's Use split button. When the plugin
+// ships an example query the headline action IS replicate-content — the
+// caret menu still offers both variants, with structure-only Use as the
+// secondary path. Querless plugins keep the plain "Use plugin" button.
+export function pluginUsePrimaryAction(
+  record: InstalledPluginRecord,
+  t: TranslateUseMenu,
+): { label: string; action: PluginUseAction } {
+  const hasQuery = Boolean(record.manifest?.od?.useCase?.query);
+  return hasQuery
+    ? { label: t('preview.replicateContent'), action: 'use-with-query' }
+    : { label: t('preview.usePlugin'), action: 'use' };
+}
 
 export function buildPluginUseMenu(
   record: InstalledPluginRecord,

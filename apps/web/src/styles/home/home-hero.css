@@ -1797,30 +1797,49 @@
   box-shadow: var(--shadow-xs);
   color: var(--accent);
 }
-/* Send-attention pulse — after a plugin Use action or an example-prompt
-   card seeds the composer, the send button flashes twice to pull the eye
-   to the next step. The 0.25s delay lets the scroll-back/seed settle so
-   the flash lands on a visible, resting button. */
-@keyframes home-hero-submit-attention {
+/* Send-attention sheen — after a plugin Use action or an example-prompt
+   card seeds the composer, a soft light sweep crosses the send button
+   twice to pull the eye to the next step. No ring, no scale: a glint
+   reads as an invitation, not an alarm. The 0.25s delay lets the
+   scroll-back/seed settle so the sweep lands on a resting button. */
+@keyframes home-hero-submit-sheen {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
-    transform: scale(1);
+    transform: translateX(-130%) skewX(-18deg);
+    opacity: 0;
   }
-  35% {
-    box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent);
-    transform: scale(1.05);
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
   }
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
-    transform: scale(1);
+    transform: translateX(230%) skewX(-18deg);
+    opacity: 0;
   }
 }
 .home-hero__submit--attention {
-  animation: home-hero-submit-attention 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.25s 2;
+  position: relative;
+  overflow: hidden;
+}
+.home-hero__submit--attention::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent,
+    rgba(255, 255, 255, 0.5),
+    transparent
+  );
+  animation: home-hero-submit-sheen 0.9s cubic-bezier(0.23, 1, 0.32, 1) 0.25s 2 both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .home-hero__submit--attention {
+  .home-hero__submit--attention::after {
     animation: none;
+    content: none;
   }
 }
 .home-hero__submit {

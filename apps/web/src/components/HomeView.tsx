@@ -935,7 +935,12 @@ export function HomeView({
       explicitPick: true,
     });
     scrollHomeToTop();
-    inputRef.current?.pulseSend();
+    // Plain Use doesn't seed the composer; with no draft and no staged
+    // files the send button stays disabled, and flashing a disabled
+    // button points at a dead end.
+    if (prompt.trim().length > 0 || stagedFiles.length > 0) {
+      inputRef.current?.pulseSend();
+    }
   }
 
   function runWithReplacementConfirmation(
