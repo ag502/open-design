@@ -16,7 +16,6 @@ import { readProcessStamp } from "@open-design/platform";
 import { join } from "node:path";
 import { app, dialog } from "electron";
 
-import { applyPackagedChromiumSwitches } from "./chromium.js";
 import { readPackagedConfig } from "./config.js";
 import { writePackagedDesktopIdentity } from "./identity.js";
 import { PackagedPathAccessError } from "./errors.js";
@@ -80,7 +79,6 @@ async function main(): Promise<void> {
   // en-US default. runDesktopMain (called later) calls the same helper
   // again to recover the resolved locale string for the BrowserWindow.
   applyOsLocaleSwitch(app);
-  applyPackagedChromiumSwitches(app);
 
   const config = await readPackagedConfig();
   const afterQuit = parseLauncherAfterQuitArgs(process.argv.slice(1));
@@ -159,7 +157,6 @@ async function main(): Promise<void> {
   await runDesktopMain(runtime, {
     splashWindow: splash.window,
     splashStartedAt: splash.startedAt,
-    showMainWindowImmediately: process.platform === "win32",
     async beforeShutdown() {
       try {
         await sidecars.close();
@@ -168,7 +165,6 @@ async function main(): Promise<void> {
       }
     },
     async discoverWebUrl() {
-      if (process.platform === "win32" && sidecars.web.url != null) return sidecars.web.url;
       return packagedEntryUrl();
     },
     // Round-7 (lefarcen P2 @ runtime.ts:336): packaged main-process

@@ -441,10 +441,12 @@ winDescribe('packaged windows runtime smoke', () => {
 
       const inspect = await measureSmokeStep(timings, 'wait healthy inspect eval', async () => waitForHealthyDesktop());
       expect(inspect.status?.state).toBe('running');
-      expectWindowsPackagedAppUrl(inspect.status?.url);
+      if (inspect.desktopIpcUnavailable) expectWindowsFallbackWebUrl(inspect.status?.url);
+      else expectWindowsPackagedAppUrl(inspect.status?.url);
 
       const value = assertHealthEvalValue(inspect.eval?.value);
-      expectWindowsPackagedAppUrl(value.href);
+      if (inspect.desktopIpcUnavailable) expectWindowsDaemonUrl(value.href);
+      else expectWindowsPackagedAppUrl(value.href);
       expect(value.status).toBe(200);
       expect(value.health.ok).toBe(true);
       if (releaseVersion != null && releaseVersion !== '') expect(value.health.version).toBe(releaseVersion);
@@ -1197,7 +1199,15 @@ function expectPathInside(filePath: string, expectedRoot: string): void {
 }
 
 function expectWindowsPackagedAppUrl(value: string | null | undefined): void {
-  expect(value).toEqual(expect.stringMatching(/^(?:od:\/\/app\/|http:\/\/127\.0\.0\.1:\d+\/?)$/));
+  expect(value).toEqual(expect.stringMatching(/^od:\/\/app\/$/));
+}
+
+function expectWindowsFallbackWebUrl(value: string | null | undefined): void {
+  expect(value).toEqual(expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/?$/));
+}
+
+function expectWindowsDaemonUrl(value: string | null | undefined): void {
+  expect(value).toEqual(expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/?$/));
 }
 
 async function fileSizeBytes(filePath: string): Promise<number> {

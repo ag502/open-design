@@ -1,4 +1,4 @@
-import { net, protocol } from "electron";
+import { protocol } from "electron";
 
 const OD_SCHEME = "od";
 const OD_ENTRY_URL = `${OD_SCHEME}://app/`;
@@ -83,6 +83,6 @@ export function packagedEntryUrl(): string {
 
 export function registerOdProtocol(webRuntimeUrl: string): void {
   protocol.handle(OD_SCHEME, async (request) => {
-    return await handleOdRequest(request, webRuntimeUrl, net.fetch);
+    return await handleOdRequest(request, webRuntimeUrl);
   });
 }
