@@ -150,7 +150,7 @@ describe('listSkills', () => {
     expect(skill.body).toContain('`OD_TOOL_TOKEN`');
   });
 
-  it('includes the agent-browser skill as an external CLI integration', async () => {
+  it('includes the agent-browser skill with bundled Playwright as the default validation path', async () => {
     const skills = await listSkills(skillsRoot);
     const skill = skills.find((entry: { id: string }) => entry.id === 'agent-browser');
 
@@ -164,12 +164,18 @@ describe('listSkills', () => {
       upstream: 'https://github.com/vercel-labs/agent-browser/blob/main/skills/agent-browser/SKILL.md',
     });
     expect(skill.triggers).toContain('test this web app');
+    expect(skill.body).toContain('Use Open Design\'s bundled Playwright runtime first');
+    expect(skill.body).toContain('`OD_PLAYWRIGHT_CLI`');
+    expect(skill.body).toContain('`OD_PLAYWRIGHT_PACKAGE`');
+    expect(skill.body).toContain('Do not report "Playwright is not installed"');
+    expect(skill.body).toContain('Do not open the user\'s normal Chrome, Safari, or browser profile');
+    expect(skill.body).toContain('const { chromium } = require(process.env.OD_PLAYWRIGHT_PACKAGE);');
     expect(skill.body).toContain('agent-browser skills get core');
     expect(skill.body).toContain('Never print full upstream guides into chat or tool output');
-    expect(skill.body).toContain('`agent-browser` must attach to an existing CDP endpoint');
+    expect(skill.body).toContain('agent-browser` must attach to an\nexisting CDP endpoint');
     expect(skill.body).toContain('curl -fsS http://127.0.0.1:9223/json/version');
-    expect(skill.body).toContain('open -na "Google Chrome" --args');
-    expect(skill.body).toContain('for i in {1..20}');
+    expect(skill.body).not.toContain('open -na "Google Chrome" --args');
+    expect(skill.body).not.toContain('for i in {1..20}');
     expect(skill.body).toContain('agent-browser connect http://127.0.0.1:9223');
     expect(skill.body).toContain('Never run\n`agent-browser open` before `agent-browser connect`');
     expect(skill.body).toContain('--remote-debugging-port=9223');
@@ -178,8 +184,10 @@ describe('listSkills', () => {
     expect(skill.body).toContain('Open Design Smoke Path');
     expect(skill.body).toContain('`daemon-cli.mjs browser snapshot`');
     expect(skill.body).toContain('misinterpreted as daemon startup');
-    expect(skill.body).toContain('trap cleanup_agent_browser EXIT INT TERM');
-    expect(skill.body).toContain('pkill -f -- "--user-data-dir=${CHROME_USER_DATA_DIR}"');
+    expect(skill.body).not.toContain('trap cleanup_agent_browser EXIT INT TERM');
+    expect(skill.body).not.toContain('pkill -f -- "--user-data-dir=${CHROME_USER_DATA_DIR}"');
+    expect(skill.body).toContain('/tmp/od-playwright-desktop.png');
+    expect(skill.body).toContain('/tmp/od-playwright-mobile.png');
   });
 
   it('includes the DCF valuation, X research, and Last30Days research skills', async () => {

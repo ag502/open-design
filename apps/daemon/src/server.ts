@@ -539,12 +539,28 @@ function cleanOptionalPath(value: string | undefined): string | null {
     : null;
 }
 
+export type PlaywrightRuntimePaths = {
+  cli: string;
+  package: string;
+};
+
 export function resolveDaemonCliPath(env: NodeJS.ProcessEnv = process.env): string {
   const configured = cleanOptionalPath(env[DAEMON_CLI_PATH_ENV]) ?? cleanOptionalPath(env.OD_BIN);
   if (configured) return configured;
 
   const packageJsonPath = require.resolve('@open-design/daemon/package.json');
   return path.join(path.dirname(packageJsonPath), 'dist', 'cli.js');
+}
+
+export function resolvePlaywrightRuntimePaths(): PlaywrightRuntimePaths | null {
+  try {
+    return {
+      cli: require.resolve('playwright/cli'),
+      package: require.resolve('playwright'),
+    };
+  } catch {
+    return null;
+  }
 }
 
 const PROJECT_ROOT = resolveProjectRoot(__dirname);
@@ -1850,6 +1866,7 @@ export function createAgentRuntimeEnv(
   daemonUrl: string,
   toolTokenGrant: { token?: string } | null = null,
   nodeBin: string = process.execPath,
+  playwrightRuntime: PlaywrightRuntimePaths | null = resolvePlaywrightRuntimePaths(),
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = applySandboxRuntimeEnv(
     {
@@ -1857,6 +1874,12 @@ export function createAgentRuntimeEnv(
       OD_DATA_DIR: RUNTIME_DATA_DIR,
       OD_DAEMON_URL: daemonUrl,
       OD_NODE_BIN: nodeBin,
+      ...(playwrightRuntime
+        ? {
+            OD_PLAYWRIGHT_CLI: playwrightRuntime.cli,
+            OD_PLAYWRIGHT_PACKAGE: playwrightRuntime.package,
+          }
+        : {}),
     },
     SANDBOX_RUNTIME,
   );
@@ -1923,6 +1946,7 @@ export function createAgentRuntimeToolPrompt(
     `- Daemon URL: \`${daemonUrl}\` (also available as \`OD_DAEMON_URL\`).`,
     '- `OD_NODE_BIN` is the absolute path to the Node-compatible runtime that started the daemon; packaged desktop installs provide this even when the user has no system `node` on PATH.',
     '- `OD_BIN` is the absolute path to the Open Design CLI script. On POSIX shells run wrappers with `"$OD_NODE_BIN" "$OD_BIN" tools ...`; do not call bare `od`, which may resolve to the system octal-dump command on Unix-like systems.',
+    '- `OD_PLAYWRIGHT_CLI` and `OD_PLAYWRIGHT_PACKAGE` point at Open Design\'s bundled Playwright runtime when available. For browser validation, prefer `"$OD_NODE_BIN" "$OD_PLAYWRIGHT_CLI" ...` or a small CommonJS script that uses `require(process.env.OD_PLAYWRIGHT_PACKAGE)`. Do not assume Playwright is installed in the project you are editing.',
     '- On PowerShell use `& $env:OD_NODE_BIN $env:OD_BIN tools ...`; on cmd.exe use `"%OD_NODE_BIN%" "%OD_BIN%" tools ...`.',
     tokenLine,
     '- Prefer project wrapper commands through `OD_NODE_BIN` + `OD_BIN` over raw HTTP. The wrappers read these environment values automatically.',

@@ -58,20 +58,33 @@ tab unless the user names another target.
 
 ## Requirements
 
-Verify the CLI before doing any browser work:
+Use Open Design's bundled Playwright runtime first. It is exposed to agent
+runs through the runtime tool environment:
+
+```bash
+test -n "${OD_PLAYWRIGHT_CLI:-}" && test -n "${OD_PLAYWRIGHT_PACKAGE:-}"
+"$OD_NODE_BIN" "$OD_PLAYWRIGHT_CLI" --version
+```
+
+For custom inspection, write a small CommonJS script and load Playwright from
+the env path so it works even when the generated project has no package
+dependencies:
+
+```js
+const { chromium } = require(process.env.OD_PLAYWRIGHT_PACKAGE);
+```
+
+Do not report "Playwright is not installed" just because the project folder has
+no local dependency. If `OD_PLAYWRIGHT_CLI` or `OD_PLAYWRIGHT_PACKAGE` is
+missing, say that the Open Design bundled Playwright runtime is unavailable.
+
+The external `agent-browser` CLI is optional. Use it only when it is already
+installed and you specifically need to attach to an existing user-controlled CDP
+browser session:
 
 ```bash
 command -v agent-browser
 ```
-
-If missing, stop and tell the user to install it:
-
-```bash
-npm i -g agent-browser
-agent-browser install
-```
-
-Do not replace the CLI with ad hoc browser scripts.
 
 ## Context Hygiene
 
@@ -109,9 +122,40 @@ the user is building from the reference. Do not paste full page HTML or large
 asset dumps into chat; summarize the relevant selectors, tokens, URLs, and
 screenshots.
 
+## Playwright Startup Contract
+
+For artifact and local preview validation, prefer isolated Playwright Chromium
+over the user's normal browser profile. Start local static servers on loopback
+only, then drive the page with a temporary browser context:
+
+```js
+const { chromium } = require(process.env.OD_PLAYWRIGHT_PACKAGE);
+
+async function main() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.goto(process.env.TARGET_URL, { waitUntil: 'domcontentloaded' });
+  await page.screenshot({ path: '/tmp/od-playwright-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '/tmp/od-playwright-mobile.png', fullPage: true });
+  await browser.close();
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+```
+
+Do not open the user's normal Chrome, Safari, or browser profile just to inspect
+an Open Design artifact. This avoids macOS privacy prompts for Documents,
+Desktop, cloud-drive folders, media libraries, and unrelated user data.
+
 ## CDP Startup Contract
 
-`agent-browser` must attach to an existing CDP endpoint. Never run
+Use this section only when the task explicitly requires an existing browser
+session and `agent-browser` is installed. `agent-browser` must attach to an
+existing CDP endpoint. Never run
 `agent-browser open` before `agent-browser connect`; doing so can make the CLI
 auto-launch Chrome and re-enter the crash path.
 
@@ -122,30 +166,15 @@ misinterpreted as daemon startup and open an internal `127.0.0.1:<port>` service
 in the system browser. Use the external `agent-browser` CLI attached to CDP
 instead.
 
-Use this sequence:
+Use this sequence only for that optional CDP path:
 
 ```bash
-if ! curl -fsS http://127.0.0.1:9223/json/version | rg -q webSocketDebuggerUrl; then
-  open -na "Google Chrome" --args \
-    --remote-debugging-port=9223 \
-    --user-data-dir=/tmp/od-agent-browser-chrome \
-    --no-first-run \
-    --no-default-browser-check
-
-  for i in {1..20}; do
-    if curl -fsS http://127.0.0.1:9223/json/version | rg -q webSocketDebuggerUrl; then
-      break
-    fi
-    sleep 0.5
-  done
-fi
-
 curl -fsS http://127.0.0.1:9223/json/version | rg webSocketDebuggerUrl
 agent-browser connect http://127.0.0.1:9223
 ```
 
-If CDP is still unavailable after polling, stop and ask the user to launch
-Chrome manually from Terminal:
+If CDP is unavailable, stop and ask the user to launch Chrome manually from
+Terminal before you attach:
 
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
@@ -164,61 +193,56 @@ Lightpanda is optional. Do not try `--engine lightpanda` unless
 
 ## Open Design Smoke Path
 
-Use a temp home and stable session:
+Use bundled Playwright and write screenshots to `/tmp` unless the user asks for
+project artifacts:
 
 ```bash
-export HOME=/tmp/agent-browser-home
-export AGENT_BROWSER_SESSION=od-local-preview
-```
+cat > /tmp/od-playwright-smoke.cjs <<'EOF'
+const { chromium } = require(process.env.OD_PLAYWRIGHT_PACKAGE);
 
-When you start a temporary Chrome profile for this smoke path, close it before
-finishing the task. Prefer a shell trap around the whole smoke script:
+const url = process.env.TARGET_URL || 'http://127.0.0.1:17573/';
+const desktopPath = process.env.DESKTOP_SCREENSHOT || '/tmp/od-playwright-desktop.png';
+const mobilePath = process.env.MOBILE_SCREENSHOT || '/tmp/od-playwright-mobile.png';
 
-```bash
-CHROME_USER_DATA_DIR=/tmp/od-agent-browser-chrome
-cleanup_agent_browser() {
-  pkill -f -- "--user-data-dir=${CHROME_USER_DATA_DIR}" 2>/dev/null || true
+async function main() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  const title = await page.title();
+  const currentUrl = page.url();
+  const bodyText = await page.locator('body').innerText({ timeout: 3000 }).catch(() => '');
+  await page.screenshot({ path: desktopPath, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: mobilePath, fullPage: true });
+  await browser.close();
+  console.log(JSON.stringify({
+    ok: true,
+    title,
+    url: currentUrl,
+    visibleText: bodyText.slice(0, 500),
+    screenshots: { desktop: desktopPath, mobile: mobilePath }
+  }, null, 2));
 }
-trap cleanup_agent_browser EXIT INT TERM
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+EOF
+
+TARGET_URL=http://127.0.0.1:17573/ "$OD_NODE_BIN" /tmp/od-playwright-smoke.cjs
 ```
 
-With the Open Design preview at `http://127.0.0.1:17573/`, run:
-
-```bash
-if ! curl -fsS http://127.0.0.1:9223/json/version | rg -q webSocketDebuggerUrl; then
-  open -na "Google Chrome" --args \
-    --remote-debugging-port=9223 \
-    --user-data-dir="$CHROME_USER_DATA_DIR" \
-    --no-first-run \
-    --no-default-browser-check
-
-  for i in {1..20}; do
-    if curl -fsS http://127.0.0.1:9223/json/version | rg -q webSocketDebuggerUrl; then
-      break
-    fi
-    sleep 0.5
-  done
-fi
-
-curl -fsS http://127.0.0.1:9223/json/version | rg webSocketDebuggerUrl
-agent-browser connect http://127.0.0.1:9223
-agent-browser open http://127.0.0.1:17573/
-agent-browser get title
-agent-browser get url
-agent-browser snapshot
-agent-browser screenshot /tmp/od-agent-browser.png
-```
-
-Expected success: title `Open Design`, current URL under `127.0.0.1:17573`,
-visible Open Design UI text in the snapshot, and a screenshot at
-`/tmp/od-agent-browser.png`.
+Expected success: JSON with title `Open Design`, current URL under
+`127.0.0.1:17573`, visible Open Design UI text, and screenshots at
+`/tmp/od-playwright-desktop.png` and `/tmp/od-playwright-mobile.png`.
 
 ## Workflow
 
-1. Verify `agent-browser` is installed.
-2. Redirect upstream docs to temp files; quote only relevant lines.
-3. Ensure CDP is reachable, starting Chrome with `open -na` if needed.
-4. Connect with `agent-browser connect http://127.0.0.1:9223`.
+1. Verify bundled Playwright is available through `OD_PLAYWRIGHT_CLI` and `OD_PLAYWRIGHT_PACKAGE`.
+2. Use an isolated Playwright Chromium context for local preview validation.
+3. Redirect upstream `agent-browser` docs to temp files only when using the optional external CLI.
+4. For optional CDP sessions, connect with `agent-browser connect http://127.0.0.1:9223`.
 5. Open the local preview URL.
 6. If the run prompt includes a selected browser workspace item, open or focus
    that URL before inspecting.

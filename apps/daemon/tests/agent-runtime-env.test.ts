@@ -13,14 +13,33 @@ describe('agent runtime tool environment', () => {
       'http://127.0.0.1:7456',
       { token: 'fresh-token' },
       '/opt/open-design/bin/node',
+      {
+        cli: '/opt/open-design/node_modules/playwright/cli.js',
+        package: '/opt/open-design/node_modules/playwright/index.js',
+      },
     );
 
     expect(env).toMatchObject({
       PATH: `/opt/open-design/bin${path.delimiter}/bin`,
       OD_DAEMON_URL: 'http://127.0.0.1:7456',
       OD_NODE_BIN: '/opt/open-design/bin/node',
+      OD_PLAYWRIGHT_CLI: '/opt/open-design/node_modules/playwright/cli.js',
+      OD_PLAYWRIGHT_PACKAGE: '/opt/open-design/node_modules/playwright/index.js',
       OD_TOOL_TOKEN: 'fresh-token',
     });
+  });
+
+  it('omits Playwright env paths when the bundled runtime cannot be resolved', () => {
+    const env = createAgentRuntimeEnv(
+      { PATH: '/bin' },
+      'http://127.0.0.1:7456',
+      null,
+      '/opt/open-design/bin/node',
+      null,
+    );
+
+    expect(env.OD_PLAYWRIGHT_CLI).toBeUndefined();
+    expect(env.OD_PLAYWRIGHT_PACKAGE).toBeUndefined();
   });
 
   it('prepends node binary directory to PATH when not already present', () => {
@@ -135,6 +154,8 @@ describe('agent runtime tool environment', () => {
     expect(prompt).toContain('Daemon URL: `http://127.0.0.1:7456`');
     expect(prompt).toContain('`OD_DAEMON_URL`');
     expect(prompt).toContain('`OD_NODE_BIN`');
+    expect(prompt).toContain('`OD_PLAYWRIGHT_CLI`');
+    expect(prompt).toContain('bundled Playwright runtime');
     expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" tools ...`');
     expect(prompt).toContain('& $env:OD_NODE_BIN $env:OD_BIN tools ...');
     expect(prompt).toContain('`OD_TOOL_TOKEN` is available');
