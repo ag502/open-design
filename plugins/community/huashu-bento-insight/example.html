@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Open Design · 开源、本地、Agent 驱动的设计平台 — Bento Insight Grid</title>
+<title>Open Design · The Open-Source, Local, Agent-Driven Design Platform — Bento Insight Grid</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Geist:wght@300;400;700;800;900&family=Geist+Mono:wght@400;600;700;800&display=swap');
 
 /* ============================================================
-   Bento Insight Grid · 便当格洞见
+   Bento Insight Grid
    Apple Keynote / QBR school — light-grey & cream canvas,
    unequal-height rounded bento cards, one insight per card,
    giant display headlines with hard weight contrast,
    Geist Mono tabular KPI numerals, inline-SVG sparklines.
    Spec source: huashu-design references/design-styles.md
-   「Bento便当格模块网格 / Bento Grid」(中性派 · 还原95%)
+   "Bento modular grid / Bento Grid" (neutral school · 95% fidelity)
    ============================================================ */
 
 :root {
@@ -411,8 +411,8 @@ body {
 <body>
 <div id="stage">
 
-<!-- ============ 01 · 封面 ============ -->
-<section class="slide cream cover active" data-screen-label="01 封面">
+<!-- ============ 01 · Cover ============ -->
+<section class="slide cream cover active" data-screen-label="01 Cover">
   <div class="brand-row">
     <div class="logo">
       <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14c3-6 7-6 10 0s7 6 10 0" transform="scale(0.85) translate(1,2)"/></svg></span>
@@ -421,8 +421,8 @@ body {
     <div class="kicker">OPEN · LOCAL · AGENT-NATIVE</div>
   </div>
   <div>
-    <div class="display">Open Design<br><span class="lite">开源、本地，</span>Agent 驱动。</div>
-    <div class="cover-sub">从想法到原型、网页、Slides、HTML 视频——产品设计全流程，在<b>你自己的设备</b>上完成。<br>Apache-2.0 · 本地运行 · BYOK · 无需注册 · github.com/nexu-io/open-design</div>
+    <div class="display">Open Design<br><span class="lite">Open, local,</span> agent-driven.</div>
+    <div class="cover-sub">From idea to prototypes, pages, slides, and HTML video — the entire design workflow, <b>on your own machine</b>.<br>Apache-2.0 · Runs locally · BYOK · No sign-up · github.com/nexu-io/open-design</div>
   </div>
   <div class="cover-bento">
     <div class="card dark">
@@ -433,59 +433,59 @@ body {
       <div class="kpi" style="font-size:44px;">60K<span class="unit">+</span></div>
     </div>
     <div class="card">
-      <span class="card-label">贡献者 Contributors</span>
+      <span class="card-label">Contributors</span>
       <div class="kpi">300<span class="unit">+</span></div>
     </div>
     <div class="card">
-      <span class="card-label">社区插件 Plugins</span>
+      <span class="card-label">Community Plugins</span>
       <div class="kpi">217<span class="unit">+</span></div>
     </div>
     <div class="card">
-      <span class="card-label">接入 Coding Agents</span>
-      <div class="kpi">21<span class="unit">个</span></div>
+      <span class="card-label">Coding Agents</span>
+      <div class="kpi">21</div>
     </div>
   </div>
 </section>
 
-<!-- ============ 02 · 目录 ============ -->
-<section class="slide" data-screen-label="02 目录">
+<!-- ============ 02 · Agenda ============ -->
+<section class="slide" data-screen-label="02 Agenda">
   <div class="page-head">
     <div>
       <div class="kicker">AGENDA</div>
-      <h2 class="title">今天，我们聊四件事。</h2>
+      <h2 class="title">Today, four things.</h2>
     </div>
     <div class="right">02 / 10</div>
   </div>
   <div class="agenda-grid">
     <div class="card lg">
       <div class="num">01</div>
-      <h3>为什么开放</h3>
-      <p>Claude Design 证明了 LLM 能真正做设计，但它闭源、付费、只跑在云端。Open Design 让这套能力开放。</p>
+      <h3>Why open</h3>
+      <p>Claude Design proved an LLM can truly design — but it is closed-source, paid, and cloud-only. Open Design makes that capability open.</p>
     </div>
     <div class="card lg">
       <div class="num">02</div>
-      <h3>数字与增长</h3>
-      <p>60K+ Stars、300+ 贡献者、217+ 插件——一页便当格看清社区数字。</p>
+      <h3>Numbers &amp; growth</h3>
+      <p>60K+ stars, 300+ contributors, 217+ plugins — the community numbers, on one bento page.</p>
     </div>
     <div class="card lg">
       <div class="num">03</div>
-      <h3>产物与能力</h3>
-      <p>原型、Slides、图像、HTML 视频——多模态产物与核心能力一屏掌握。</p>
+      <h3>Outputs &amp; capabilities</h3>
+      <p>Prototypes, slides, images, HTML video — multimodal outputs and core capabilities on a single screen.</p>
     </div>
     <div class="card lg">
       <div class="num">04</div>
-      <h3>工作流与生态</h3>
-      <p>从想法到交付 5 步完成，21 个 Coding Agent 零配置接入。</p>
+      <h3>Workflow &amp; ecosystem</h3>
+      <p>From idea to delivery in 5 steps, with 21 coding agents plugged in, zero config.</p>
     </div>
   </div>
 </section>
 
-<!-- ============ 03 · 季度速览（bento 母版页） ============ -->
-<section class="slide" data-screen-label="03 数字速览">
+<!-- ============ 03 · At-a-glance (bento master page) ============ -->
+<section class="slide" data-screen-label="03 At a Glance">
   <div class="page-head">
     <div>
       <div class="kicker">OPEN DESIGN AT A GLANCE</div>
-      <h2 class="title">数字速览 <span class="thin">· 每格一个洞见</span></h2>
+      <h2 class="title">The numbers <span class="thin">· one insight per tile</span></h2>
     </div>
     <div class="right">03 / 10</div>
   </div>
@@ -493,19 +493,19 @@ body {
     <div class="card lg dark a">
       <div class="row">
         <span class="card-label">GitHub Stars</span>
-        <span class="delta up">↑ 开源社区驱动</span>
+        <span class="delta up">↑ Community-driven</span>
       </div>
       <div class="kpi kpi-xl">60K<span class="unit">+</span></div>
       <svg class="spark" viewBox="0 0 280 72" preserveAspectRatio="none" aria-hidden="true" style="margin-top:28px;height:72px;">
         <path d="M0,62 L35,58 L70,52 L105,46 L140,40 L175,30 L210,22 L245,14 L280,6" fill="none" stroke="#4C9FFF" stroke-width="3" stroke-linecap="round"/>
         <path d="M0,62 L35,58 L70,52 L105,46 L140,40 L175,30 L210,22 L245,14 L280,6 L280,72 L0,72 Z" fill="#4C9FFF" opacity="0.14"/>
       </svg>
-      <div class="foot">Stars 走势示意 · Apache-2.0 开源</div>
+      <div class="foot">Illustrative star trend · Apache-2.0 open source</div>
     </div>
     <div class="card b">
       <div class="row">
-        <span class="card-label">贡献者 Contributors</span>
-        <span class="delta up">↑ 持续增长</span>
+        <span class="card-label">Contributors</span>
+        <span class="delta up">↑ Still growing</span>
       </div>
       <div class="kpi kpi-lg">300<span class="unit">+</span></div>
       <svg class="spark" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true" style="margin-top:18px;height:40px;">
@@ -514,55 +514,55 @@ body {
     </div>
     <div class="card c">
       <div class="row">
-        <span class="card-label">社区插件 Plugins</span>
-        <span class="delta up">↑ 持续新增</span>
+        <span class="card-label">Community Plugins</span>
+        <span class="delta up">↑ New weekly</span>
       </div>
       <div class="kpi kpi-lg">217<span class="unit">+</span></div>
-      <div class="foot">覆盖原型、Slides、海报、仪表盘等场景</div>
+      <div class="foot">Prototypes, slides, posters, dashboards, and more</div>
     </div>
     <div class="card tb d">
       <div class="icon b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/><path d="M9 11h.01M15 11h.01"/></svg></div>
-      <span class="card-label">内置 Design System</span>
-      <div class="kpi kpi-md">129<span class="unit">套</span></div>
+      <span class="card-label">Built-in Design Systems</span>
+      <div class="kpi kpi-md">129</div>
     </div>
     <div class="card e">
       <span class="card-label">Coding Agents</span>
-      <div class="kpi kpi-md">21<span class="unit">个</span></div>
+      <div class="kpi kpi-md">21</div>
     </div>
     <div class="card tg f">
-      <span class="card-label">月成本降幅</span>
+      <span class="card-label">Monthly Cost Cut</span>
       <div class="kpi kpi-md">-80%</div>
     </div>
   </div>
 </section>
 
-<!-- ============ 04 · one-insight 超大数字 ============ -->
-<section class="slide cream insight" data-screen-label="04 关键洞见">
-  <div class="kicker">ONE INSIGHT · 最重要的一个数字</div>
+<!-- ============ 04 · one-insight giant number ============ -->
+<section class="slide cream insight" data-screen-label="04 Key Insight">
+  <div class="kicker">ONE INSIGHT · THE NUMBER THAT MATTERS MOST</div>
   <div class="giant">-80<span class="pct">%</span></div>
-  <div class="giant-label">对比 Claude Design 的月成本降幅。</div>
-  <div class="giant-note">同样前沿的 AI 设计能力，月费从 $500 降到约 $73——模型、Agent、媒体供应商全链路 BYOK，一切都跑在你自己的设备上，成本回到你手里。</div>
+  <div class="giant-label">Monthly cost, compared with Claude Design.</div>
+  <div class="giant-note">The same frontier AI design capability, from $500 down to about $73 a month — models, agents, and media providers are BYOK end to end, everything runs on your own machine, and the cost is back in your hands.</div>
   <div class="chip-row">
-    <span class="chip">Claude Design 月费 <b>$500</b></span>
-    <span class="chip">Open Design BYOK <b>~$73</b>/月</span>
-    <span class="chip">本地运行 · <b>无需注册</b></span>
+    <span class="chip">Claude Design <b>$500</b>/mo</span>
+    <span class="chip">Open Design BYOK <b>~$73</b>/mo</span>
+    <span class="chip">Runs locally · <b>No sign-up</b></span>
   </div>
 </section>
 
-<!-- ============ 05 · 增长与收入 ============ -->
-<section class="slide" data-screen-label="05 社区增长">
+<!-- ============ 05 · Growth ============ -->
+<section class="slide" data-screen-label="05 Community Growth">
   <div class="page-head">
     <div>
       <div class="kicker">GROWTH</div>
-      <h2 class="title">Stars，一路向上。</h2>
+      <h2 class="title">Stars, up and to the right.</h2>
     </div>
     <div class="right">05 / 10</div>
   </div>
   <div class="chart-grid">
     <div class="card lg main">
       <div class="row" style="display:flex;justify-content:space-between;">
-        <span class="card-label">GitHub Stars 走势（示意数据）</span>
-        <span class="delta up">↑ 60K+ · 持续创新高</span>
+        <span class="card-label">GitHub Stars Trend (illustrative data)</span>
+        <span class="delta up">↑ 60K+ · New highs</span>
       </div>
       <div class="bars">
         <div class="bar-col"><span class="val">8K</span><div class="bar" style="height:12%;"></div><span class="q">T1</span></div>
@@ -574,127 +574,127 @@ body {
     </div>
     <div class="card side">
       <div class="row" style="display:flex;justify-content:space-between;">
-        <span class="card-label">贡献者 Contributors</span>
-        <span class="delta up">↑ 社区共建</span>
+        <span class="card-label">Contributors</span>
+        <span class="delta up">↑ Community-built</span>
       </div>
       <div class="kpi" style="font-size:56px;">300<span class="unit">+</span></div>
-      <div class="foot" style="font-size:14px;color:var(--muted);margin-top:12px;">Apache-2.0 · Fork、自部署、商用全部允许</div>
+      <div class="foot" style="font-size:14px;color:var(--muted);margin-top:12px;">Apache-2.0 · Fork, self-host, and ship commercially</div>
     </div>
     <div class="card tw side">
       <div class="row" style="display:flex;justify-content:space-between;">
-        <span class="card-label">对比 Claude Design 月成本</span>
+        <span class="card-label">Monthly Cost vs. Claude Design</span>
         <span class="delta down">↓ 80%</span>
       </div>
-      <div class="kpi" style="font-size:56px;">$73<span class="unit">/月</span></div>
-      <div class="foot" style="font-size:14px;color:var(--muted);margin-top:12px;">原 $500 · 全链路 BYOK，成本回到你手里</div>
+      <div class="kpi" style="font-size:56px;">$73<span class="unit">/mo</span></div>
+      <div class="foot" style="font-size:14px;color:var(--muted);margin-top:12px;">Was $500 · BYOK end to end — the cost is back in your hands</div>
     </div>
   </div>
 </section>
 
-<!-- ============ 06 · 产品进展 ============ -->
-<section class="slide" data-screen-label="06 多模态产物">
+<!-- ============ 06 · Outputs ============ -->
+<section class="slide" data-screen-label="06 Multimodal Outputs">
   <div class="page-head">
     <div>
       <div class="kicker">OUTPUTS</div>
-      <h2 class="title">一个平台，多种产物<span class="thin">：从想法到交付</span></h2>
+      <h2 class="title">One platform, many outputs<span class="thin">: idea to delivery</span></h2>
     </div>
     <div class="right">06 / 10</div>
   </div>
   <div class="product-grid">
     <div class="card lg wide">
       <div class="icon b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/><circle cx="12" cy="12" r="3"/><path d="M12 15v6"/><path d="M5 6l4.2 4.2"/><path d="M14.8 13.8 19 18"/><path d="M19 6l-4.2 4.2"/><path d="M9.2 13.8 5 18"/></svg></div>
-      <h3>原型 Prototype & Live Artifact</h3>
-      <p>移动端 / Web 高保真原型，可交互仪表盘与运营简报——Agent 读取全部上下文，产出真实可运行的文件，沙盒内即时预览和修改。</p>
-      <div class="meta"><span>真实文件 · 可 git diff</span><b>沙盒即时预览</b></div>
+      <h3>Prototype &amp; Live Artifact</h3>
+      <p>High-fidelity mobile / web prototypes, interactive dashboards, and ops briefs — the agent reads the full context, produces real runnable files, and lets you preview and edit instantly in a sandbox.</p>
+      <div class="meta"><span>Real files · git-diffable</span><b>Instant sandbox preview</b></div>
     </div>
     <div class="card">
       <div class="icon g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M10 6.5h7a0 0 0 0 1 0 0v4a0 0 0 0 1 0 0"/><path d="M6.5 10v7a1 1 0 0 0 1 1H14"/></svg></div>
       <h3>Slides</h3>
-      <p>创意 Deck 与研究报告，模板与 Plugin 即插即用。</p>
-      <div class="meta"><span>Deck · 报告</span><b>217+ Plugins</b></div>
+      <p>Creative decks and research reports, with plug-and-play templates and plugins.</p>
+      <div class="meta"><span>Decks · Reports</span><b>217+ Plugins</b></div>
     </div>
     <div class="card">
       <div class="icon w"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/><path d="M13.5 5.5l-3 13"/></svg></div>
       <h3>Image</h3>
-      <p>海报、插画与产品 Mockup，风格随 Design System 走。</p>
-      <div class="meta"><span>海报 · Mockup</span><b>129 Design Systems</b></div>
+      <p>Posters, illustrations, and product mockups, styled by your design system.</p>
+      <div class="meta"><span>Posters · Mockups</span><b>129 Design Systems</b></div>
     </div>
     <div class="card tb wide">
       <div class="icon b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 20V10"/><path d="M10 20V6"/><path d="M15 20v-8"/><path d="M20 20V4"/></svg></div>
-      <h3>HyperFrames & Video</h3>
-      <p>HTML→MP4 营销短片、产品 Demo，以及电影感生成式片段——设计稿不止于交付，还能直接变成可发布的视频。</p>
-      <div class="meta"><span>HTML → MP4</span><b>编程式视频</b></div>
+      <h3>HyperFrames &amp; Video</h3>
+      <p>HTML-to-MP4 marketing shorts, product demos, and cinematic generative clips — designs don't stop at handoff; they become publishable video.</p>
+      <div class="meta"><span>HTML → MP4</span><b>Programmatic video</b></div>
     </div>
   </div>
 </section>
 
-<!-- ============ 07 · 客户之声 ============ -->
-<section class="slide cream" data-screen-label="07 社区之声">
+<!-- ============ 07 · Community voice ============ -->
+<section class="slide cream" data-screen-label="07 Community Voice">
   <div class="page-head">
     <div>
       <div class="kicker">COMMUNITY VOICE</div>
-      <h2 class="title">社区怎么说</h2>
+      <h2 class="title">What the community says</h2>
     </div>
     <div class="right">07 / 10</div>
   </div>
   <div class="quote-grid">
     <div class="card lg quote-card">
       <div class="quote-mark"><svg viewBox="0 0 56 42" fill="currentColor" aria-hidden="true"><path d="M0 42V26.4C0 11.5 8.6 2.2 23.4 0l3 6.8C16.6 9.4 11.6 15 11 22h12v20H0Zm33 0V26.4C33 11.5 41.6 2.2 56.4 0l3 6.8C49.6 9.4 44.6 15 44 22h12v20H33Z" transform="scale(0.93)"/></svg></div>
-      <div class="quote-text">文件系统语义，加上设计产物能直接 git diff——<em>设计，终于能版本控制了</em>。</div>
+      <div class="quote-text">File-system semantics, plus design artifacts you can git diff — <em>design is finally under version control</em>.</div>
       <div class="quote-attr">
-        <div class="avatar">开</div>
-        <div class="who"><b>独立开发者</b><span>Open Design 社区用户</span></div>
+        <div class="avatar">ID</div>
+        <div class="who"><b>Indie developer</b><span>Open Design community user</span></div>
       </div>
     </div>
     <div class="quote-side">
       <div class="card">
-        <span class="card-label">内置 Design System</span>
-        <div class="kpi">129<span class="unit">套</span></div>
-        <div class="foot" style="font-size:14px;color:var(--muted);margin-top:10px;">GitHub / Figma / 本地导入</div>
+        <span class="card-label">Built-in Design Systems</span>
+        <div class="kpi">129</div>
+        <div class="foot" style="font-size:14px;color:var(--muted);margin-top:10px;">Import from GitHub / Figma / local</div>
       </div>
       <div class="card tg">
-        <span class="card-label">接入 Coding Agent</span>
-        <div class="kpi">21<span class="unit">个</span></div>
-        <div class="foot" style="font-size:14px;color:var(--muted);margin-top:10px;">自动检测 PATH · 零配置</div>
+        <span class="card-label">Coding Agents</span>
+        <div class="kpi">21</div>
+        <div class="foot" style="font-size:14px;color:var(--muted);margin-top:10px;">Auto-detects PATH · Zero config</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 08 · 经营效率 2×2 ============ -->
-<section class="slide" data-screen-label="08 核心能力">
+<!-- ============ 08 · Capabilities 2×2 ============ -->
+<section class="slide" data-screen-label="08 Core Capabilities">
   <div class="page-head">
     <div>
       <div class="kicker">CAPABILITIES</div>
-      <h2 class="title">核心能力，一格一个。</h2>
+      <h2 class="title">Core capabilities, one per tile.</h2>
     </div>
     <div class="right">08 / 10</div>
   </div>
   <div class="eff-grid">
     <div class="card lg">
       <div class="row">
-        <span class="card-label">接入 Coding Agent · 零配置</span>
-        <span class="delta up">自动检测 PATH</span>
+        <span class="card-label">Coding Agents · Zero config</span>
+        <span class="delta up">Auto-detects PATH</span>
       </div>
-      <div class="kpi">21<span class="unit">个</span></div>
+      <div class="kpi">21</div>
     </div>
     <div class="card lg dark">
       <div class="row">
-        <span class="card-label">Plugin 生态 · 原型 / Slides / 海报 / 仪表盘</span>
-        <span class="delta up">↑ 持续新增</span>
+        <span class="card-label">Plugin ecosystem · Prototypes / Slides / Posters / Dashboards</span>
+        <span class="delta up">↑ New weekly</span>
       </div>
       <div class="kpi">217<span class="unit">+</span></div>
     </div>
     <div class="card lg tg">
       <div class="row">
-        <span class="card-label">Design System · GitHub / Figma / 本地导入</span>
-        <span class="delta up">越用越懂你</span>
+        <span class="card-label">Design Systems · GitHub / Figma / local import</span>
+        <span class="delta up">Learns you over time</span>
       </div>
-      <div class="kpi">129<span class="unit">套</span></div>
+      <div class="kpi">129</div>
     </div>
     <div class="card lg">
       <div class="row">
-        <span class="card-label">全链路 BYOK · 对比 Claude Design 月成本</span>
+        <span class="card-label">BYOK end to end · Monthly cost vs. Claude Design</span>
         <span class="delta up">$500 → ~$73</span>
       </div>
       <div class="kpi">-80<span class="unit">%</span></div>
@@ -702,61 +702,61 @@ body {
   </div>
 </section>
 
-<!-- ============ 09 · 下季计划 ============ -->
-<section class="slide" data-screen-label="09 工作流">
+<!-- ============ 09 · Workflow ============ -->
+<section class="slide" data-screen-label="09 Workflow">
   <div class="page-head">
     <div>
       <div class="kicker">WORKFLOW</div>
-      <h2 class="title">从想法到交付，5 步完成</h2>
+      <h2 class="title">From idea to delivery in 5 steps</h2>
     </div>
     <div class="right">09 / 10</div>
   </div>
   <div class="road-grid">
     <div class="card lg">
-      <div class="q-tag">STEP 01-02 · 起点</div>
-      <h3>选择起点与方向</h3>
+      <div class="q-tag">STEP 01-02 · START</div>
+      <h3>Choose a start and a direction</h3>
       <ul>
-        <li>一句话描述目标，或从模板 / Plugin 直接选起点</li>
-        <li>选定视觉方向，色板、字体、间距自动带入生成流程</li>
-        <li>本地文件、Figma 导出、代码仓库直接可读</li>
+        <li>Describe the goal in one sentence, or start from a template or plugin</li>
+        <li>Pick a visual direction — palettes, type, and spacing flow into generation</li>
+        <li>Local files, Figma exports, and code repos are readable in place</li>
       </ul>
-      <div class="target">输入：<b>一句话</b> 即可启动</div>
+      <div class="target">Input: <b>one sentence</b> is enough</div>
     </div>
     <div class="card lg">
-      <div class="q-tag">STEP 03 · 生成</div>
-      <h3>生成 Artifact</h3>
+      <div class="q-tag">STEP 03 · GENERATE</div>
+      <h3>Generate the artifact</h3>
       <ul>
-        <li>Agent 读取全部上下文，产出真实可运行的文件</li>
-        <li>沙盒内即时预览、对话式修改</li>
-        <li>原型、Slides、图像、视频走同一条流程</li>
+        <li>The agent reads the full context and produces real, runnable files</li>
+        <li>Instant preview and conversational edits in a sandbox</li>
+        <li>Prototypes, slides, images, and video share one pipeline</li>
       </ul>
-      <div class="target">产出：<b>真实文件</b> · 可 git diff</div>
+      <div class="target">Output: <b>real files</b> · git-diffable</div>
     </div>
     <div class="card lg">
-      <div class="q-tag">STEP 04-05 · 交付</div>
-      <h3>交付与记忆沉淀</h3>
+      <div class="q-tag">STEP 04-05 · DELIVER</div>
+      <h3>Deliver, and let memory settle</h3>
       <ul>
-        <li>导出给工程继续开发，或用 HyperFrames 直接转为营销视频</li>
-        <li>每次选择沉淀为 Design System、偏好与记忆</li>
-        <li>下次生成更接近你要的结果</li>
+        <li>Export to engineering, or turn it into a marketing video with HyperFrames</li>
+        <li>Every choice settles into design systems, preferences, and memory</li>
+        <li>The next generation lands closer to what you meant</li>
       </ul>
-      <div class="target">记忆复利：<b>越用越精准</b></div>
+      <div class="target">Memory compounds: <b>more precise with every use</b></div>
     </div>
   </div>
 </section>
 
-<!-- ============ 10 · 结尾 ============ -->
-<section class="slide cream closing" data-screen-label="10 结尾">
+<!-- ============ 10 · Closing ============ -->
+<section class="slide cream closing" data-screen-label="10 Closing">
   <div class="kicker">GET STARTED</div>
   <div>
-    <div class="display">把 AI 设计能力，<br>放回<span class="blue">你的桌上</span>。</div>
-    <div class="subtitle" style="font-size:21px;margin-top:28px;">Download Open Design（macOS / Windows）· Star on GitHub · Open · Local · Agent-native</div>
+    <div class="display">Put AI design capability<br>back on <span class="blue">your desk</span>.</div>
+    <div class="subtitle" style="font-size:21px;margin-top:28px;">Download Open Design (macOS / Windows) · Star on GitHub · Open · Local · Agent-native</div>
   </div>
   <div>
     <div class="sum-row">
       <div class="card"><div class="kpi">60K+</div><span class="card-label">GitHub Stars · Apache-2.0</span></div>
-      <div class="card"><div class="kpi">217+</div><span class="card-label">Plugins · 社区共建</span></div>
-      <div class="card"><div class="kpi">21</div><span class="card-label">Coding Agents · 零配置</span></div>
+      <div class="card"><div class="kpi">217+</div><span class="card-label">Plugins · Community-built</span></div>
+      <div class="card"><div class="kpi">21</div><span class="card-label">Coding Agents · Zero config</span></div>
     </div>
     <div class="foot-row" style="margin-top:30px;">
       <span>GITHUB.COM/NEXU-IO/OPEN-DESIGN · X.COM/NEXUDOTIO</span>

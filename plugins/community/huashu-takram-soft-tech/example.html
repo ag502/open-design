@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Open Design · 开源、本地、Agent 驱动的设计平台 — Takram Soft Tech</title>
+<title>Open Design · The Open-Source, Local, Agent-Driven Design Platform — Takram Soft Tech</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Serif:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap');
 
   /* ============================================================
-     Takram Soft Tech · 东方柔光科技
+     Takram Soft Tech · soft-glow tech aesthetic
      Locked design tokens — re-theme by changing VALUES only.
      Sage green + warm gray + one gold. Data viz as art pieces.
-     Based on huashu-design ppt-takram by 花叔 (alchaincyf).
+     Based on huashu-design ppt-takram by Huashu (alchaincyf).
      ============================================================ */
   :root {
     --paper:     #F5F0EB;   /* warm rice-paper background        */
@@ -29,7 +29,7 @@
     --faint:     #736D64;   /* tertiary captions (warm ink, AA)       */
     --card:      rgba(255, 255, 255, 0.6);
     --card-line: rgba(168, 181, 160, 0.18);
-    --serif: 'Noto Serif SC', 'Songti SC', serif;
+    --serif: 'Noto Serif', 'Songti SC', serif;
     --sans:  'Inter', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
   }
 
@@ -415,8 +415,8 @@
 
 <div id="stage">
 
-  <!-- ============ 01 · 封面 ============ -->
-  <section class="slide active s-cover" data-screen-label="01 封面">
+  <!-- ============ 01 · Cover ============ -->
+  <section class="slide active s-cover" data-screen-label="01 Cover">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">Product Briefing · 2026</div>
@@ -438,93 +438,93 @@
     </svg>
     <div class="cover-wrap">
       <div class="kicker">Open · Local · Agent-driven</div>
-      <h1 class="serif-title">Open Design<br>开源设计平台</h1>
-      <p class="en-sub">从想法到原型、网页、Slides、HTML 视频——产品设计全流程，在你自己的设备上完成。</p>
-      <div class="badge"><span class="badge-dot"></span><span class="badge-text">Apache-2.0 · 本地运行 · BYOK · 无需注册</span></div>
+      <h1 class="serif-title">Open Design<br>Design, Set Free</h1>
+      <p class="en-sub">From idea to prototype, web pages, slides, and HTML video — the full product-design workflow, on your own machine.</p>
+      <div class="badge"><span class="badge-dot"></span><span class="badge-text">Apache-2.0 · Runs locally · BYOK · No sign-up</span></div>
     </div>
     <div class="foot">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="1" y="1" width="14" height="14" rx="3" stroke="#C8C2B8" stroke-width="1"/>
         <path d="M5 8L7 10L11 6" stroke="#A8B5A0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>github.com/nexu-io/open-design · 2026 产品简报</span>
+      <span>github.com/nexu-io/open-design · 2026 Product Briefing</span>
     </div>
     <div class="fig-note">Fig. 00 — Open Design Overview</div>
   </section>
 
-  <!-- ============ 02 · 目录 ============ -->
-  <section class="slide s-toc" data-screen-label="02 目录">
+  <!-- ============ 02 · Contents ============ -->
+  <section class="slide s-toc" data-screen-label="02 Contents">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">Contents</div>
     </div>
     <div class="toc-wrap">
       <div class="kicker">Contents</div>
-      <h2 class="serif-title">目录</h2>
+      <h2 class="serif-title">Contents</h2>
       <div class="toc-row">
         <span class="toc-num">01</span>
-        <span class="toc-title">设计主张</span>
+        <span class="toc-title">Design Philosophy</span>
         <span class="toc-en">Philosophy — Open, Local, Agent-native</span>
       </div>
       <div class="toc-row">
         <span class="toc-num">02</span>
-        <span class="toc-title">社区规模</span>
+        <span class="toc-title">Community Scale</span>
         <span class="toc-en">Scale — 60K+ Stars on GitHub</span>
       </div>
       <div class="toc-row">
         <span class="toc-num">03</span>
-        <span class="toc-title">能力对照</span>
+        <span class="toc-title">Capability Benchmark</span>
         <span class="toc-en">Benchmark — Tri-axis Capability Map</span>
       </div>
       <div class="toc-row">
         <span class="toc-num">04</span>
-        <span class="toc-title">架构与核心数字</span>
+        <span class="toc-title">Architecture &amp; Numbers</span>
         <span class="toc-en">Architecture &amp; Numbers</span>
       </div>
       <div class="toc-row">
         <span class="toc-num">05</span>
-        <span class="toc-title">工作流</span>
+        <span class="toc-title">Workflow</span>
         <span class="toc-en">Workflow — Idea to Delivery</span>
       </div>
     </div>
-    <div class="foot"><span>Open Design · 2026 产品简报</span></div>
+    <div class="foot"><span>Open Design · 2026 Product Briefing</span></div>
     <div class="fig-note">Index</div>
   </section>
 
-  <!-- ============ 03 · 设计哲学 ============ -->
-  <section class="slide s-philo" data-screen-label="03 设计哲学">
+  <!-- ============ 03 · Design philosophy ============ -->
+  <section class="slide s-philo" data-screen-label="03 Philosophy">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">01 · Philosophy</div>
     </div>
     <div class="philo-wrap">
       <div class="kicker">Design Philosophy</div>
-      <h2 class="serif-title">让最前沿的 AI 设计能力，<br>回到每一个创作者的桌上。</h2>
+      <h2 class="serif-title">Put frontier AI design power<br>back on every creator’s desk.</h2>
       <p class="en-sub">Claude Design proved an LLM can truly design — yet it is closed, paid, and cloud-only. Open Design sets that capability free.</p>
       <div class="philo-cards">
         <div class="soft-card">
-          <div class="card-name">桌面端原生</div>
-          <div class="philo-card-title">设计在桌面端发生</div>
-          <p class="philo-card-text">本地文件、Figma 导出、代码仓库直接可读，Agent 拥有终端执行的全部能力。</p>
+          <div class="card-name">Desktop Native</div>
+          <div class="philo-card-title">Design happens on the desktop</div>
+          <p class="philo-card-text">Local files, Figma exports, and code repos are directly readable — and agents hold the full power of terminal execution.</p>
         </div>
         <div class="soft-card">
-          <div class="card-name">Agent 接入</div>
-          <div class="philo-card-title">不造 Agent，接入 Agent</div>
-          <p class="philo-card-text">你电脑上的 Claude Code、Codex、Cursor 已经够强，Open Design 把它们接进完整设计工作流。</p>
+          <div class="card-name">Agent Integration</div>
+          <div class="philo-card-title">Don’t build agents — plug them in</div>
+          <p class="philo-card-text">Claude Code, Codex, and Cursor on your machine are already strong; Open Design wires them into a complete design workflow.</p>
         </div>
         <div class="soft-card">
-          <div class="card-name">设计记忆</div>
-          <div class="philo-card-title">越用越懂你</div>
-          <p class="philo-card-text">每次选择都沉淀为 Design System、偏好和记忆，下次生成更接近你要的结果。</p>
+          <div class="card-name">Design Memory</div>
+          <div class="philo-card-title">Learns you over time</div>
+          <p class="philo-card-text">Every choice settles into design systems, preferences, and memory — so the next generation lands closer to what you want.</p>
         </div>
       </div>
     </div>
-    <div class="foot"><span>Open Design · 2026 产品简报</span></div>
+    <div class="foot"><span>Open Design · 2026 Product Briefing</span></div>
     <div class="fig-note">Sec. 01 — Philosophy</div>
   </section>
 
-  <!-- ============ 04 · 大数字 ============ -->
-  <section class="slide s-big" data-screen-label="04 社区规模">
+  <!-- ============ 04 · Big number ============ -->
+  <section class="slide s-big" data-screen-label="04 Community Scale">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">02 · Scale</div>
@@ -532,19 +532,19 @@
     <div class="big-wrap">
       <div class="kicker">Community Scale · GitHub</div>
       <div class="big-num">60K<span class="unit">+ Stars</span></div>
-      <div class="big-caption">Apache-2.0 开源，社区驱动的 Agent 设计平台。</div>
+      <div class="big-caption">Apache-2.0 open source — the community-driven, agent-powered design platform.</div>
       <div class="big-row">
         <div class="big-item">
           <div class="big-item-num">300<span class="u">+</span></div>
-          <div class="big-item-cap">贡献者 Contributors</div>
+          <div class="big-item-cap">Contributors</div>
         </div>
         <div class="big-item">
           <div class="big-item-num">217<span class="u">+</span></div>
-          <div class="big-item-cap">Plugins 插件</div>
+          <div class="big-item-cap">Plugins</div>
         </div>
         <div class="big-item">
           <div class="big-item-num">129<span class="u"></span></div>
-          <div class="big-item-cap">Design Systems 设计系统</div>
+          <div class="big-item-cap">Design Systems</div>
         </div>
         <div class="big-item">
           <div class="big-item-num">21<span class="u"></span></div>
@@ -552,12 +552,12 @@
         </div>
       </div>
     </div>
-    <div class="foot"><span>数据来源：github.com/nexu-io/open-design</span></div>
+    <div class="foot"><span>Source: github.com/nexu-io/open-design</span></div>
     <div class="fig-note">Fig. 01 — Community Scale</div>
   </section>
 
-  <!-- ============ 05 · 性能雷达（招牌页：数据可视化当艺术品）============ -->
-  <section class="slide s-radar" data-screen-label="05 能力对照">
+  <!-- ============ 05 · Capability radar (the signature page: data viz as art) ============ -->
+  <section class="slide s-radar" data-screen-label="05 Benchmark">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">03 · Benchmark</div>
@@ -566,12 +566,12 @@
       <div class="radar-left">
         <div>
           <div class="kicker">Benchmark Analysis</div>
-          <h2 class="serif-title">Open Design<br>三维能力对照</h2>
+          <h2 class="serif-title">Open Design<br>Tri-axis Capability Map</h2>
           <p class="en-sub">Open, local, and agent-native — a demo three-axis read against the closed cloud-only suite.</p>
           <div class="badge" style="margin-top: 32px;"><span class="badge-dot"></span><span class="badge-text">OPEN DESIGN · 2026</span></div>
           <div class="insight" style="margin-top: 40px;">
             <div class="insight-label">Key Finding</div>
-            <div class="insight-text">在开放可控、本地工作流与 Agent 生态三个维度上，开源 + 本地 + BYOK 的组合均领先闭源云端方案（示意评分）。</div>
+            <div class="insight-text">Across openness &amp; control, local workflow, and agent ecosystem, the open + local + BYOK combination leads the closed cloud-only suite on every axis (demo scores).</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;">
@@ -579,7 +579,7 @@
             <rect x="1" y="1" width="14" height="14" rx="3" stroke="#C8C2B8" stroke-width="1"/>
             <path d="M5 8L7 10L11 6" stroke="#A8B5A0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span style="font-size:11px;color:#736D64;letter-spacing:0.5px;">Data: 示意数据（demo data），2026</span>
+          <span style="font-size:11px;color:#736D64;letter-spacing:0.5px;">Data: illustrative demo data, 2026</span>
         </div>
       </div>
       <div class="radar-right">
@@ -588,7 +588,7 @@
           <div class="legend">
             <div class="legend-item"><div class="legend-dot s1"></div><span class="legend-text">Open Design</span></div>
             <div class="legend-item"><div class="legend-dot s2"></div><span class="legend-text">Claude Design</span></div>
-            <div class="legend-item"><div class="legend-dot s3"></div><span class="legend-text">行业均值</span></div>
+            <div class="legend-item"><div class="legend-dot s3"></div><span class="legend-text">Industry average</span></div>
           </div>
         </div>
         <div class="radar-area">
@@ -610,13 +610,13 @@
             <circle cx="280" cy="55" r="2" fill="none" stroke="#D4CFC6" stroke-width="0.6"/>
             <circle cx="475" cy="392" r="2" fill="none" stroke="#D4CFC6" stroke-width="0.6"/>
             <circle cx="85" cy="392" r="2" fill="none" stroke="#D4CFC6" stroke-width="0.6"/>
-            <text x="280" y="38" font-family="Inter" font-size="12" fill="#615C54" font-weight="500" text-anchor="middle" letter-spacing="1.5">开放可控</text>
-            <text x="280" y="26" font-family="Inter" font-size="7" fill="#736D64" text-anchor="middle" letter-spacing="0.5">Openness &amp; Control</text>
-            <text x="492" y="408" font-family="Inter" font-size="12" fill="#615C54" font-weight="500" text-anchor="start" letter-spacing="1.5">本地工作流</text>
-            <text x="492" y="422" font-family="Inter" font-size="7" fill="#736D64" text-anchor="start" letter-spacing="0.5">Local Workflow</text>
-            <text x="68" y="408" font-family="Inter" font-size="12" fill="#615C54" font-weight="500" text-anchor="end" letter-spacing="1.5">Agent 生态</text>
-            <text x="68" y="422" font-family="Inter" font-size="7" fill="#736D64" text-anchor="end" letter-spacing="0.5">Agent Ecosystem</text>
-            <!-- 行业均值 polygon (lightest, dashed) · r = 220·value/100: 84.1/68.9/72.4 -->
+            <text x="280" y="38" font-family="Inter" font-size="12" fill="#615C54" font-weight="500" text-anchor="middle" letter-spacing="0.5">Openness &amp; Control</text>
+            <text x="280" y="26" font-family="Inter" font-size="7" fill="#736D64" text-anchor="middle" letter-spacing="0.5">License · BYOK · Self-host</text>
+            <text x="492" y="408" font-family="Inter" font-size="12" fill="#615C54" font-weight="500" text-anchor="start" letter-spacing="0.5">Workflow</text>
+            <text x="492" y="422" font-family="Inter" font-size="7" fill="#736D64" text-anchor="start" letter-spacing="0.5">Local · Sandboxed</text>
+            <text x="68" y="408" font-family="Inter" font-size="12" fill="#615C54" font-weight="500" text-anchor="end" letter-spacing="0.5">Agents</text>
+            <text x="68" y="422" font-family="Inter" font-size="7" fill="#736D64" text-anchor="end" letter-spacing="0.5">21 CLIs · BYOK</text>
+            <!-- Industry-average polygon (lightest, dashed) · r = 220·value/100: 84.1/68.9/72.4 -->
             <polygon points="280,95.0 411.3,355.8 142.1,359.6"
               fill="rgba(219,219,219,0.12)" stroke="#D4CFC6" stroke-width="1" stroke-dasharray="4,3"/>
             <!-- Claude Design polygon (gold) · 88.6/76.2/79.3 -->
@@ -648,8 +648,8 @@
         </div>
         <div class="metric-cards">
           <div class="soft-card">
-            <div class="card-name">开放可控</div>
-            <div class="card-sub">Openness &amp; Control</div>
+            <div class="card-name">Openness &amp; Control</div>
+            <div class="card-sub">License · BYOK · Self-host</div>
             <div class="card-value">96.2</div>
             <div class="delta">
               <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
@@ -657,12 +657,12 @@
             </div>
             <div class="comp-row">
               <span class="comp-mini">Claude Design: <b>88.6</b></span>
-              <span class="comp-mini">均值: <b>84.1</b></span>
+              <span class="comp-mini">Avg: <b>84.1</b></span>
             </div>
           </div>
           <div class="soft-card">
-            <div class="card-name">本地工作流</div>
-            <div class="card-sub">Local Workflow</div>
+            <div class="card-name">Local Workflow</div>
+            <div class="card-sub">Files · Terminal · Sandbox</div>
             <div class="card-value">91.4</div>
             <div class="delta">
               <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
@@ -670,12 +670,12 @@
             </div>
             <div class="comp-row">
               <span class="comp-mini">Claude Design: <b>76.2</b></span>
-              <span class="comp-mini">均值: <b>68.9</b></span>
+              <span class="comp-mini">Avg: <b>68.9</b></span>
             </div>
           </div>
           <div class="soft-card">
-            <div class="card-name">Agent 生态</div>
-            <div class="card-sub">Agent Ecosystem</div>
+            <div class="card-name">Agent Ecosystem</div>
+            <div class="card-sub">21 coding agents</div>
             <div class="card-value">87.5</div>
             <div class="delta">
               <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
@@ -683,7 +683,7 @@
             </div>
             <div class="comp-row">
               <span class="comp-mini">Claude Design: <b>79.3</b></span>
-              <span class="comp-mini">均值: <b>72.4</b></span>
+              <span class="comp-mini">Avg: <b>72.4</b></span>
             </div>
           </div>
         </div>
@@ -691,15 +691,15 @@
     </div>
   </section>
 
-  <!-- ============ 06 · 网络架构 ============ -->
-  <section class="slide s-arch" data-screen-label="06 平台架构">
+  <!-- ============ 06 · Architecture network ============ -->
+  <section class="slide s-arch" data-screen-label="06 Architecture">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">04 · Architecture</div>
     </div>
     <div class="arch-wrap">
       <div class="kicker">Platform Architecture</div>
-      <h2 class="serif-title">三层结构：Agent — 工作流 — 产物</h2>
+      <h2 class="serif-title">Three layers: Agents — Workflow — Artifacts</h2>
       <div class="arch-svg-wrap">
         <svg width="1520" height="460" viewBox="0 0 1520 460">
           <!-- layer guides -->
@@ -733,38 +733,38 @@
           <circle cx="1360" cy="230" r="140" fill="none" stroke="#DDD9D2" stroke-width="0.5" stroke-dasharray="2,6"/>
           <circle cx="1360" cy="230" r="8" fill="#6B8F71" opacity="0.85"/>
           <circle cx="1360" cy="230" r="16" fill="none" stroke="#6B8F71" stroke-width="0.6" opacity="0.3"/>
-          <text x="1360" y="386" font-family="Inter" font-size="11" fill="#615C54" font-weight="500" text-anchor="middle" letter-spacing="1.5">多模态产物 · 设计交付</text>
+          <text x="1360" y="386" font-family="Inter" font-size="11" fill="#615C54" font-weight="500" text-anchor="middle" letter-spacing="1.5">Multimodal artifacts · Design delivery</text>
           <text x="1460" y="50" font-family="Inter" font-size="8" fill="#C8C2B8" font-weight="300" letter-spacing="1" text-anchor="end">Fig. 03 — Idea-to-Artifact Pipeline</text>
         </svg>
       </div>
       <div class="arch-labels">
         <div>
-          <div class="arch-label-title">Agent 层</div>
-          <p class="arch-label-text">自动检测 PATH 上已安装的 CLI，Claude Code、Codex、Cursor 等 21 个 Coding Agent 零配置接入。</p>
+          <div class="arch-label-title">Agent layer</div>
+          <p class="arch-label-text">Auto-detects the CLIs already on your PATH — Claude Code, Codex, Cursor, and 21 coding agents in all, zero configuration.</p>
         </div>
         <div>
-          <div class="arch-label-title">工作流层</div>
-          <p class="arch-label-text">217+ Plugins 与 129 个 Design System 提供起点与上下文，Agent 在沙盒中产出真实可运行的文件。</p>
+          <div class="arch-label-title">Workflow layer</div>
+          <p class="arch-label-text">217+ plugins and 129 design systems supply starting points and context; agents produce real, runnable files inside a sandbox.</p>
         </div>
         <div>
-          <div class="arch-label-title">交付层</div>
-          <p class="arch-label-text">原型、Slides、海报、仪表盘直接交付工程，或经 HyperFrames 转为 HTML 视频。</p>
+          <div class="arch-label-title">Delivery layer</div>
+          <p class="arch-label-text">Prototypes, slides, posters, and dashboards ship straight to engineering — or become HTML video via HyperFrames.</p>
         </div>
       </div>
     </div>
-    <div class="foot"><span>Open Design · 2026 产品简报</span></div>
+    <div class="foot"><span>Open Design · 2026 Product Briefing</span></div>
     <div class="fig-note">Sec. 04 — Architecture</div>
   </section>
 
-  <!-- ============ 07 · 核心指标 ============ -->
-  <section class="slide s-metrics" data-screen-label="07 核心指标">
+  <!-- ============ 07 · Core metrics ============ -->
+  <section class="slide s-metrics" data-screen-label="07 Core Metrics">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">04 · Metrics</div>
     </div>
     <div class="metrics-wrap">
       <div class="kicker">Core Numbers · Apache-2.0</div>
-      <h2 class="serif-title">社区与生态核心数字</h2>
+      <h2 class="serif-title">Core community &amp; ecosystem numbers</h2>
       <div class="metrics-grid">
         <div class="soft-card">
           <div class="card-name">GitHub Stars</div>
@@ -772,34 +772,34 @@
           <div class="card-value">60K<span class="unit">+</span></div>
           <div class="delta">
             <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
-            Apache-2.0 开源
+            Apache-2.0 open source
           </div>
         </div>
         <div class="soft-card">
-          <div class="card-name">贡献者</div>
+          <div class="card-name">Community</div>
           <div class="card-sub">Contributors</div>
           <div class="card-value">300<span class="unit">+</span></div>
           <div class="delta">
             <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
-            社区驱动
+            Community-driven
           </div>
         </div>
         <div class="soft-card">
-          <div class="card-name">插件</div>
+          <div class="card-name">Ecosystem</div>
           <div class="card-sub">Plugins</div>
           <div class="card-value">217<span class="unit">+</span></div>
           <div class="delta">
             <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
-            原型 · Slides · 海报
+            Prototypes · Slides · Posters
           </div>
         </div>
         <div class="soft-card">
-          <div class="card-name">设计系统</div>
-          <div class="card-sub">Design Systems</div>
+          <div class="card-name">Design Systems</div>
+          <div class="card-sub">Brand context</div>
           <div class="card-value">129</div>
           <div class="delta">
             <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
-            GitHub · Figma · 本地
+            GitHub · Figma · Local
           </div>
         </div>
         <div class="soft-card">
@@ -808,12 +808,12 @@
           <div class="card-value">21</div>
           <div class="delta">
             <svg viewBox="0 0 10 10" fill="none"><path d="M5 2L8 7H2L5 2Z" fill="#7D9B72"/></svg>
-            零配置接入
+            Zero-config setup
           </div>
         </div>
         <div class="soft-card">
-          <div class="card-name">月成本对比 Claude Design</div>
-          <div class="card-sub">Monthly Cost, BYOK</div>
+          <div class="card-name">Monthly Cost vs Claude Design</div>
+          <div class="card-sub">BYOK</div>
           <div class="card-value">−80<span class="unit">%</span></div>
           <div class="delta gold">
             <svg viewBox="0 0 10 10" fill="none"><path d="M5 8L2 3H8L5 8Z" fill="#D4A574"/></svg>
@@ -822,12 +822,12 @@
         </div>
       </div>
     </div>
-    <div class="foot"><span>数据来源：github.com/nexu-io/open-design</span></div>
+    <div class="foot"><span>Source: github.com/nexu-io/open-design</span></div>
     <div class="fig-note">Fig. 04 — Community Metric Cards</div>
   </section>
 
-  <!-- ============ 08 · 引语 ============ -->
-  <section class="slide s-quote" data-screen-label="08 引语">
+  <!-- ============ 08 · Quote ============ -->
+  <section class="slide s-quote" data-screen-label="08 Quote">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">Voices</div>
@@ -839,57 +839,57 @@
           <path d="M32 42V24.6C32 10.2 39.8 1.8 54.2 0l1.8 7.2c-7.8 1.8-12 6-12.6 12.6H56V42H32Z" fill="#D4A574" opacity="0.55"/>
         </svg>
       </div>
-      <div class="quote-text">文件系统语义，加上能 git diff 的设计产物，<br>设计终于进入<span class="em">版本控制</span>。</div>
-      <div class="quote-who">独立开发者</div>
-      <div class="quote-role">Open Design 社区用户</div>
+      <div class="quote-text">File-system semantics and git-diffable artifacts —<br>design finally enters <span class="em">version control</span>.</div>
+      <div class="quote-who">Indie Developer</div>
+      <div class="quote-role">Open Design community member</div>
     </div>
-    <div class="foot"><span>Open Design · 2026 产品简报</span></div>
+    <div class="foot"><span>Open Design · 2026 Product Briefing</span></div>
     <div class="fig-note">Voices — Community</div>
   </section>
 
-  <!-- ============ 09 · 路线图 ============ -->
-  <section class="slide s-road" data-screen-label="09 工作流">
+  <!-- ============ 09 · Workflow timeline ============ -->
+  <section class="slide s-road" data-screen-label="09 Workflow">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">05 · Workflow</div>
     </div>
     <div class="road-wrap">
       <div class="kicker">Workflow · Idea to Delivery</div>
-      <h2 class="serif-title">从想法到交付</h2>
+      <h2 class="serif-title">From idea to delivery</h2>
       <div class="road-line"></div>
       <div class="road-cols">
         <div class="road-col">
           <div class="road-dot"></div>
           <div class="road-season">Step 01 · Start</div>
-          <div class="road-title">选择起点</div>
-          <p class="road-text">一句话描述目标，或从模板与 Plugin 直接选一个起点开始。</p>
+          <div class="road-title">Pick a starting point</div>
+          <p class="road-text">Describe the goal in one sentence, or start straight from a template or plugin.</p>
         </div>
         <div class="road-col">
           <div class="road-dot"></div>
           <div class="road-season">Step 02 · Direction</div>
-          <div class="road-title">确定视觉方向</div>
-          <p class="road-text">选定方向后，色板、字体与间距自动带入后续生成流程。</p>
+          <div class="road-title">Set the visual direction</div>
+          <p class="road-text">Once a direction is chosen, palette, type, and spacing carry into every later generation.</p>
         </div>
         <div class="road-col">
           <div class="road-dot"></div>
           <div class="road-season">Step 03 · Generate</div>
-          <div class="road-title">生成 Artifact</div>
-          <p class="road-text">Agent 读取全部上下文，产出真实可运行的文件，沙盒内即时预览和修改。</p>
+          <div class="road-title">Generate the artifact</div>
+          <p class="road-text">The agent reads the full context and produces real, runnable files — instant preview and edits in a sandbox.</p>
         </div>
         <div class="road-col">
           <div class="road-dot"></div>
           <div class="road-season">Step 04 · Ship</div>
-          <div class="road-title">交付与沉淀</div>
-          <p class="road-text">导出给工程继续开发，或用 HyperFrames 转为营销视频；每次选择都沉淀为下次生成的记忆。</p>
+          <div class="road-title">Ship &amp; remember</div>
+          <p class="road-text">Export to engineering, or turn it into a marketing video with HyperFrames; every choice becomes memory for the next run.</p>
         </div>
       </div>
     </div>
-    <div class="foot"><span>Open Design · 2026 产品简报</span></div>
+    <div class="foot"><span>Open Design · 2026 Product Briefing</span></div>
     <div class="fig-note">Fig. 05 — Workflow Map</div>
   </section>
 
-  <!-- ============ 10 · 结尾 ============ -->
-  <section class="slide s-close" data-screen-label="10 结尾">
+  <!-- ============ 10 · Closing ============ -->
+  <section class="slide s-close" data-screen-label="10 Closing">
     <div class="masthead">
       <div class="mast-left"><span class="mast-dot"></span>OPEN DESIGN</div>
       <div class="mast-right">Thank You</div>
@@ -902,9 +902,9 @@
     </svg>
     <div class="close-wrap">
       <div class="kicker" style="margin-bottom: 0;">Open · Local · Agent-native</div>
-      <h2 class="serif-title">回到创作者的桌上</h2>
+      <h2 class="serif-title">Back on the creator’s desk</h2>
       <p class="en-sub">Frontier AI design, back on every creator's desk.</p>
-      <div class="badge"><span class="badge-dot"></span><span class="badge-text">Download Open Design（macOS / Windows）· Star on GitHub</span></div>
+      <div class="badge"><span class="badge-dot"></span><span class="badge-text">Download Open Design (macOS / Windows) · Star on GitHub</span></div>
     </div>
     <div class="foot"><span>github.com/nexu-io/open-design · discord.gg/qhbcCH8Am4 · x.com/nexudotio</span></div>
     <div class="fig-note">End — Fig. 06</div>
