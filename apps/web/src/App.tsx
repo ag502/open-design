@@ -414,6 +414,7 @@ function AppInner() {
   // which probes CLI versions and can take seconds on cold start). The entry
   // view picks the right flag for whichever tab the user is currently on.
   const [agentsLoading, setAgentsLoading] = useState(true);
+  const [agentsProbeSucceeded, setAgentsProbeSucceeded] = useState(false);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [dsLoading, setDsLoading] = useState(true);
   const [projectsLoading, setProjectsLoading] = useState(true);
@@ -759,6 +760,7 @@ function AppInner() {
         // No daemon — clear every loading flag so empty states render
         // instead of the entry view sitting on indefinite spinners.
         setAgentsLoading(false);
+        setAgentsProbeSucceeded(false);
         setSkillsLoading(false);
         setDsLoading(false);
         setProjectsLoading(false);
@@ -772,6 +774,7 @@ function AppInner() {
       }
 
       const agentRequestId = beginAgentStreamRequest();
+      setAgentsProbeSucceeded(false);
       void fetchAgentsStream({
         signal: agentStreamAbort.signal,
         onAgent: (agent) => {
@@ -792,6 +795,7 @@ function AppInner() {
               amrModelsRef.current,
             ),
           );
+          setAgentsProbeSucceeded(true);
         })
         .catch((err) => {
           if (
@@ -801,6 +805,7 @@ function AppInner() {
           ) {
             return;
           }
+          setAgentsProbeSucceeded(false);
           setAgents([]);
         })
         .finally(() => {
@@ -1241,6 +1246,7 @@ function AppInner() {
       }
       const agentRequestId = beginAgentStreamRequest();
       setAgentsLoading(true);
+      setAgentsProbeSucceeded(false);
       try {
         const next = await fetchAgentsStream({
           onAgent: (agent) => {
@@ -1256,12 +1262,14 @@ function AppInner() {
         const ordered = orderAgentsByRegistry(next);
         if (isCurrentAgentStreamRequest(agentRequestId)) {
           setAgents(mergeAmrModelsIntoAgents(ordered, amrModelsRef.current));
+          setAgentsProbeSucceeded(true);
           setAgentsLoading(false);
         }
         return ordered;
       } catch (err) {
         if (!isCurrentAgentStreamRequest(agentRequestId)) return [];
         setAgentsLoading(false);
+        setAgentsProbeSucceeded(false);
         if (options?.throwOnError) throw err;
         setAgents([]);
         return [];
@@ -2068,6 +2076,7 @@ function AppInner() {
         config={config}
         agents={agents}
         agentsLoading={agentsLoading}
+        agentsProbeSucceeded={agentsProbeSucceeded}
         skills={enabledFunctionalSkills}
         designTemplates={designTemplates}
         designSystems={designSystems}

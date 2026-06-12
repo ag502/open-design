@@ -833,6 +833,41 @@ Expected output:
     expect(screen.queryByText('chat.amrPreflight.title')).toBeNull();
   });
 
+  it('does not block when a failed agent probe leaves a built-in CLI absent', () => {
+    const onSend = vi.fn();
+    render(
+      <ChatPane
+        projectKindForTracking="prototype"
+        messages={[]}
+        streaming={false}
+        error={null}
+        projectId="project-1"
+        projectFiles={[]}
+        onEnsureProject={async () => 'project-1'}
+        onSend={onSend}
+        onStop={vi.fn()}
+        conversations={conversations}
+        activeConversationId="conv-1"
+        onSelectConversation={vi.fn()}
+        onDeleteConversation={vi.fn()}
+        projectMetadata={projectMetadata}
+        config={localCliConfig}
+        agents={[]}
+        agentsLoading={false}
+        agentsProbeSucceeded={false}
+        onOpenSettings={vi.fn()}
+        onOpenAmrSettings={vi.fn()}
+        onSwitchToAmrAndSend={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('composer-submit'));
+
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(composerMocks.restoreDraft).not.toHaveBeenCalled();
+    expect(screen.queryByText('chat.amrPreflight.title')).toBeNull();
+  });
+
   it('blocks a diagnosed unavailable local CLI when the AMR handoff is wired', async () => {
     const onSend = vi.fn();
     render(

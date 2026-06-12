@@ -129,16 +129,21 @@ vi.mock('../../src/components/EntryView', () => ({
 
 vi.mock('../../src/components/ProjectView', () => ({
   ProjectView: ({
+    agentsProbeSucceeded,
     onBack,
     onProjectsRefresh,
     project,
   }: {
+    agentsProbeSucceeded?: boolean;
     onBack: () => void;
     onProjectsRefresh: () => Promise<void>;
     project: Project;
   }) => (
     <main data-testid="project-view">
       <span data-testid="project-title">{project.name}</span>
+      <span data-testid="project-agents-probe-succeeded">
+        {String(agentsProbeSucceeded)}
+      </span>
       <button type="button" onClick={onBack}>
         Back to projects
       </button>
@@ -364,6 +369,23 @@ describe('App project creation routing', () => {
     expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
       expect.objectContaining({ agentId: 'claude' }),
     );
+  });
+
+  it('marks the agent probe unsuccessful when the agents fetch fails', async () => {
+    mockedFetchAgentsStream.mockRejectedValue(new Error('/api/agents failed'));
+    mockedListProjects.mockResolvedValue([existingProject]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open Existing project',
+    }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-agents-probe-succeeded').textContent).toBe(
+        'false',
+      );
+    });
   });
 
   it('ignores stale streamed writes from an older bootstrap after a newer rescan', async () => {

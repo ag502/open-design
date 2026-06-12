@@ -66,15 +66,29 @@ describe('resolveAmrSendPreflightIssue', () => {
     ).toBeNull();
   });
 
+  it('does not treat a failed agent probe as confirmed unavailable', () => {
+    expect(
+      resolveAmrSendPreflightIssue(baseConfig, [], {
+        agentsLoading: false,
+        agentsProbeSucceeded: false,
+      }),
+    ).toBeNull();
+  });
+
   it('blocks a missing built-in local agent after the agent probe has settled', () => {
-    expect(resolveAmrSendPreflightIssue(baseConfig, [])).toEqual({
+    expect(
+      resolveAmrSendPreflightIssue(baseConfig, [], {
+        agentsProbeSucceeded: true,
+      }),
+    ).toEqual({
       kind: 'agent-unavailable',
       agentId: 'claude',
     });
-    expect(resolveAmrSendPreflightIssue(baseConfig, [agent({ id: 'codex' })])).toEqual({
-      kind: 'agent-unavailable',
-      agentId: 'claude',
-    });
+    expect(
+      resolveAmrSendPreflightIssue(baseConfig, [agent({ id: 'codex' })], {
+        agentsProbeSucceeded: true,
+      }),
+    ).toEqual({ kind: 'agent-unavailable', agentId: 'claude' });
   });
 
   it('does not treat an absent custom agent entry as confirmed unavailable', () => {
@@ -85,6 +99,7 @@ describe('resolveAmrSendPreflightIssue', () => {
           agentId: 'mock-agent',
         },
         [agent()],
+        { agentsProbeSucceeded: true },
       ),
     ).toBeNull();
   });

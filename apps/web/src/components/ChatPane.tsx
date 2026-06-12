@@ -524,6 +524,7 @@ interface Props {
   onSwitchToLocalCli?: () => void;
   agents?: AgentInfo[];
   agentsLoading?: boolean;
+  agentsProbeSucceeded?: boolean;
   onOpenAmrSettings?: () => void;
   onSwitchToAmrAndRetry?: (failedAssistant: ChatMessage) => void;
   onSwitchToAmrAndSend?: (draft: AmrPreflightSendDraft) => boolean;
@@ -728,6 +729,7 @@ export function ChatPane({
   onSwitchToLocalCli,
   agents = [],
   agentsLoading = false,
+  agentsProbeSucceeded = false,
   onOpenAmrSettings,
   onSwitchToAmrAndRetry,
   onSwitchToAmrAndSend,
@@ -975,9 +977,12 @@ export function ChatPane({
   const amrPreflightIssue = useMemo(
     () =>
       amrPreflightEnabled
-        ? resolveAmrSendPreflightIssue(config, agents, { agentsLoading })
+        ? resolveAmrSendPreflightIssue(config, agents, {
+            agentsLoading,
+            agentsProbeSucceeded,
+          })
         : null,
-    [agents, agentsLoading, amrPreflightEnabled, config],
+    [agents, agentsLoading, agentsProbeSucceeded, amrPreflightEnabled, config],
   );
   const [amrPreflightDraft, setAmrPreflightDraft] =
     useState<AmrPreflightBlockedDraft | null>(null);

@@ -19,6 +19,8 @@ export interface AmrSendPreflightIssue {
 
 export interface ResolveAmrSendPreflightOptions {
   agentsLoading?: boolean;
+  /** True only after the agent registry request completes successfully. */
+  agentsProbeSucceeded?: boolean;
 }
 
 const BUILT_IN_DAEMON_AGENT_IDS = new Set([
@@ -71,7 +73,7 @@ export function resolveAmrSendPreflightIssue(
 
   const selectedAgent = agents?.find((agent) => agent.id === agentId);
   if (!selectedAgent) {
-    if (options.agentsLoading) return null;
+    if (options.agentsLoading || !options.agentsProbeSucceeded) return null;
     if (BUILT_IN_DAEMON_AGENT_IDS.has(agentId)) {
       return { kind: 'agent-unavailable', agentId };
     }
