@@ -28,4 +28,17 @@ describe('bundled Diagram plugin', () => {
       await expect(stat(path.join(pluginRoot, asset))).resolves.toMatchObject({});
     }
   });
+
+  it('keeps diagram generation constrained to a 16:9 preview artboard', async () => {
+    const skill = await readFile(path.join(pluginRoot, 'SKILL.md'), 'utf8');
+    expect(skill).toContain('16:9 artboard');
+    expect(skill).toContain('100% preview');
+
+    for (const template of ['template.html', 'template-dark.html', 'template-full.html']) {
+      const body = await readFile(path.join(pluginRoot, 'assets', template), 'utf8');
+      expect(body).toContain('aspect-ratio: 16 / 9');
+      expect(body).toContain('viewBox="0 0 1600 900"');
+      expect(body).not.toContain('min-width: 900px');
+    }
+  });
 });

@@ -69,6 +69,7 @@ If a table or paragraph communicates the same thing more clearly, produce the cl
 
 Always create one self-contained HTML artifact:
 
+- Default to one 16:9 artboard so the full diagram is visible at 100% preview. Use an SVG viewBox such as `0 0 1600 900` or `0 0 1280 720`, wrapped in an `aspect-ratio: 16 / 9` stage.
 - Embedded CSS in the document.
 - Inline SVG, with arrows drawn before boxes.
 - No external images.
@@ -92,6 +93,7 @@ Before final answer:
 - Arrow labels have opaque masks.
 - Legend is a bottom strip when needed, not floating inside the drawing.
 - No vertical text labels.
+- 16:9 fit check: the full diagram, including title and legend if present, fits inside the artboard without horizontal or vertical scrolling at 100% preview.
 - Thumbnail readability check: at roughly 360px wide, the title and core structure are still legible.
 - No large unexplained empty band; whitespace must frame the focal structure, not reveal missing content.
 - Font sizes, node dimensions, and SVG coordinates follow the 4px grid where practical.
