@@ -335,15 +335,16 @@ const matterRuntime = readFileSync(
             }
           }
 
-          const stars = document.querySelector('[data-github-stars]');
-          if (stars) {
+          const starSlots = document.querySelectorAll('[data-github-stars]');
+          if (starSlots.length) {
             fetch('https://api.github.com/repos/nexu-io/open-design', {
               headers: { Accept: 'application/vnd.github+json' },
             })
               .then((r) => (r.ok ? r.json() : Promise.reject(new Error('http error'))))
               .then((data) => {
                 if (typeof data?.stargazers_count === 'number') {
-                  stars.textContent = formatStars(data.stargazers_count);
+                  const label = formatStars(data.stargazers_count);
+                  for (const slot of starSlots) slot.textContent = label;
                 }
               })
               .catch(() => {});
@@ -1261,10 +1262,46 @@ const matterRuntime = readFileSync(
             form.addEventListener('submit', (event) => {
               event.preventDefault();
               if (!form.reportValidity()) return;
-              const done = document.createElement('p');
-              done.className = 'newsletter-done';
-              done.textContent = form.dataset.newsletterDone || 'Thanks!';
-              form.replaceChildren(done);
+              const input = form.querySelector('input[type="email"], input[name="email"]');
+              const email = input && input.value ? input.value.trim() : '';
+              if (!email) return;
+              const submit = form.querySelector('[type="submit"]');
+              // Drop any prior inline error, lock the button while in flight.
+              const priorErr = form.querySelector('.newsletter-error');
+              if (priorErr) priorErr.remove();
+              if (submit) submit.disabled = true;
+
+              const showDone = () => {
+                const done = document.createElement('p');
+                done.className = 'newsletter-done';
+                done.textContent = form.dataset.newsletterDone || 'Thanks!';
+                form.replaceChildren(done);
+              };
+              const showError = () => {
+                if (submit) submit.disabled = false;
+                if (form.querySelector('.newsletter-error')) return;
+                const err = document.createElement('p');
+                err.className = 'newsletter-error';
+                err.setAttribute('role', 'alert');
+                err.textContent =
+                  form.dataset.newsletterError || 'Couldn’t subscribe just now — please try again.';
+                form.appendChild(err);
+              };
+
+              // Real subscription: POST the email to the Cloudflare Pages
+              // Function at /subscribe (writes the Resend contact + KV backup).
+              // Success → thanks line; failure → inline error so the visitor
+              // knows it didn't go through (no silent fake-success).
+              fetch('/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, source: 'landing' }),
+              })
+                .then((r) => {
+                  if (r.ok) showDone();
+                  else showError();
+                })
+                .catch(showError);
             });
           }
         };

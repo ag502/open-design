@@ -439,7 +439,7 @@ export default function Page({
                 <a className='btn btn-ghost' href={REPO} {...ext}>
                   <span className='arrow'>{<RemixIcon glyph={RI.github} />}</span>
                   <span>
-                    Star us{' '}
+                    Star{' '}
                     <span className='star-count' data-github-stars>
                       {github.starsLabel}
                     </span>
@@ -851,14 +851,18 @@ export default function Page({
           </h2>
           <div className='work'>
             <div className='work-stats-grid' data-reveal>
-                {[
-                  { src: 'card-1.webp', num: '52K+', to: '52', suffix: 'K+', alt: 'GitHub Stars', href: REPO },
-                  { src: 'card-2.webp', num: '280+', to: '280', suffix: '+', alt: tt('贡献者', 'Contributors'), href: `${REPO}/graphs/contributors` },
+                {([
+                  // `live` cards show the real-time GitHub count (filled by the
+                  // [data-github-stars] / [data-github-contributors] enhancers in
+                  // index.astro); the hard-coded `num` is only the SSR fallback
+                  // shown until the API responds. The rest count up from 0.
+                  { src: 'card-1.webp', num: '52K+', to: '52', suffix: 'K+', alt: 'GitHub Stars', href: REPO, live: 'stars' as const },
+                  { src: 'card-2.webp', num: '280+', to: '280', suffix: '+', alt: tt('贡献者', 'Contributors'), href: `${REPO}/graphs/contributors`, live: 'contributors' as const },
                   { src: 'card-3.webp', num: '217+', to: '217', suffix: '+', alt: 'Plugins', href: href('/plugins/') },
                   { src: 'card-4.webp', num: '129+', to: '129', suffix: '+', alt: 'Design Systems', href: href('/plugins/systems/') },
                   { src: 'card-5.webp', num: '21', to: '21', suffix: '', alt: tt('Coding Agent 支持', 'Coding Agents'), href: REPO },
                   { src: 'card-6.webp', num: null, to: null, suffix: '', alt: 'Star us', href: REPO, cta: true },
-                ].map((item, index) => (
+                ] as ReadonlyArray<{ src: string; num: string | null; to: string | null; suffix: string; alt: string; href: string; live?: 'stars' | 'contributors'; cta?: boolean }>).map((item, index) => (
                   <a
                     className={`work-stat-card work-img-card${item.cta ? ' work-stat-card-cta' : ''}`}
                     href={item.href}
@@ -871,7 +875,11 @@ export default function Page({
                       {arrowOut}
                     </span>
                     <h3 className='work-stat-overlay'>
-                      {item.num ? (
+                      {item.live === 'stars' ? (
+                        <span data-github-stars>{item.num}</span>
+                      ) : item.live === 'contributors' ? (
+                        <span data-github-contributors>{item.num}</span>
+                      ) : item.num ? (
                         <span
                           data-countup
                           data-countup-to={item.to}
@@ -944,6 +952,7 @@ export default function Page({
                 className='newsletter-form'
                 data-newsletter
                 data-newsletter-done={t.newsDone}
+                data-newsletter-error={t.newsError ?? 'Couldn’t subscribe just now — please try again.'}
                 data-reveal='right'
               >
                 <input
