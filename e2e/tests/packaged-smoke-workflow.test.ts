@@ -285,9 +285,9 @@ describe("packaged smoke workflow", () => {
   it("[P2] validates stable dry-run prerelease metadata from a non-release ref", async () => {
     const objects: Record<string, unknown> = {};
     const fixture = await startStablePrereleaseMetadataServer(objects);
-    objects["prerelease/versions/0.10.0-prerelease.12/metadata.json"] = stablePrereleaseMetadataFixture(
-      "0.10.0",
-      "0.10.0-prerelease.12",
+    objects["prerelease/versions/0.10.1-prerelease.12/metadata.json"] = stablePrereleaseMetadataFixture(
+      "0.10.1",
+      "0.10.1-prerelease.12",
       fixture.origin,
     );
     const runnerTemp = await mkdtemp(join(tmpdir(), "od-release-stable-dry-run-"));
@@ -309,17 +309,17 @@ describe("packaged smoke workflow", () => {
           OPEN_DESIGN_RELEASE_DRY_RUN: "true",
           OPEN_DESIGN_RELEASES_PUBLIC_ORIGIN: fixture.origin,
           OPEN_DESIGN_GH_NODE_SCRIPT: join(runnerTemp, "bin", "gh"),
-          OPEN_DESIGN_STABLE_PRERELEASE_VERSION: "0.10.0-prerelease.12",
-          OPEN_DESIGN_STABLE_VERSION: "0.10.0",
+          OPEN_DESIGN_STABLE_PRERELEASE_VERSION: "0.10.1-prerelease.12",
+          OPEN_DESIGN_STABLE_VERSION: "0.10.1",
           Path: fakePath,
           PATH: fakePath,
         },
       });
 
-      expect(result.stdout).toContain("[release-stable] validated prerelease: 0.10.0-prerelease.12");
+      expect(result.stdout).toContain("[release-stable] validated prerelease: 0.10.1-prerelease.12");
       expect(result.stdout).toContain("[release-stable] channel: stable");
       expect(result.stdout).toContain("[release-stable] dry run: true");
-      expect(result.stdout).toContain("[release-stable] version tag: open-design-v0.10.0");
+      expect(result.stdout).toContain("[release-stable] version tag: open-design-v0.10.1");
     } finally {
       await fixture.close();
       await rm(runnerTemp, { force: true, recursive: true });
