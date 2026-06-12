@@ -15,6 +15,7 @@ describe('AMR attribution helper', () => {
   beforeEach(() => {
     installTestLocalStorage();
     window.localStorage.clear();
+    window.history.replaceState(null, '', '/');
     fetchMock = vi.fn(async () => new Response('{}', { status: 202 }));
     globalThis.fetch = fetchMock as typeof fetch;
   });
@@ -105,6 +106,23 @@ describe('AMR attribution helper', () => {
     });
   });
 
+  it('records the current local Open Design app URL for AMR login handoff', () => {
+    window.history.replaceState(null, '', '/projects/desktop-task?chat=1#run');
+
+    const attribution = recordAmrEntry(
+      vi.fn(),
+      'settings_config_failure_amr',
+      new Date('2026-06-03T12:00:00.000Z'),
+    );
+
+    expect(attribution.returnUrl).toBe(
+      `${window.location.origin}/projects/desktop-task?chat=1#run`,
+    );
+    expect(readAmrAttribution(new Date('2026-06-03T12:00:00.000Z'))).toEqual(
+      attribution,
+    );
+  });
+
   it('reuses a previous entry id for follow-up actions in the same source path', () => {
     const track = vi.fn();
     const first = recordAmrEntry(
@@ -149,7 +167,7 @@ describe('AMR attribution helper', () => {
         sourceProduct: 'open_design',
         sourceDetail: 'generation_preview_recharge',
         occurredAt: '2026-06-03T12:00:00.000Z',
-      }),
+      }, { returnUrl: null }),
     ).toBe(
       'https://open-design.ai/amr/wallet?tab=recharge&od_origin=open_design&od_entry_id=od-amr-entry-123&od_entry_source=generation_preview_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z',
     );
@@ -169,6 +187,23 @@ describe('AMR attribution helper', () => {
       ),
     ).toBe(
       'https://open-design.ai/amr/wallet?tab=recharge&od_origin=open_design&od_entry_id=od-amr-entry-456&od_entry_source=chat_error_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z&od_return_url=https%3A%2F%2Fopen-design.ai%2Fprojects%2Fpreview-task%3Fchat%3D1%23run',
+    );
+  });
+
+  it('adds a local desktop Open Design return URL to AMR wallet URLs', () => {
+    expect(
+      attributedAmrUrl(
+        'https://open-design.ai/amr/wallet?tab=recharge',
+        {
+          entryId: 'od-amr-entry-local',
+          sourceProduct: 'open_design',
+          sourceDetail: 'settings_config_failure_amr',
+          occurredAt: '2026-06-03T12:00:00.000Z',
+        },
+        { returnUrl: 'http://127.0.0.1:18173/projects/desktop-task?chat=1#run' },
+      ),
+    ).toBe(
+      'https://open-design.ai/amr/wallet?tab=recharge&od_origin=open_design&od_entry_id=od-amr-entry-local&od_entry_source=settings_config_failure_amr&od_entry_at=2026-06-03T12%3A00%3A00.000Z&od_return_url=http%3A%2F%2F127.0.0.1%3A18173%2Fprojects%2Fdesktop-task%3Fchat%3D1%23run',
     );
   });
 

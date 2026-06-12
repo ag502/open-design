@@ -113,6 +113,26 @@ describe('parseVelaLoginAttribution', () => {
     });
   });
 
+  it('keeps local Open Design app return URLs for desktop AMR login attribution', () => {
+    expect(
+      parseVelaLoginAttribution({
+        attribution: {
+          entryId: 'od-amr-entry-local',
+          sourceProduct: 'open_design',
+          sourceDetail: 'settings_config_failure_amr',
+          occurredAt: '2026-06-03T12:00:00.000Z',
+          returnUrl: 'http://127.0.0.1:18173/projects/desktop-task?chat=1#run',
+        },
+      }),
+    ).toEqual({
+      entryId: 'od-amr-entry-local',
+      sourceProduct: 'open_design',
+      sourceDetail: 'settings_config_failure_amr',
+      occurredAt: '2026-06-03T12:00:00.000Z',
+      returnUrl: 'http://127.0.0.1:18173/projects/desktop-task?chat=1#run',
+    });
+  });
+
   it('drops unsafe return URLs while keeping valid AMR login attribution', () => {
     expect(
       parseVelaLoginAttribution({

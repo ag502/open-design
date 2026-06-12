@@ -557,14 +557,27 @@ function safeOpenDesignReturnUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.trim().length === 0) return null;
   try {
     const parsed = new URL(value);
-    if (parsed.protocol !== 'https:' || parsed.hostname !== OPEN_DESIGN_RETURN_HOST) {
-      return null;
-    }
+    if (!isTrustedOpenDesignReturnUrl(parsed)) return null;
     if (parsed.pathname.startsWith('/amr')) return null;
     return parsed.toString();
   } catch {
     return null;
   }
+}
+
+function isTrustedOpenDesignReturnUrl(url: URL): boolean {
+  if (url.protocol === 'https:' && url.hostname === OPEN_DESIGN_RETURN_HOST) {
+    return true;
+  }
+  return (url.protocol === 'http:' || url.protocol === 'https:')
+    && isLoopbackHost(url.hostname);
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '[::1]'
+    || hostname === '::1';
 }
 
 function buildAmrEntryAnalyticsCommon(
