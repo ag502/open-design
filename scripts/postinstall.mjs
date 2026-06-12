@@ -7,11 +7,11 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 
 const buildTargets = [
+  "packages/release",
   "packages/contracts",
   "packages/components",
   "packages/platform",
   "packages/download",
-  "packages/release",
   "packages/host",
   "packages/registry-protocol",
   "packages/agui-adapter",
