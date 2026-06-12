@@ -138,6 +138,7 @@ const isVideoPreview = record.previewType === 'video' && record.previewVideo;
         poster={record.previewPoster}
         data-tpl-autoplay
         data-src={record.previewVideo}
+        data-tpl-hold-ms={record.previewHoldMs != null ? String(record.previewHoldMs) : undefined}
       />
     ) : record.previewPoster ? (
       <img

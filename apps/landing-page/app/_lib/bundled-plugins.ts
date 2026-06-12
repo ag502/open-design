@@ -68,24 +68,32 @@ const BAKED_PREVIEW_MANIFEST_ROOTS = [
   ),
 ] as const;
 
-let cachedBakedPreviews: Map<string, { video: string; poster: string }> | null = null;
+let cachedBakedPreviews: Map<
+  string,
+  { video: string; poster: string; holdMs: number | null }
+> | null = null;
 
-function bakedPreviews(): Map<string, { video: string; poster: string }> {
+function bakedPreviews(): Map<
+  string,
+  { video: string; poster: string; holdMs: number | null }
+> {
   if (cachedBakedPreviews) return cachedBakedPreviews;
-  const map = new Map<string, { video: string; poster: string }>();
+  const map = new Map<string, { video: string; poster: string; holdMs: number | null }>();
   const file = BAKED_PREVIEW_MANIFEST_ROOTS.find((p) => existsSync(p));
   if (file) {
     try {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as {
-        previews?: Record<string, { video?: unknown; poster?: unknown }>;
+        previews?: Record<string, { video?: unknown; poster?: unknown; holdMs?: unknown }>;
       };
       for (const [id, entry] of Object.entries(raw.previews ?? {})) {
         const video = typeof entry?.video === 'string' ? entry.video : null;
         const poster = typeof entry?.poster === 'string' ? entry.poster : null;
+        const holdMs = typeof entry?.holdMs === 'number' ? entry.holdMs : null;
         if (video && poster) {
           map.set(id, {
             video: `${PLUGIN_PREVIEWS_BASE_URL}/${video}`,
             poster: `${PLUGIN_PREVIEWS_BASE_URL}/${poster}`,
+            holdMs,
           });
         }
       }
@@ -159,6 +167,12 @@ export interface BundledPluginRecord {
   previewType?: string;
   /** Preview video URL when `previewType === 'video'` (Cloudflare Stream MP4). */
   previewVideo?: string;
+  /**
+   * Lead-in hold span (ms) for baked hover-pan clips: the clip loops `[0,
+   * holdMs]` in place while idle and plays the pan `[holdMs, end]` on hover.
+   * Null for plain authored video clips (no hold/pan split).
+   */
+  previewHoldMs?: number;
   /**
    * Public URL for the runnable preview entry when the manifest
    * carries `od.preview.entry` and `od.preview.type === 'html'`.
@@ -373,6 +387,7 @@ function loadOne(opts: {
   // Authored video wins; the baked poster also backfills a missing poster.
   const baked = authoredVideo ? undefined : bakedPreviews().get(manifestId);
   const previewVideo = authoredVideo ?? baked?.video;
+  const previewHoldMs = baked?.holdMs ?? undefined;
   const previewPoster =
     remotePoster ??
     baked?.poster ??
@@ -401,6 +416,7 @@ function loadOne(opts: {
     previewPoster,
     previewType,
     previewVideo,
+    previewHoldMs,
     previewEntryUrl:
       authoredType === 'html'
         ? entryRelativeUrl(manifestId, asString(raw.od?.preview?.entry), slugDir)
