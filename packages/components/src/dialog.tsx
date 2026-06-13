@@ -10,6 +10,7 @@ export interface DialogProps {
   onClose?: () => void;
   className?: string;
   backdropClassName?: string;
+  id?: string;
   role?: 'dialog' | 'alertdialog';
   ariaLabel?: string;
   ariaLabelledBy?: string;
@@ -18,6 +19,7 @@ export interface DialogProps {
   closeOnEscape?: boolean;
   as?: DialogTag;
   onSubmit?: FormEventHandler<HTMLFormElement>;
+  [key: `data-${string}`]: string | number | undefined;
 }
 
 export function Dialog({
@@ -25,6 +27,7 @@ export function Dialog({
   onClose,
   className,
   backdropClassName,
+  id,
   role = 'dialog',
   ariaLabel,
   ariaLabelledBy,
@@ -33,6 +36,7 @@ export function Dialog({
   closeOnEscape = false,
   as = 'div',
   onSubmit,
+  ...dataAttributes
 }: DialogProps) {
   useEffect(() => {
     if (!onClose || !closeOnEscape) return;
@@ -48,6 +52,7 @@ export function Dialog({
   }, [closeOnEscape, onClose]);
 
   const sharedProps = {
+    id,
     className: joinClassNames(styles.dialog, 'modal', className),
     onClick: (event: MouseEvent<HTMLElement>) => event.stopPropagation(),
     role,
@@ -55,6 +60,7 @@ export function Dialog({
     'aria-label': ariaLabel,
     'aria-labelledby': ariaLabelledBy,
     'aria-describedby': ariaDescribedBy,
+    ...dataAttributes,
   };
 
   return (
