@@ -3126,6 +3126,7 @@ export function SettingsDialog({
             aria-label={settingsSidebarToggleLabel}
             aria-pressed={settingsSidebarCollapsed}
             aria-controls="settings-sidebar"
+            title={settingsSidebarToggleLabel}
           >
             <Icon
               name={settingsSidebarCollapsed ? 'chevron-right' : 'chevron-left'}

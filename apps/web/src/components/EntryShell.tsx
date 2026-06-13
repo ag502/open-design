@@ -1844,6 +1844,9 @@ function OnboardingView({
   return (
     <section className="onboarding-view" aria-labelledby="onboarding-title">
       <header className="onboarding-view__hero">
+        <span className="onboarding-view__hero-mark" aria-hidden>
+          <img src="/app-icon.svg" alt="" draggable={false} />
+        </span>
         {t('settings.welcomeKicker') ? (
           <span className="onboarding-view__kicker">{t('settings.welcomeKicker')}</span>
         ) : null}
@@ -2069,6 +2072,29 @@ function OnboardingView({
                     setProfile((current) => ({ ...current, source: value }));
                   }}
                 />
+              </div>
+              <div className="onboarding-view__memory-callout">
+                <span className="onboarding-view__memory-callout-icon" aria-hidden>
+                  <Icon name="sparkles" size={16} />
+                </span>
+                <div className="onboarding-view__memory-callout-body">
+                  <strong>{t('settings.onboardingMemoryCalloutTitle')}</strong>
+                  <p>{t('settings.onboardingMemoryCalloutBody')}</p>
+                  <ul className="onboarding-view__memory-benefits">
+                    <li>
+                      <Icon name="check" size={13} aria-hidden />
+                      <span>{t('settings.onboardingMemoryBenefitIntent')}</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={13} aria-hidden />
+                      <span>{t('settings.onboardingMemoryBenefitFewerQuestions')}</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={13} aria-hidden />
+                      <span>{t('settings.onboardingMemoryBenefitPersonalized')}</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
           ) : null}

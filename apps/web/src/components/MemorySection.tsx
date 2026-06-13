@@ -863,7 +863,17 @@ export function MemorySection({
   const [busy, setBusy] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | MemoryType>('all');
-  const [activeTab, setActiveTab] = useState<MemoryTab>('manual');
+  // Top-level IA: "Memories" (the store + operations, default) vs. "How it
+  // works" (the two-loop explainer + the pluggable hook toggles). This split
+  // keeps the saved-memory list at the top of the default tab instead of
+  // buried under the explainer.
+  const [topTab, setTopTab] = useState<'memories' | 'how'>('memories');
+  // The add/import operations live in a collapsed disclosure under the Memories
+  // tab so the saved list is the immediate content. Scenario/guide CTAs open it.
+  const [addOpen, setAddOpen] = useState(false);
+  // Profile is the foundation the PRE loop expands against, so the add
+  // disclosure defaults to it when opened.
+  const [activeTab, setActiveTab] = useState<MemoryTab>('profile');
   // Brief inline confirmation after a manual save/create/delete. The
   // form vanishes on success and the existing list re-renders, but
   // those signals are subtle — a 1.8s pill makes "your click did
@@ -1226,29 +1236,31 @@ export function MemorySection({
   const onGuideAction = useCallback(
     (action: MemoryGuideAction) => {
       if (action === 'profile') {
-        // The structured profile editor now owns "create your work profile",
-        // so the guide CTA points at the dedicated Profile tab instead of
-        // seeding a blank manual entry.
+        // The structured profile editor owns "create your work profile". Jump
+        // to the Memories tab and open the add disclosure on the Profile pane.
+        setTopTab('memories');
+        setAddOpen(true);
         setActiveTab('profile');
         return;
       }
       if (action === 'brief') {
-        gatewayRef.current?.scrollIntoView?.({
-          block: 'start',
-          behavior: 'smooth',
-        });
+        // The gateway example lives in the How-it-works tab.
+        setTopTab('how');
         return;
       }
-      recordsRef.current?.scrollIntoView?.({
-        block: 'start',
-        behavior: 'smooth',
-      });
+      // "Review saved memory" — switch to the Memories tab where the list lives.
+      setTopTab('memories');
     },
     [],
   );
 
   const onUseScenario = useCallback(
     (scenario: (typeof MEMORY_SCENARIOS)[number]) => {
+      // Scenarios are taught in How-it-works but seed a real memory, so we hop
+      // to the Memories tab, open the add disclosure, and load the draft. The
+      // editingTarget effect scrolls the editor into view.
+      setTopTab('memories');
+      setAddOpen(true);
       setActiveTab('manual');
       setEditing({ ...scenario.draft });
     },
@@ -1626,12 +1638,6 @@ export function MemorySection({
 	      icon: 'edit',
 	    },
 	    {
-	      id: 'chat',
-	      label: 'Learn from chats',
-	      caption: 'Capture useful context',
-	      icon: 'history',
-	    },
-	    {
 	      id: 'connected',
 	      label: 'Import from apps',
 	      caption: 'Scan connected tools',
@@ -1845,6 +1851,41 @@ export function MemorySection({
         </div>
       ) : null}
 
+      <div className="memory-top-tabs" role="tablist" aria-label={t('settings.memory')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={topTab === 'memories'}
+          className={`memory-top-tab${topTab === 'memories' ? ' active' : ''}`}
+          onClick={() => setTopTab('memories')}
+        >
+          <span className="memory-top-tab-icon" aria-hidden>
+            <Icon name="folder" size={14} />
+          </span>
+          <span className="memory-top-tab-copy">
+            <strong>{t('settings.memoryTabMemories')}</strong>
+            <small>{t('settings.memoryTabMemoriesCaption')}</small>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={topTab === 'how'}
+          className={`memory-top-tab${topTab === 'how' ? ' active' : ''}`}
+          onClick={() => setTopTab('how')}
+        >
+          <span className="memory-top-tab-icon" aria-hidden>
+            <Icon name="sparkles" size={14} />
+          </span>
+          <span className="memory-top-tab-copy">
+            <strong>{t('settings.memoryTabHow')}</strong>
+            <small>{t('settings.memoryTabHowCaption')}</small>
+          </span>
+        </button>
+      </div>
+
+      {topTab === 'how' ? (
+      <div className="memory-how-panel">
       <div className="memory-work-profile">
         <div className="memory-work-profile-copy">
           <span className="memory-kicker">Work profile</span>
@@ -1958,6 +1999,44 @@ ask_user_only_if:
           })}
         </div>
       </div>
+
+      {/*
+        Pluggable hooks live with the explanation of the loops they control:
+        the PRE rewrite, the structured-profile injection, the POST verify, and
+        chat extraction — all wired through PATCH /api/memory/config with
+        optimistic-set + rollback. The master switch in the header kills
+        everything.
+      */}
+      <MemoryHooksPanel
+        enabled={enabled}
+        flags={hookFlags}
+        onToggle={onToggleHook}
+      />
+      </div>
+      ) : null}
+
+      {topTab === 'memories' ? (
+      <div className="memory-add-disclosure">
+        <button
+          type="button"
+          className={`memory-add-summary${addOpen ? ' is-open' : ''}`}
+          aria-expanded={addOpen}
+          aria-label={t('settings.memoryAddDisclosure')}
+          onClick={() => setAddOpen((o) => !o)}
+        >
+          <span className="memory-add-summary-icon" aria-hidden>
+            <Icon name="plus" size={14} />
+          </span>
+          <span className="memory-add-summary-copy">
+            <strong>{t('settings.memoryAddDisclosure')}</strong>
+            <small>{t('settings.memoryAddDisclosureHint')}</small>
+          </span>
+          <span className="memory-add-summary-chevron" aria-hidden>
+            <Icon name="chevron-down" size={14} />
+          </span>
+        </button>
+        {addOpen ? (
+        <div className="memory-add-disclosure-body">
 
       <div
         className="memory-source-tabs"
@@ -2201,23 +2280,6 @@ ask_user_only_if:
             </div>
           ) : null}
 
-        </div>
-      ) : null}
-
-      {activeTab === 'chat' ? (
-        <div className="memory-tab-panel memory-hooks-tab-panel">
-          {/*
-            The pluggable-hooks panel exposes all four per-hook toggles (the PRE
-            rewrite, the structured-profile injection, the POST verify, and the
-            existing chat extraction) wired through PATCH /api/memory/config
-            with optimistic-set + rollback. The master switch in the section
-            header still kills everything.
-          */}
-          <MemoryHooksPanel
-            enabled={enabled}
-            flags={hookFlags}
-            onToggle={onToggleHook}
-          />
         </div>
       ) : null}
 
@@ -2494,8 +2556,15 @@ ask_user_only_if:
         </div>
       ) : null}
 
+        </div>
+        ) : null}
+      </div>
+      ) : null}
+
       </section>
 
+      {topTab === 'memories' ? (
+      <>
       <section ref={recordsRef} className="settings-section settings-section-card memory-records-section">
         <div className="memory-management-panel">
           <div className="memory-subsection-head">
@@ -2761,6 +2830,8 @@ ask_user_only_if:
           </div>
         </details>
       </section>
+      </>
+      ) : null}
     </>
   );
 }

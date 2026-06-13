@@ -113,6 +113,12 @@ export interface Dict {
   'settings.onboardingCreateBody': string;
   'settings.onboardingMemoryTitle': string;
   'settings.onboardingMemoryBody': string;
+  // Onboarding step 2 — memory callout (answers seed the profile)
+  'settings.onboardingMemoryCalloutTitle': string;
+  'settings.onboardingMemoryCalloutBody': string;
+  'settings.onboardingMemoryBenefitIntent': string;
+  'settings.onboardingMemoryBenefitFewerQuestions': string;
+  'settings.onboardingMemoryBenefitPersonalized': string;
   'settings.onboardingSystemsTitle': string;
   'settings.onboardingSystemsBody': string;
   'settings.onboardingExecutionTitle': string;
@@ -642,6 +648,13 @@ export interface Dict {
   'settings.memoryTypeReference': string;
   'settings.memoryTypeProfile': string;
   'settings.memoryTypeRule': string;
+  // Memory → top-level IA tabs (Memories vs. How it works)
+  'settings.memoryTabMemories': string;
+  'settings.memoryTabMemoriesCaption': string;
+  'settings.memoryTabHow': string;
+  'settings.memoryTabHowCaption': string;
+  'settings.memoryAddDisclosure': string;
+  'settings.memoryAddDisclosureHint': string;
   // Memory → two-loop: structured profile editor
   'settings.memoryProfileTab': string;
   'settings.memoryProfileTabCaption': string;

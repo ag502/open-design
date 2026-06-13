@@ -651,8 +651,8 @@
    save settles. */
 .settings-chrome {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 16px;
+  right: 16px;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -794,7 +794,7 @@
 .modal-settings .modal-head {
   position: relative;
   z-index: 2;
-  padding-right: calc(var(--modal-padding) + 92px);
+  padding: 18px calc(var(--modal-padding) + 92px) 16px var(--modal-padding);
   background: var(--bg-elevated);
 }
 
@@ -1082,19 +1082,19 @@
   z-index: 4;
   top: 50%;
   left: 240px;
-  width: 28px;
-  height: 44px;
+  width: 20px;
+  height: 52px;
   padding: 0;
   transform: translate(-50%, -50%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg-panel) 78%, transparent);
   color: var(--text-muted);
   cursor: pointer;
-  opacity: 0.78;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow-color, #000) 8%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--shadow-color, #000) 8%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transition:
     opacity 140ms var(--ease-out),
     color 140ms var(--ease-out),
@@ -1106,7 +1106,11 @@
 .settings-sidebar-toggle svg {
   position: relative;
   z-index: 1;
-  opacity: 0.82;
+  opacity: 0.88;
+}
+.modal-settings .modal-body:hover .settings-sidebar-toggle,
+.settings-sidebar-toggle:focus-visible {
+  opacity: 0.86;
 }
 .settings-sidebar-toggle:hover,
 .settings-sidebar-toggle:focus-visible {
@@ -1114,8 +1118,8 @@
   color: var(--text);
   border-color: color-mix(in srgb, var(--text) 18%, var(--border));
   background: var(--bg-panel);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--shadow-color, #000) 12%, transparent);
-  transform: translate(-50%, -50%) scale(1.03);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--shadow-color, #000) 12%, transparent);
+  transform: translate(-50%, -50%) scale(1.02);
 }
 .settings-sidebar-toggle:focus-visible {
   outline: 2px solid var(--accent);

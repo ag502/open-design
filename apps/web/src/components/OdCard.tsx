@@ -74,7 +74,7 @@ function TaskBriefCard({ card }: { card: OdCardTaskBrief }) {
             {card.fields.length > 0 ? (
               <dl className={styles.briefFields}>
                 {card.fields.map((field, i) => (
-                  <div key={i} className={styles.briefField}>
+                  <div key={`${field.label}-${i}`} className={styles.briefField}>
                     <dt>{field.label}</dt>
                     <dd>{field.value}</dd>
                   </div>
@@ -171,7 +171,7 @@ function VerifyScorecardCard({ card }: { card: OdCardVerifyScorecard }) {
       <ul className={styles.scoreRows}>
         {card.rows.map((row, i) => (
           <li
-            key={i}
+            key={`${row.rule}-${i}`}
             className={`${styles.scoreRow} ${SCORE_ROW_CLASS[row.status]}`}
           >
             <span className={styles.scoreRowIcon} aria-hidden>

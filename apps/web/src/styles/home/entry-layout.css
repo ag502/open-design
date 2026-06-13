@@ -1670,6 +1670,30 @@
   justify-items: center;
 }
 
+/* Brand mark above the welcome heading — the app icon in a soft rounded
+   chip, mirroring the home-hero brand lockup. */
+.onboarding-view__hero-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  border-radius: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  padding: 8px;
+}
+.onboarding-view__hero-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 .onboarding-view__kicker {
   font-size: 11px;
   font-weight: 700;
@@ -2872,6 +2896,66 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+}
+
+/* Step 2 memory callout — makes it explicit that the answers above are saved
+   to Memory, and sells the compounding benefit of letting it learn. */
+.onboarding-view__memory-callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--accent) 6%, var(--bg-panel));
+}
+.onboarding-view__memory-callout-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-panel));
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+.onboarding-view__memory-callout-body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.onboarding-view__memory-callout-body strong {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+.onboarding-view__memory-callout-body p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.onboarding-view__memory-benefits {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.onboarding-view__memory-benefits li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.onboarding-view__memory-benefits li svg {
+  color: var(--accent);
 }
 
 .onboarding-view__email-field {

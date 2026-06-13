@@ -873,12 +873,38 @@ function isProfileFormId(id) {
 // free prose.
 const PROFILE_FIELD_LINE_RE = /^\s*-\s+([^:]+):\s*(.*)$/;
 
+// Canonical profile field labels — kept in sync with the web profile editor
+// (apps/web/src/components/MemoryProfilePanel.tsx PROFILE_FIELDS). Incoming
+// labels are matched case-insensitively to a canonical label so a hand-typed
+// or differently-cased answer ("role") updates the existing field ("Role")
+// rather than creating a duplicate entry in the merged map.
+const CANONICAL_PROFILE_LABELS = [
+  'Role',
+  'Company / Team',
+  'Domain',
+  'Primary audience',
+  'Aesthetic / taste',
+  'Default deliverables',
+  'Locale / Language',
+  'Current goals',
+];
+
+function canonicalProfileLabel(label) {
+  const trimmed = String(label || '').trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  const match = CANONICAL_PROFILE_LABELS.find(
+    (canonical) => canonical.toLowerCase() === lower,
+  );
+  return match ?? trimmed;
+}
+
 function parseProfileBody(body) {
   const map = new Map();
   for (const line of String(body || '').split(/\r?\n/)) {
     const m = PROFILE_FIELD_LINE_RE.exec(line);
     if (!m) continue;
-    const label = (m[1] ?? '').trim();
+    const label = canonicalProfileLabel(m[1] ?? '');
     const value = (m[2] ?? '').trim();
     if (!label) continue;
     map.set(label, value);
@@ -909,7 +935,7 @@ async function captureProfileFromForm(dataDir, parsed) {
   const existing = await readMemoryEntry(dataDir, PROFILE_MEMORY_ID);
   const merged = parseProfileBody(existing?.body ?? '');
   for (const pair of parsed.pairs) {
-    const label = typeof pair?.label === 'string' ? pair.label.trim() : '';
+    const label = canonicalProfileLabel(typeof pair?.label === 'string' ? pair.label : '');
     const value = typeof pair?.value === 'string' ? pair.value.trim() : '';
     if (!label) continue;
     merged.set(label, value);
