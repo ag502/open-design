@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Button, Input } from '@open-design/components';
+import { Button, Dialog, Input } from '@open-design/components';
 import { useT } from '../i18n';
 import { Icon } from './Icon';
-import { SimpleDialogShell } from './SimpleDialogShell';
 import { readDefaultSketchToolColor } from './sketch-colors';
 import type { SketchItem } from './sketch-model';
 
@@ -284,7 +283,7 @@ export function SketchEditor({
         />
       </div>
       {textModalOpen ? (
-        <SimpleDialogShell
+        <Dialog
           onClose={cancelTextModal}
           closeOnBackdrop={false}
           closeOnEscape
@@ -320,7 +319,7 @@ export function SketchEditor({
               {t('common.save')}
             </Button>
           </div>
-        </SimpleDialogShell>
+        </Dialog>
       ) : null}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Dialog } from '@open-design/components';
 import { createTabToTracking } from '@open-design/contracts/analytics';
 import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import type { OpenDesignHostProjectImportSuccess } from '@open-design/host';
@@ -55,7 +56,6 @@ import {
 import { formatPickAndImportFailure } from '../utils/pickAndImportError';
 import { Icon } from './Icon';
 import { Skeleton } from './Loading';
-import { SimpleDialogShell } from './SimpleDialogShell';
 import { Toast } from './Toast';
 import { useOpenFolderImport } from './useOpenFolderImport';
 
@@ -1599,7 +1599,7 @@ function TemplatePicker({
         </div>
       )}
       {confirmDelete ? (
-        <SimpleDialogShell
+        <Dialog
           className="modal-confirm"
           role="alertdialog"
           onClose={deleting ? undefined : closeConfirm}
@@ -1628,7 +1628,7 @@ function TemplatePicker({
               {t('newproj.deleteTemplateConfirmCta')}
             </button>
           </div>
-        </SimpleDialogShell>
+        </Dialog>
       ) : null}
     </div>
   );

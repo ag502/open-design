@@ -2,18 +2,18 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SimpleDialogShell } from '../../src/components/SimpleDialogShell';
+import { Dialog } from '@open-design/components';
 
 afterEach(() => {
   cleanup();
 });
 
-describe('SimpleDialogShell', () => {
+describe('Dialog', () => {
   it('wires labelled dialogs consistently', () => {
     render(
-      <SimpleDialogShell ariaLabelledBy="dialog-title">
+      <Dialog ariaLabelledBy="dialog-title">
         <h2 id="dialog-title">Rename design</h2>
-      </SimpleDialogShell>,
+      </Dialog>,
     );
 
     expect(screen.getByRole('dialog', { name: 'Rename design' })).toBeTruthy();
@@ -22,9 +22,9 @@ describe('SimpleDialogShell', () => {
   it('closes on backdrop click when enabled', () => {
     const onClose = vi.fn();
     const { container } = render(
-      <SimpleDialogShell onClose={onClose}>
+      <Dialog onClose={onClose}>
         <h2>Backdrop close</h2>
-      </SimpleDialogShell>,
+      </Dialog>,
     );
 
     fireEvent.click(container.querySelector('.modal-backdrop') as HTMLElement);
@@ -35,9 +35,9 @@ describe('SimpleDialogShell', () => {
   it('closes on Escape when enabled', () => {
     const onClose = vi.fn();
     render(
-      <SimpleDialogShell onClose={onClose} closeOnEscape>
+      <Dialog onClose={onClose} closeOnEscape>
         <h2>Escape close</h2>
-      </SimpleDialogShell>,
+      </Dialog>,
     );
 
     fireEvent.keyDown(document, { key: 'Escape' });

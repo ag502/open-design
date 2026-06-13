@@ -1,8 +1,11 @@
 import { useEffect, type FormEventHandler, type MouseEvent, type ReactNode } from 'react';
 
+import { joinClassNames } from './class-names';
+import styles from './dialog.module.css';
+
 type DialogTag = 'div' | 'form';
 
-interface Props {
+export interface DialogProps {
   children: ReactNode;
   onClose?: () => void;
   className?: string;
@@ -17,11 +20,7 @@ interface Props {
   onSubmit?: FormEventHandler<HTMLFormElement>;
 }
 
-function joinClassNames(...parts: Array<string | undefined>): string {
-  return parts.filter(Boolean).join(' ');
-}
-
-export function SimpleDialogShell({
+export function Dialog({
   children,
   onClose,
   className,
@@ -34,7 +33,7 @@ export function SimpleDialogShell({
   closeOnEscape = false,
   as = 'div',
   onSubmit,
-}: Props) {
+}: DialogProps) {
   useEffect(() => {
     if (!onClose || !closeOnEscape) return;
 
@@ -49,7 +48,7 @@ export function SimpleDialogShell({
   }, [closeOnEscape, onClose]);
 
   const sharedProps = {
-    className: joinClassNames('modal', className),
+    className: joinClassNames(styles.dialog, 'modal', className),
     onClick: (event: MouseEvent<HTMLElement>) => event.stopPropagation(),
     role,
     'aria-modal': 'true' as const,
@@ -60,7 +59,7 @@ export function SimpleDialogShell({
 
   return (
     <div
-      className={joinClassNames('modal-backdrop', backdropClassName)}
+      className={joinClassNames(styles.backdrop, 'modal-backdrop', backdropClassName)}
       onClick={closeOnBackdrop ? onClose : undefined}
       role="presentation"
     >

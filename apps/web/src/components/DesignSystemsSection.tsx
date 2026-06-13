@@ -1,3 +1,4 @@
+import { Dialog } from '@open-design/components';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { useT } from '../i18n';
@@ -12,7 +13,6 @@ import {
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { Icon } from './Icon';
 import { orderDesignSystemGroups } from './design-system-group-order';
-import { SimpleDialogShell } from './SimpleDialogShell';
 import { AnimatePresence } from 'motion/react';
 
 // Sibling Settings section that hosts the design-systems registry.
@@ -606,7 +606,7 @@ export function DesignSystemsSection({
         ) : null}
       </AnimatePresence>
       {renameTarget ? (
-        <SimpleDialogShell
+        <Dialog
           as="form"
           className="modal-rename"
           onClose={cancelRename}
@@ -644,7 +644,7 @@ export function DesignSystemsSection({
               {t('common.save')}
             </button>
           </div>
-        </SimpleDialogShell>
+        </Dialog>
       ) : null}
     </section>
   );

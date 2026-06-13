@@ -2167,6 +2167,7 @@ export interface SettingsConnectorsClickProps {
     | 'save_key'
     | 'clear'
     | 'get_api_key'
+    | 'gate_card'
     | 'provider_chip'
     | 'search_connectors';
   connector_id?: string;

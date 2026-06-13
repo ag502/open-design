@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Dialog } from "@open-design/components";
 import { projectKindToTracking } from "@open-design/contracts/analytics";
 import { useAnalytics } from "../analytics/provider";
 import {
@@ -22,7 +23,6 @@ import { AnimatePresence } from "motion/react";
 import { Icon } from "./Icon";
 import { isDesignSystemProject, isPublishedDesignSystemProject } from "./design-system-project";
 import { LiveArtifactBadges } from "./LiveArtifactBadges";
-import { SimpleDialogShell } from "./SimpleDialogShell";
 import { Toast } from "./Toast";
 
 type SubTab = "recent" | "yours";
@@ -930,7 +930,7 @@ export function DesignsTab({
 				</div>
 			)}
 			{renameTarget ? (
-				<SimpleDialogShell
+				<Dialog
 					as="form"
 					className="modal-rename"
 					onClose={cancelRename}
@@ -966,10 +966,10 @@ export function DesignsTab({
 							{t("designs.renameSave")}
 						</button>
 					</div>
-				</SimpleDialogShell>
+				</Dialog>
 			) : null}
 			{confirmTarget ? (
-				<SimpleDialogShell
+				<Dialog
 					className="modal-confirm"
 					role="alertdialog"
 					onClose={() => setConfirmTarget(null)}
@@ -994,7 +994,7 @@ export function DesignsTab({
 							{confirmTarget.confirmLabel}
 						</button>
 					</div>
-				</SimpleDialogShell>
+				</Dialog>
 			) : null}
 			<AnimatePresence>
 				{deleteToast ? (
