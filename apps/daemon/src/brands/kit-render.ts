@@ -63,8 +63,15 @@ export interface BrandKitPayload {
 /** Embed the payload into the template, neutralizing any `</script>` in the
  *  JSON so the inline data block cannot break out of its own tag. */
 export function renderBrandKitHtml(template: string, payload: BrandKitPayload): string {
-  const json = JSON.stringify(payload).replace(/<\//g, '<\\/');
-  return template.replace(PAYLOAD_TOKEN, json);
+  // Escape `</` (script-tag breakout) and the U+2028/U+2029 line separators
+  // that are valid JSON but illegal in JS string literals / inline scripts.
+  const json = JSON.stringify(payload)
+    .replace(/<\//g, '<\\/')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  // Replace every occurrence so a stray token in markup can never leave the
+  // real data block un-substituted.
+  return template.split(PAYLOAD_TOKEN).join(json);
 }
 
 function hostOf(brand: Record<string, unknown>, fallback: string): string {

@@ -3264,6 +3264,8 @@ export interface Dict {
   'brand.colorsCount': string;
   'brand.extracting': string;
   'brand.failed': string;
+  'brand.previewEmpty': string;
+  'brand.viewDetails': string;
   'newBrand.title': string;
   'newBrand.subtitle': string;
   'newBrand.urlLabel': string;

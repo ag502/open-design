@@ -43,6 +43,7 @@ import {
 } from '../db.js';
 import { readProjectFile, resolveProjectDir, writeProjectFile } from '../projects.js';
 import { brandGuideMd, brandToDesignMd } from './design-md.js';
+import { reflowBrandToMemory } from './memory.js';
 import { brandSystemDir, rebuildSystem } from './system.js';
 import { extractJsonBlock, validateBrand } from './validate.js';
 import { BRAND_KIT_FILE, writeBrandKitPreview } from './kit-render.js';
@@ -209,6 +210,11 @@ export interface FinalizeBrandOptions {
   /** Skills root so the final `brand.html` re-render can read the template. */
   skillsRoot: string;
   db: Parameters<typeof insertProject>[0];
+  /** Runtime data dir (`<dataDir>/memory` lives under it). When provided, the
+   *  finalized brand is sedimented into the memory store so future chats can
+   *  ground vague requests in the brand's palette, type, voice and rules.
+   *  Omitted in unit tests that only exercise design-system registration. */
+  dataDir?: string;
   /** Overrides the brand's recorded backing project. */
   projectId?: string;
   randomId?: () => string;
@@ -330,6 +336,18 @@ export async function finalizeBrand(
     systemFiles: systemBuild.files,
     projectId,
   });
+
+  // Sediment the brand into memory so future chats can ground a vague request
+  // ("做个落地页") in this brand's palette, type, voice and enforceable rules.
+  // Best-effort and gated on the master memory switch inside the reflow — a
+  // failure here must never fail an otherwise-successful finalize.
+  if (opts.dataDir) {
+    try {
+      await reflowBrandToMemory(opts.dataDir, brand);
+    } catch (err) {
+      console.warn(`[brand] memory reflow failed for ${id}`, err);
+    }
+  }
 
   return { id, brand, designSystemId, projectId, files: systemBuild.files };
 }

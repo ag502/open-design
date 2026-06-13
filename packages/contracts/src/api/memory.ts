@@ -341,7 +341,7 @@ export interface MemoryChangeEvent {
   count?: number;
   /** Where the change came from. Useful for UX (e.g., suppress toasts on
    *  manual edits since the user just clicked Save themselves). */
-  source?: 'heuristic' | 'llm' | 'manual' | 'connector';
+  source?: 'heuristic' | 'llm' | 'manual' | 'connector' | 'brand';
   /** Only on `kind: 'config'` — the new enabled flag. */
   enabled?: boolean;
   /** Unix milliseconds. */

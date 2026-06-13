@@ -6905,6 +6905,7 @@ export async function startServer({
     userDesignSystemsRoot: USER_DESIGN_SYSTEMS_DIR,
     projectsRoot: PROJECTS_DIR,
     skillsRoot: SKILLS_DIR,
+    dataDir: RUNTIME_DATA_DIR,
     db,
     randomId,
   });

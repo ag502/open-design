@@ -36,6 +36,9 @@ export interface BrandRoutesDeps {
   /** Skills root — the agent-driven kit page is rendered from the bundled
    *  `brand-extract` template under here. */
   skillsRoot: string;
+  /** Runtime data dir — passed to `finalizeBrand` so a finalized brand is
+   *  sedimented into `<dataDir>/memory`. */
+  dataDir: string;
   /** Shared app database used to register the backing project + conversation. */
   db: Parameters<typeof insertProject>[0];
   /** Optional id factory; defaults inside the brand engine when omitted. */
@@ -54,7 +57,7 @@ const LOGO_CONTENT_TYPES: Record<string, string> = {
 };
 
 export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): void {
-  const { brandsRoot, userDesignSystemsRoot, projectsRoot, skillsRoot, db, randomId } = deps;
+  const { brandsRoot, userDesignSystemsRoot, projectsRoot, skillsRoot, dataDir, db, randomId } = deps;
 
   // GET /api/brands — list every stored brand as a summary.
   app.get('/api/brands', (_req: Request, res: Response) => {
@@ -135,6 +138,7 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         userDesignSystemsRoot,
         projectsRoot,
         skillsRoot,
+        dataDir,
         db,
       };
       if (projectId) finalizeOptions.projectId = projectId;

@@ -66,7 +66,7 @@ export function BrandsTab() {
     }
     setSelectedBrandId((cur) => {
       if (cur && list.some((b) => b.meta.id === cur)) return cur;
-      return list[0].meta.id;
+      return list[0]?.meta.id ?? null;
     });
   }, [brands]);
 
@@ -188,7 +188,7 @@ interface BrandLogoProps {
   name: string;
   faviconSize: number;
   className?: string;
-  fallbackClassName: string;
+  fallbackClassName?: string;
 }
 
 function BrandLogo({ id, host, name, faviconSize, className, fallbackClassName }: BrandLogoProps) {

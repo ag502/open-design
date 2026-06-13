@@ -3132,6 +3132,8 @@ export const zhCN: Dict = {
   'brand.colorsCount': '{count} 种颜色',
   'brand.extracting': '提取中…',
   'brand.failed': '提取失败',
+  'brand.previewEmpty': '选择一个品牌进行预览',
+  'brand.viewDetails': '查看详情',
   'newBrand.title': '新建品牌',
   'newBrand.subtitle': '粘贴一个网站，我们会测量它的颜色、字体和标识。',
   'newBrand.urlLabel': '品牌网站',

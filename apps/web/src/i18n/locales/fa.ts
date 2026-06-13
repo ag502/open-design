@@ -3126,6 +3126,8 @@ export const fa: Dict = {
   'brand.colorsCount': '{count} colors',
   'brand.extracting': 'Extracting…',
   'brand.failed': 'Extraction failed',
+  'brand.previewEmpty': 'Select a brand to preview',
+  'brand.viewDetails': 'View details',
   'newBrand.title': 'New Brand',
   'newBrand.subtitle': 'Paste a website and we\'ll measure its colors, fonts and logo.',
   'newBrand.urlLabel': 'Brand website',

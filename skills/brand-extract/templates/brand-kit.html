@@ -6,11 +6,11 @@
 <title>Brand Kit</title>
 <!--
   Self-contained brand-kit page. The daemon's brand-kit renderer replaces the
-  __OD_BRAND_PAYLOAD__ token below with a JSON payload { status, brand, assets }.
-  Everything renders from that single embedded blob — no external requests,
-  so it works under the FileViewer's sandboxed URL-load iframe. While status
-  is "extracting" the page softly reloads itself so the user watches the kit
-  fill in as the agent writes brand.json and re-runs `od brand preview`.
+  payload token in the script tag below with a JSON blob { status, brand,
+  assets }. Everything renders from that single embedded object — no external
+  requests, so it works under the FileViewer's sandboxed URL-load iframe.
+  While status is "extracting" the page softly reloads itself so the user
+  watches the kit fill in as the agent writes brand.json and re-renders.
 -->
 <script id="od-brand-payload" type="application/json">__OD_BRAND_PAYLOAD__</script>
 <style>

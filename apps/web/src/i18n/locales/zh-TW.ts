@@ -3132,6 +3132,8 @@ export const zhTW: Dict = {
   'brand.colorsCount': '{count} 種顏色',
   'brand.extracting': '擷取中…',
   'brand.failed': '擷取失敗',
+  'brand.previewEmpty': '選擇一個品牌進行預覽',
+  'brand.viewDetails': '查看詳情',
   'newBrand.title': '新增品牌',
   'newBrand.subtitle': '貼上一個網站，我們會測量它的顏色、字型和標誌。',
   'newBrand.urlLabel': '品牌網站',
