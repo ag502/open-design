@@ -121,8 +121,21 @@ function buildTrackerScript(): string {
       var lowerHref = href.toLowerCase();
       var lowerLabel = textOf(link).toLowerCase();
 
+      // Explicit placement (hero / cta / nav) so the multiple desktop-download
+      // buttons are distinguishable in PostHog without decoding section ids;
+      // falls back to the section area when the attribute is absent.
+      var placementOf = function (el) { return (el.getAttribute && el.getAttribute('data-download-placement')) || areaOf(el); };
       if (lowerHref.indexOf(REPO + '/releases') !== -1 || /\\.(dmg|exe|appimage|deb|zip)(\\?|$)/.test(lowerHref)) {
-        click(link, 'download_desktop', { platform: platformNow(), link_url: href });
+        click(link, 'download_desktop', { platform: platformNow(), link_url: href, download_target: 'direct', placement: placementOf(link) });
+        return;
+      }
+      // Download CTAs that route to the /download/ installer-matrix page instead
+      // of a direct asset (the header nav button opts out of direct-asset
+      // rewriting via data-download-page; sub-page CTAs link to /download/
+      // outright). Still a download intent — emit under the same element so the
+      // funnel is complete, distinguished by download_target.
+      if (link.getAttribute('data-download-page') !== null || /\\/download\\/?$/.test((link.pathname || '').toLowerCase())) {
+        click(link, 'download_desktop', { platform: platformNow(), link_url: href, download_target: 'download_page', placement: placementOf(link) });
         return;
       }
       if (lowerHref === 'https://' + REPO || lowerHref === 'https://' + REPO + '/' || lowerLabel.indexOf('star') !== -1) {
