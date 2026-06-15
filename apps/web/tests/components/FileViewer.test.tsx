@@ -2907,6 +2907,81 @@ describe('FileViewer tweaks toolbar', () => {
     expect((screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement).srcdoc).toBe(frame.srcdoc);
   });
 
+  it('keeps the URL-load iframe warm while the Draw bar is open (no reload on close)', async () => {
+    const { container } = render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={htmlPreviewFile()}
+        liveHtml='<html><body><main data-od-id="hero">Hero</main></body></html>'
+      />,
+    );
+
+    const urlFrame = container.querySelector('iframe[data-od-render-mode="url-load"]') as HTMLIFrameElement | null;
+    expect(urlFrame).toBeTruthy();
+    expect(urlFrame?.getAttribute('data-od-active')).toBe('true');
+    const warmSrc = urlFrame?.getAttribute('src') ?? '';
+    expect(warmSrc).not.toBe('about:blank');
+    expect(warmSrc).toContain('/raw/');
+
+    // Opening Draw flips the *visible* frame to the materialized srcDoc bridge
+    // (see the test above), but the URL-load iframe must stay warm rather than
+    // park at about:blank — otherwise closing the bar re-fetches the whole
+    // artifact and the user sees a black → loading → reload after every
+    // screenshot. Regression guard for the post-screenshot refresh.
+    clickAgentTool('draw-overlay-toggle');
+
+    await waitFor(() => {
+      const active = container.querySelector('iframe[data-od-render-mode="srcdoc"]') as HTMLIFrameElement | null;
+      expect(active?.getAttribute('data-od-active')).toBe('true');
+    });
+
+    const urlFrameDuringDraw = container.querySelector('iframe[data-od-render-mode="url-load"]') as HTMLIFrameElement | null;
+    expect(urlFrameDuringDraw).toBe(urlFrame);
+    expect(urlFrameDuringDraw?.getAttribute('data-od-active')).toBe('false');
+    expect(urlFrameDuringDraw?.getAttribute('src')).not.toBe('about:blank');
+    expect(urlFrameDuringDraw?.getAttribute('src')).toBe(warmSrc);
+  });
+
+  it('holds the preview steady while the Draw bar is open instead of live-reloading on a file change', async () => {
+    const { rerender } = render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={htmlPreviewFile({ mtime: 1000 })}
+        liveHtml='<html><body><main data-od-id="hero">Hero V1</main></body></html>'
+      />,
+    );
+
+    clickAgentTool('draw-overlay-toggle');
+    await waitFor(() => {
+      const active = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+      expect(active.getAttribute('data-od-render-mode')).toBe('srcdoc');
+      expect(active.srcdoc).toContain('Hero V1');
+    });
+
+    // Simulate an agent rewrite arriving via the chokidar live-reload signal
+    // (fresh liveHtml + bumped files-refresh + new mtime) WHILE the user is
+    // mid-mark. The preview must not yank itself out from under the
+    // annotation — that auto-refresh is the reported bug.
+    rerender(
+      <FileViewer projectId="project-1" projectKind="prototype"
+        file={htmlPreviewFile({ mtime: 999999 })}
+        filesRefreshKey={7}
+        liveHtml='<html><body><main data-od-id="hero">Hero V2</main></body></html>'
+      />,
+    );
+    await Promise.resolve();
+
+    const duringDraw = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    expect(duringDraw.srcdoc).toContain('Hero V1');
+    expect(duringDraw.srcdoc).not.toContain('Hero V2');
+
+    // Closing the Draw bar flushes the deferred update: the URL-load iframe
+    // returns active with the new mtime so the latest content lands in one
+    // clean pass.
+    clickAgentTool('draw-overlay-toggle');
+    await waitFor(() => {
+      const active = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+      expect(active.getAttribute('data-od-render-mode')).toBe('url-load');
+      expect(active.getAttribute('src') ?? '').toContain('v=999999');
+    });
+  });
+
   it('preserves URL-loaded preview scroll when opening Draw', async () => {
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       cb(0);
