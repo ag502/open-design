@@ -9,13 +9,16 @@ type StartedServer = {
   server: Server;
   shutdown?: () => Promise<void> | void;
 };
+type ServerModule = {
+  startServer: (options: {
+    port: number;
+    returnServer: boolean;
+  }) => Promise<StartedServer>;
+};
 
 let started: StartedServer | null = null;
 let dataDir: string | null = null;
-let serverModule: { startServer: (options: {
-  port: number;
-  returnServer: boolean;
-}) => Promise<StartedServer> } | null = null;
+let serverModule: ServerModule | null = null;
 const originalDataDir = process.env.OD_DATA_DIR;
 
 afterEach(async () => {
@@ -88,9 +91,14 @@ async function startIsolatedServer(root: string): Promise<StartedServer> {
   process.env.OD_DATA_DIR = root;
   if (!serverModule) {
     vi.resetModules();
-    serverModule = await import('../src/server.js') as typeof serverModule;
+    serverModule = await loadServerModule();
   }
-  return await serverModule.startServer({ port: 0, returnServer: true });
+  const module = serverModule;
+  return await module.startServer({ port: 0, returnServer: true });
+}
+
+async function loadServerModule(): Promise<ServerModule> {
+  return await import('../src/server.js') as unknown as ServerModule;
 }
 
 async function stopServer(): Promise<void> {
