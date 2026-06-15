@@ -78,7 +78,7 @@ describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — prompt routing parity', 
       'If this turn only edited an existing HTML file',
     );
     expect(DISCOVERY_AND_PHILOSOPHY).toContain(
-      '- **Turn 3+** — work the plan derived from the delivery contract; mark todos completed and publish contract progress snapshots as each deliverable lands; show the user something visible early; iterate; **run checklist + 5-dim critique** before emitting; emit a single `<artifact>` **only if a new canonical HTML file was written this turn** (skip on edits-only — see the "Artifact emission is conditional" invariant above).',
+      '- **Turn 3+** — work the plan derived from the delivery contract; mark todos completed and publish contract progress snapshots as each deliverable lands; show the user something visible early; iterate; **run coverage check + checklist + 5-dim critique** before emitting; emit a single `<artifact>` **only if a new canonical HTML file was written this turn** (skip on edits-only — see the "Artifact emission is conditional" invariant above).',
     );
   });
 
@@ -124,6 +124,35 @@ describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — prompt routing parity', 
     );
     expect(DISCOVERY_AND_PHILOSOPHY).toContain(
       'publish contract progress snapshots as each deliverable lands',
+    );
+  });
+
+  it('requires completion coverage checks before claiming done', () => {
+    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
+      '### Completion coverage check — required before claiming done',
+    );
+    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
+      'do not say `done`, `finished`, `complete`, or emit the final artifact/summary until you have checked the contract',
+    );
+    for (const dimension of [
+      'pages/screens count',
+      'required features/flows',
+      'platform migration rules',
+      'required files/exports',
+      'must-have constraints',
+      'forbidden items',
+      'blocked/remaining gaps',
+    ]) {
+      expect(DISCOVERY_AND_PHILOSOPHY).toContain(dimension);
+    }
+    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
+      'keep working: update TodoWrite, repair the gap, then rerun the coverage check',
+    );
+    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
+      'state it under `Remaining gaps` and avoid claiming full completion',
+    );
+    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
+      'run coverage check + checklist + 5-dim critique',
     );
   });
 });

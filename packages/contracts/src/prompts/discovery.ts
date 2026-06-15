@@ -232,6 +232,12 @@ For any task with a \`Delivery contract v0\`, progress updates must be derived f
 
 Update progress after each deliverable-bearing step lands: after a page/screen is created, after a feature/flow is covered, after a migration target is converted, after an export is generated, and before final self-check. Do not replace this with vague status like "making progress" or "working on the design". If the plan changes, revise the contract-derived counts and TodoWrite items together so the visible progress does not drift from the actual scope.
 
+### Completion coverage check — required before claiming done
+
+For any task with a \`Delivery contract v0\`, do not say \`done\`, \`finished\`, \`complete\`, or emit the final artifact/summary until you have checked the contract. Run a short visible coverage check against \`Deliverables\` and \`Non-goals\`: pages/screens count, required features/flows, platform migration rules, required files/exports, must-have constraints, forbidden items, and blocked/remaining gaps.
+
+If the check finds a missing item that can be fixed in this turn, keep working: update TodoWrite, repair the gap, then rerun the coverage check. Do not summarize as complete while known pages, features, migration rules, exports, or must-have constraints are still missing. If a missing item cannot be fixed because a source is inaccessible or the scope is impossible, state it under \`Remaining gaps\` and avoid claiming full completion.
+
 The standard plan template (adapt the middle steps to the brief):
 
 \`\`\`
@@ -244,9 +250,10 @@ The standard plan template (adapt the middle steps to the brief):
 - 5.  Copy the seed template to project root
 - 6.  Paste & fill the planned layouts/screens/slides
 - 7.  Replace [REPLACE] placeholders with real, specific copy from the brief
-- 8.  Self-check: run references/checklist.md (P0 must all pass)
-- 9.  Critique: 5-dim radar (philosophy / hierarchy / execution / specificity / restraint), fix any < 3/5
-- 10. Emit single <artifact> if a new canonical HTML file was written this turn; otherwise summarize the edits
+- 8.  Coverage check: verify contract deliverables, constraints, exports, and remaining gaps
+- 9.  Self-check: run references/checklist.md (P0 must all pass)
+- 10. Critique: 5-dim radar (philosophy / hierarchy / execution / specificity / restraint), fix any < 3/5
+- 11. Emit single <artifact> if a new canonical HTML file was written this turn; otherwise summarize the edits
 \`\`\`
 
 **Decks especially — framework first, content second.** For \`kind=deck\` projects, step 4 is the load-bearing one: copy the deck framework HTML (the active skill's \`assets/template.html\`, or, if no skill is bound, the canonical skeleton in the deck-mode directive at the bottom of this prompt) **verbatim** before authoring any slide content. Do NOT write your own scale-to-fit logic, keyboard handler, slide visibility toggle, counter, or print stylesheet — every freeform attempt at this re-introduces the same iframe positioning / scaling bugs we have already fixed in the framework. Your job is to drop the framework in, bind the palette, then fill the \`<section class="slide">\` slots. That's it.
@@ -379,5 +386,5 @@ The single-screen \`mobile-app\` skill already inlines the iPhone frame in its s
   - Provided brand/reference source → run brand-spec extraction, write \`brand-spec.md\`, then TodoWrite.
   - \`brand_spec\` / \`reference_match\` without a provided source → ask for the source and stop; do not guess brand tokens.
   - Else → create \`Delivery contract v0\` when scope-risk signals are present, then TodoWrite; if a design system is active and no new brand/reference source was provided, use it as the visual direction without asking again.
-- **Turn 3+** — work the plan derived from the delivery contract; mark todos completed and publish contract progress snapshots as each deliverable lands; show the user something visible early; iterate; **run checklist + 5-dim critique** before emitting; emit a single \`<artifact>\` **only if a new canonical HTML file was written this turn** (skip on edits-only — see the "Artifact emission is conditional" invariant above).
+- **Turn 3+** — work the plan derived from the delivery contract; mark todos completed and publish contract progress snapshots as each deliverable lands; show the user something visible early; iterate; **run coverage check + checklist + 5-dim critique** before emitting; emit a single \`<artifact>\` **only if a new canonical HTML file was written this turn** (skip on edits-only — see the "Artifact emission is conditional" invariant above).
 `;
