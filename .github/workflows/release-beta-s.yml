@@ -384,9 +384,11 @@ jobs:
 
           git config --global --add safe.directory "$repo_dir"
           git -C "$repo_dir" config --local gc.auto 0
+          git -C "$repo_dir" sparse-checkout disable || true
           git -C "$repo_dir" config --local core.sparseCheckout false
+          git -C "$repo_dir" config --local core.sparseCheckoutCone false
           sparse_path="$(git -C "$repo_dir" rev-parse --git-path info/sparse-checkout)"
-          rm -f "$repo_dir/$sparse_path"
+          rm -f "$sparse_path"
 
           for attempt in 1 2 3; do
             if git -C "$repo_dir" -c protocol.version=2 -c "$auth_config" fetch --no-tags --prune --no-recurse-submodules --filter=blob:none --depth=1 origin "$fetch_ref"; then
@@ -403,6 +405,10 @@ jobs:
           done
 
           commit="$(git -C "$repo_dir" rev-parse HEAD)"
+          test -d "$repo_dir/packages" || {
+            echo "metadata checkout is missing packages/; pnpm workspace install cannot run" >&2
+            exit 1
+          }
           echo "checked out metadata sources at $commit"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 

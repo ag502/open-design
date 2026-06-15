@@ -77,6 +77,8 @@ describe("release workflows", () => {
     expect(beta.match(/REQUIRE_VELA_CLI: "true"/g)?.length ?? 0).toBe(1);
     expect(beta).toContain("release-beta publish requires win_x64_target=nsis or all");
     expect(betaSelfHosted).toContain("release-beta-s publish requires win_x64_target=nsis or all");
+    expect(betaSelfHosted).toContain("sparse-checkout disable");
+    expect(betaSelfHosted).toContain("metadata checkout is missing packages/");
     expect(beta).toContain("mac_arm64_update_metadata_url:");
     expect(beta).toContain("win_x64_update_metadata_url:");
     expect(beta).toContain("OD_PACKAGED_E2E_MAC_UPDATE_METADATA_URL: ${{ inputs.mac_arm64_update_metadata_url }}");
