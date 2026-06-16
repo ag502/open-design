@@ -7,8 +7,8 @@ shadows).
 This is a **standalone subproject** — intentionally *not* part of the pnpm workspace and
 with **no build step**. The files load directly as a Figma development plugin.
 
-> A native binary `.fig` can't be generated outside Figma, so the "high-fidelity Figma
-> file" is this importable JSON node-tree (see `IR.md`) that the plugin reconstructs via
+> A native binary `.fig` can't be generated outside Figma, so the high-fidelity export is
+> this importable JSON node-tree (see `IR.md`) that the plugin reconstructs via
 > the Figma Plugin API — the same model as web-to-figma / html.to.design.
 
 ## Get a capture file
@@ -17,7 +17,7 @@ Produce an `.od-figma.json` either way:
 
 - **OD Clipper** popup → *Download Figma (.json)* — captures the current page and downloads
   the file directly.
-- **OD Library** → open an `html` asset captured with the clipper → *Download Figma*
+- **OD Library** → open an `html` asset captured with the clipper → *Download Figma JSON*
   (or the CLI: `od library figma <assetId> --out page.od-figma.json`).
 
 ## Load the plugin

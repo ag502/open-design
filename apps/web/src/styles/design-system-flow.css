@@ -275,14 +275,14 @@
   font: inherit;
   font-size: 13px;
 }
-.ds-github-url-list {
+.ds-source-link-list {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: -2px;
 }
-.ds-github-url-list span {
+.ds-source-link-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -294,7 +294,23 @@
   color: var(--text);
   font-size: 12px;
 }
-.ds-github-url-list button {
+.ds-source-link-preview {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background-color 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ds-source-link-preview:hover,
+.ds-source-link-preview:focus-visible {
+  background: var(--bg-panel);
+  color: var(--text-strong);
+  outline: 0;
+}
+.ds-source-link-remove {
   width: 18px;
   height: 18px;
   padding: 0;

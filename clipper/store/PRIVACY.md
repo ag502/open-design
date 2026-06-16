@@ -30,7 +30,7 @@ advertising** in the extension.
 - **Scripting / tabs** — to run the capture and on-page picker in the active tab
   when you start a capture.
 - **Context menus** — the right-click "Save image to Open Design Library" entry.
-- **Downloads** — to save a "Download Figma (.json)" file to your disk when you ask.
+- **Downloads** — to save a "Download Figma (.json)" import file to your disk when you ask.
 - **Storage** — to remember local preferences only (the daemon URL if you changed
   it, and whether the on-page bar is shown). Stored locally in your browser; never
   transmitted to us.

@@ -40,19 +40,22 @@ Open Design Web Clipper
 
 ### Summary / short description (max 132)
 ```
-Clip any page, screenshot, image, or Figma file into your Open Design Library — local-first, one click, no login.
+Clip pages, design systems, screenshots, images, and Figma import JSON into your Open Design Library — local-first, one click, no login.
 ```
 
 ### Detailed description (max 16,000)
 ```
 Open Design Web Clipper saves anything you find on the web straight into your Open Design Library — the local asset registry of the open-source Open Design app. One click, no account, no pairing, no tokens.
 
-Built for designers, researchers, and builders who collect references all day: drop a full page, a screenshot, a set of images, or an editable Figma capture into your Library and keep working.
+Built for designers, researchers, and builders who collect references all day: drop a full page, a design-system capture, a screenshot, a set of images, or an editable Figma import JSON into your Library and keep working.
 
 ━━ WHAT YOU CAN CLIP ━━
 
 • Capture page → Library
   A self-contained, high-fidelity HTML snapshot. Stylesheets are inlined, images are embedded as data URIs, and scripts are stripped — so the page stays exactly as you saw it, forever, even if the original changes or goes offline.
+
+• 提取设计系统
+  Programmatically extracts logo candidates, images, typography, fonts, palette, product description, headings, and a reusable component kit into a templated HTML design-system asset with light/dark modes.
 
 • Screenshot
   Save the visible tab as an image in one click.
@@ -63,8 +66,8 @@ Built for designers, researchers, and builders who collect references all day: d
 • Pick element
   A DevTools-style picker: hover to highlight any element, click to save it as a screenshot cropped to that element plus its outerHTML and metadata.
 
-• Page → Figma
-  Every page capture also computes an importable Figma node-tree (frames, text, images, fills, strokes, corner radii, shadows) you can rebuild as editable layers with the companion Open Design Figma plugin.
+• Page → Figma JSON
+  Every page capture also computes an importable Figma node-tree (frames, text, images, fills, strokes, corner radii, shadows) you can rebuild as editable layers with the companion Open Design Figma plugin. This JSON is imported from inside the plugin, not by dragging it into Figma Drafts.
 
 • Right-click any image → "Save image to Open Design Library".
 
@@ -102,7 +105,7 @@ Open source: https://github.com/nexu-io/open-design
 
 ### Single purpose (required field)
 ```
-Capture web content — full pages, screenshots, images, page elements, and Figma node-trees — and save it into the user's locally running Open Design app Library.
+Capture web content — full pages, design systems, screenshots, images, page elements, and Figma import JSON — and save it into the user's locally running Open Design app Library.
 ```
 
 ### Permission justifications (one per requested permission)
@@ -112,7 +115,7 @@ Capture web content — full pages, screenshots, images, page elements, and Figm
 | `scripting` | Inject the capture runtime and the on-page picker/toolbar into the active tab on demand, only when the user triggers a capture. |
 | `tabs` | Identify and capture the active tab the user is clipping (URL + tab id for the screenshot/capture). |
 | `contextMenus` | Provide the right-click "Save image to Open Design Library" menu entry. |
-| `downloads` | Save the "Download Figma (.json)" export to the user's disk when requested. |
+| `downloads` | Save the "Download Figma (.json)" import file to the user's disk when requested. |
 | `storage` | Remember local preferences only: the daemon URL (if changed from the default) and the on-page bar on/off toggle. |
 | Remote code | **None.** All scripts are bundled in the package; no remote/eval code is executed. |
 
@@ -181,7 +184,7 @@ And the dual background key (already in `manifest.json`) — Firefox uses
 ```
 
 - **Name:** `Open Design Web Clipper`
-- **Summary (≤250):** `Clip any web page, screenshot, image, or Figma capture straight into your Open Design Library. Local-first, one click — no account, no pairing, no tokens. The web clipper for the open-source Open Design app.`
+- **Summary (≤250):** `Clip web pages, design systems, screenshots, images, and Figma import JSON straight into your Open Design Library. Local-first, one click — no account, no pairing, no tokens.`
 - **Description:** reuse the Chrome detailed description
 - **Categories:** `Other` + `Web Development` (or `Photos, Music & Videos`)
 - **Tags (up to 5):** `web-clipper`, `screenshot`, `figma`, `capture`, `design`

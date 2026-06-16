@@ -34,6 +34,7 @@ export type BadgeKind = LibraryAssetKind | 'element';
 export const KIND_META: Record<BadgeKind, { label: string; tint: string }> = {
   image: { label: 'Image', tint: '#2563eb' },
   video: { label: 'Video', tint: '#db2777' },
+  'design-system': { label: 'Design system', tint: '#16a34a' },
   html: { label: 'HTML', tint: '#d97706' },
   font: { label: 'Font', tint: '#7c3aed' },
   color: { label: 'Color', tint: '#0d9488' },
@@ -179,6 +180,16 @@ export function KindIcon({ kind, size = 14, className }: KindIconProps) {
           <path d="m8 9-3 3 3 3" />
           <path d="m16 9 3 3-3 3" />
           <path d="M13 7 11 17" />
+        </svg>
+      );
+    case 'design-system':
+      return (
+        <svg {...common}>
+          <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+          <path d="M8 8h8" />
+          <path d="M8 12h3" />
+          <path d="M13 12h3" />
+          <path d="M8 16h8" />
         </svg>
       );
     case 'font':

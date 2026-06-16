@@ -42,9 +42,10 @@ nothing to misconfigure.
 
 - **Popup** → *Capture page → Library* (a self-contained, high-fidelity HTML
   snapshot — readable stylesheets inlined, images inlined as data URIs, scripts
-  stripped), *Download Figma (.json)* (a structured Figma capture you can import
-  with the OD Figma plugin — see `../figma-plugin/`), *Pick element → capture*,
-  *Pick images*, or *Capture screenshot* (visible tab).
+  stripped), *提取设计系统* (a programmatic brand/design-system HTML capture saved
+  as a `design-system` Library asset), *Download Figma (.json)* (a structured
+  Figma import JSON for the OD Figma plugin — see `../figma-plugin/`), *Pick
+  element → capture*, *Pick images*, or *Capture screenshot* (visible tab).
 - **Pick element** → a DevTools-style picker: hover to highlight any element,
   click to save it as a **screenshot cropped to that element plus its outerHTML
   and metadata** (tag, selector, size). Esc cancels. The saved Library card is an
@@ -52,7 +53,8 @@ nothing to misconfigure.
 - **Pick images** → an on-page overlay grid of every image on the page with
   checkboxes, *Select all* / *Clear*, and *Save N to Library* — so you choose
   exactly which images to save instead of grabbing them all.
-- **On-page toolbar** → an optional floating 📄 / ✦ / 📸 / 🖼️ / 🎯 launcher
+- **On-page toolbar** → an optional floating page / design-system / Figma JSON /
+  screenshot / image / element launcher
   anchored **top-center** of the page (Figma-style), with a gap from the edge so
   it reads as a deliberate surface. It's **hidden by default**; turn it on with
   *Show on-page bar* in the popup (the preference is remembered, and the bar's
@@ -63,17 +65,35 @@ nothing to misconfigure.
   snapshot.
 - **Right-click an image** → *Save image to Open Design Library*.
 
-### Page → Figma
+### Page → design system
+
+*提取设计系统* is intentionally separate from full-page capture. It reads the live
+page with JavaScript and fills a stable design-system HTML template with:
+
+- logo/app-icon candidates and representative images;
+- computed typography, font-family usage, and readable `@font-face` rules;
+- weighted palette tokens and light/dark theme variables;
+- title, product description, headings, and keywords;
+- a small component kit (buttons, fields, cards, navigation samples) rendered
+  from the extracted tokens.
+
+The result is saved to the Library as `kind: "design-system"` with `text/html`
+bytes, so it previews like an HTML asset but filters as a design-system asset in
+the Library and *Select from library* picker.
+
+### Page → Figma JSON
 
 *Capture page → Library* also computes an **OD Figma capture** (a JSON node-tree
 of frames / text / images with live geometry, fills, strokes, corner radii and
 shadows) from the live page and stores it alongside the HTML asset. From the
-Library you can later **Download Figma** for that asset, or use *Download Figma
-(.json)* in the clipper to grab it directly without saving to the Library. Both
-files import into Figma via the companion **OD Figma plugin** (`../figma-plugin/`).
+Library you can later **Download Figma JSON** for that asset, or use *Download Figma
+(.json)* in the clipper to grab it directly without saving to the Library. These
+JSON files do **not** import through Figma's normal file picker or by dragging
+them into Drafts; import them from inside Figma with the companion **OD Figma
+Import plugin** (`../figma-plugin/`).
 
-> A native binary `.fig` can't be produced outside Figma, so the "Figma file" is
-> an importable JSON node-tree rebuilt as editable layers by the OD Figma plugin.
+> A native binary `.fig` can't be produced outside Figma, so this is an import
+> JSON node-tree rebuilt as editable layers by the OD Figma plugin.
 > Fidelity is best-effort: cross-origin stylesheets that block reads, web-component
 > shadow DOM, and tainted canvases may degrade.
 
@@ -85,9 +105,17 @@ default for the highest fidelity; turn it off for smaller, faster captures that
 reference images by URL instead of embedding them.
 
 Very large, image-heavy pages are captured at reduced fidelity rather than
-failing: inlining stops once a size budget is reached and the remaining images
-are left as live URLs, so the page still saves. The popup/on-page toast says so
-("some images left as links") when this happens.
+failing — the capture is built to always fit the daemon's ingest limit:
+
+1. Large raster images are re-encoded smaller (downscaled + WebP) before being
+   embedded, so most pages embed everything at a fraction of the size.
+2. If the page is still over budget, images are embedded smallest-first and the
+   largest are left as live URLs (the HTML structure and styles are kept intact).
+3. As a last resort the secondary Figma layout capture is dropped so the HTML
+   page itself always saves.
+
+The popup/on-page toast notes when any of these kicked in (e.g. "some images
+left as links").
 
 ## Permissions
 
@@ -97,5 +125,5 @@ are left as live URLs, so the page still saves. The popup/on-page toast says so
 - `scripting`, `tabs` — capture the active tab, harvest images, and run the
   page-capture runtime (`capture.js`) on demand.
 - `contextMenus` — the right-click "Save image" entry.
-- `downloads` — save the *Download Figma (.json)* file to disk.
+- `downloads` — save the *Download Figma (.json)* import file to disk.
 - `storage` — remember the daemon URL locally (only needed if you changed it).

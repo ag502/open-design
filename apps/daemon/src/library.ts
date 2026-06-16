@@ -80,7 +80,7 @@ const ELEMENT_SIDECAR_EXT = '.element.html';
  * OD Figma capture IR sidecar for an owned `html` asset. The clipper produces
  * the IR (a JSON node-tree, see `figma-plugin/IR.md`) from the live page at
  * capture time; it lives next to the HTML object so the Library can export it
- * as a Figma file without re-rendering. Keyed by the HTML asset's content hash.
+ * as Figma import JSON without re-rendering. Keyed by the HTML asset's content hash.
  */
 export function resolveAssetFigmaSidecarPath(
   asset: LibraryAssetRecord,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Button, Textarea } from '@open-design/components';
 import type { ConnectorConnectResponse, ConnectorDetail, ConnectorStatusResponse, LibraryAsset } from '@open-design/contracts';
 import { streamViaDaemon } from '../providers/daemon';
@@ -122,6 +122,7 @@ import { useI18n } from '../i18n';
 export interface DesignSystemGenerateSnapshot {
   sourceCount: number;
   hasBrandDescription: boolean;
+  sourceUrlCount: number;
   githubRepoCount: number;
   localFolderCount: number;
   figFileCount: number;
@@ -184,8 +185,8 @@ interface ResolvedDesignSystemWorkspaceProject {
 
 interface SetupState {
   company: string;
-  githubUrl: string;
-  githubUrls: string[];
+  sourceUrl: string;
+  sourceUrls: string[];
   codeFiles: string[];
   codeFolders: string[];
   codeFileObjects: File[];
@@ -198,8 +199,8 @@ interface SetupState {
 
 const EMPTY_SETUP: SetupState = {
   company: '',
-  githubUrl: '',
-  githubUrls: [],
+  sourceUrl: '',
+  sourceUrls: [],
   codeFiles: [],
   codeFolders: [],
   codeFileObjects: [],
@@ -526,21 +527,27 @@ export function DesignSystemCreationFlow({
     }
   }
 
-  function handleAddGithubUrl() {
-    const nextUrl = normalizeGithubUrl(state.githubUrl);
+  function handleAddSourceUrl() {
+    const nextUrl = normalizeSourceUrl(state.sourceUrl);
     if (!nextUrl) return;
-    emitCreateFormClick('github_repo_add');
+    emitCreateFormClick('source_url_add');
     setState((curr) => ({
       ...curr,
-      githubUrl: '',
-      githubUrls: Array.from(new Set([...curr.githubUrls, nextUrl])),
+      sourceUrl: '',
+      sourceUrls: Array.from(new Set([...curr.sourceUrls, nextUrl])),
     }));
   }
 
-  function handleRemoveGithubUrl(url: string) {
+  function handleSourceUrlKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    handleAddSourceUrl();
+  }
+
+  function handleRemoveSourceUrl(url: string) {
     setState((curr) => ({
       ...curr,
-      githubUrls: curr.githubUrls.filter((item) => item !== url),
+      sourceUrls: curr.sourceUrls.filter((item) => item !== url),
     }));
   }
 
@@ -651,14 +658,18 @@ export function DesignSystemCreationFlow({
     // sources" → "generate eventually succeeded / failed with the
     // same N". Computed here because OnboardingView can't peek into
     // this flow's setup form.
-    const githubRepoCount = state.githubUrls?.length ?? 0;
+    const sourceUrls = sourceUrlsFromState(state);
+    const githubUrls = githubUrlsFromState(state);
+    const sourceUrlCount = sourceUrls.length;
+    const githubRepoCount = githubUrls.length;
     const localFolderCount = state.codeFolders?.length ?? 0;
     const figFileCount = state.figFiles?.length ?? 0;
     const assetFileCount = state.assetFiles?.length ?? 0;
     const snapshot = {
       sourceCount:
-        githubRepoCount + localFolderCount + figFileCount + assetFileCount,
+        sourceUrlCount + localFolderCount + figFileCount + assetFileCount,
       hasBrandDescription: Boolean(state.company?.trim()),
+      sourceUrlCount,
       githubRepoCount,
       localFolderCount,
       figFileCount,
@@ -869,37 +880,56 @@ export function DesignSystemCreationFlow({
           <p>Use anything that shows your current style.</p>
           <div className="ds-resource-card">
             <div className="ds-resource-row">
-              <strong>GitHub repo</strong>
+              <strong>Website or repo</strong>
               <div className="ds-resource-inline">
                 <input
-                  value={state.githubUrl}
-                  onChange={(event) => setState((curr) => ({ ...curr, githubUrl: event.target.value }))}
-                  placeholder="https://github.com/owner/repo"
+                  value={state.sourceUrl}
+                  onChange={(event) => setState((curr) => ({ ...curr, sourceUrl: event.target.value }))}
+                  onKeyDown={handleSourceUrlKeyDown}
+                  placeholder="https://example.com or https://github.com/owner/repo"
                 />
                 <button
                   type="button"
                   className="ghost"
-                  disabled={!state.githubUrl.trim()}
-                  onClick={handleAddGithubUrl}
+                  disabled={!state.sourceUrl.trim()}
+                  onClick={handleAddSourceUrl}
                 >
                   Add
                 </button>
               </div>
-              {state.githubUrls.length > 0 ? (
-                <div className="ds-github-url-list" aria-label="Added GitHub repositories">
-                  {state.githubUrls.map((url) => (
-                    <span key={url}>
-                      <Icon name="github" />
-                      {githubRepoLabel(url)}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${githubRepoLabel(url)}`}
-                        onClick={() => handleRemoveGithubUrl(url)}
-                      >
-                        x
-                      </button>
-                    </span>
-                  ))}
+              {state.sourceUrls.length > 0 ? (
+                <div className="ds-source-link-list" aria-label="Added source links">
+                  {state.sourceUrls.map((url) => {
+                    const label = sourceUrlLabel(url);
+                    const href = sourceUrlHref(url);
+                    return (
+                      <span className="ds-source-link-chip" key={url}>
+                        {href ? (
+                          <a
+                            className="ds-source-link-preview"
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Open ${label}`}
+                            title={`Open ${label}`}
+                          >
+                            <Icon name={sourceUrlIcon(url)} />
+                          </a>
+                        ) : (
+                          <Icon name={sourceUrlIcon(url)} />
+                        )}
+                        {label}
+                        <button
+                          type="button"
+                          className="ds-source-link-remove"
+                          aria-label={`Remove ${label}`}
+                          onClick={() => handleRemoveSourceUrl(url)}
+                        >
+                          x
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               ) : null}
               <GitHubRepositoryAccessPanel
@@ -3259,8 +3289,8 @@ function GitHubRepositoryAccessPanel({
     >
       <div className="ds-github-access-header">
         <span>
-          <strong>Repository access: Auto</strong>
-          <p>Paste a GitHub URL. Open Design will use the first working access method.</p>
+          <strong>GitHub access: Auto</strong>
+          <p>GitHub repo links use the first working access method; other website links are saved as source references.</p>
         </span>
         <button
           type="button"
@@ -3372,7 +3402,8 @@ function inferDesignSystemTitle(state: SetupState): string {
     ?? githubUrlsFromState(state).map(githubRepoTitleFromUrl).find((title): title is string => Boolean(title));
   if (githubTitle) return designSystemTitle(githubTitle);
 
-  const urlTitle = genericUrlTitleFromText(clean);
+  const urlTitle = genericUrlTitleFromText(clean)
+    ?? sourceUrlsFromState(state).map(genericUrlTitleFromText).find((title): title is string => Boolean(title));
   if (urlTitle) return designSystemTitle(urlTitle);
 
   return designSystemTitle(clean.split(/\s+/).slice(0, 4).join(' ') || 'Product');
@@ -3459,7 +3490,8 @@ async function prepareCreatedDesignSystemProject({
   designSystemId: string;
 }): Promise<void> {
   try {
-    if (state.githubUrls.length > 0) {
+    const githubUrls = githubUrlsFromState(state);
+    if (githubUrls.length > 0) {
       const githubStart = performance.now();
       emitSourceIngestResult(analyticsTrack, {
         sourceType: 'github_repo',
@@ -3471,8 +3503,8 @@ async function prepareCreatedDesignSystemProject({
         fallbackType: composioConfigured && githubConnector?.status === 'connected'
           ? 'native_github_auth'
           : 'none',
-        repoHost: dominantRepoHost(state.githubUrls),
-        fileCount: state.githubUrls.length,
+        repoHost: dominantRepoHost(githubUrls),
+        fileCount: githubUrls.length,
         totalBytes: null,
         durationMs: Math.round(performance.now() - githubStart),
         entryFrom: ingestEntryFrom,
@@ -3621,17 +3653,20 @@ function dominantRepoHost(urls: string[]): TrackingDesignSystemRepoHost {
 
 // Maps a generate-time snapshot to the DS origin enum. The dashboard
 // uses this on `design_system_create_result.design_system_source` to
-// split "user added a GitHub repo" vs "user only typed a description"
-// without inspecting per-source counts.
+// split linked sources, files, and manual-only descriptions without
+// inspecting per-source counts.
 function deriveDesignSystemOrigin(snapshot: {
   sourceCount: number;
   hasBrandDescription: boolean;
+  sourceUrlCount: number;
   githubRepoCount: number;
   localFolderCount: number;
   figFileCount: number;
   assetFileCount: number;
 }): TrackingDesignSystemOrigin {
+  const nonGithubSourceUrlCount = Math.max(0, snapshot.sourceUrlCount - snapshot.githubRepoCount);
   const filled = [
+    nonGithubSourceUrlCount > 0,
     snapshot.githubRepoCount > 0,
     snapshot.localFolderCount > 0,
     snapshot.figFileCount > 0,
@@ -3639,6 +3674,7 @@ function deriveDesignSystemOrigin(snapshot: {
   ].filter(Boolean).length;
   if (filled >= 2) return 'mixed';
   if (snapshot.githubRepoCount > 0) return 'github_repo';
+  if (nonGithubSourceUrlCount > 0) return 'source_url';
   if (snapshot.localFolderCount > 0) return 'local_code';
   if (snapshot.figFileCount > 0) return 'fig';
   if (snapshot.assetFileCount > 0) return 'assets';
@@ -3718,20 +3754,61 @@ function titleCaseRepositoryWord(word: string): string {
   return `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`;
 }
 
-function normalizeGithubUrl(value: string): string {
+function normalizeSourceUrl(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
+  const withProtocol = shouldAssumeHttps(trimmed) ? `https://${trimmed}` : trimmed;
   try {
-    const url = new URL(trimmed);
+    const url = new URL(withProtocol);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return trimmed.replace(/\/$/, '');
     return url.toString().replace(/\/$/, '');
   } catch {
     return trimmed.replace(/\/$/, '');
   }
 }
 
+function shouldAssumeHttps(value: string): boolean {
+  if (/^[a-z][a-z0-9+.-]*:/iu.test(value)) return false;
+  if (/^git@github\.com:/iu.test(value)) return false;
+  return /^(?:www\.)?[^/\s]+\.[^/\s]{2,}(?:[/?#].*)?$/u.test(value)
+    || /^github\.com\//iu.test(value);
+}
+
+function sourceUrlLabel(url: string): string {
+  if (isGithubRepositoryUrl(url)) return githubRepoLabel(url);
+  try {
+    const parsed = new URL(sourceUrlHref(url) ?? url);
+    return `${parsed.hostname.replace(/^www\./iu, '')}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/$/, '');
+  } catch {
+    return url;
+  }
+}
+
+function sourceUrlHref(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  const sshGithub = /^git@github\.com:([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[?#].*)?$/iu.exec(trimmed);
+  if (sshGithub) return `https://github.com/${sshGithub[1]}/${sshGithub[2]}`;
+  const shorthandGithub = /^([^/\s]+)\/([^/\s#?]+?)(?:\.git)?$/u.exec(trimmed);
+  if (shorthandGithub) return `https://github.com/${shorthandGithub[1]}/${shorthandGithub[2]}`;
+  const withProtocol = shouldAssumeHttps(trimmed) ? `https://${trimmed}` : trimmed;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function sourceUrlIcon(url: string): IconName {
+  if (isGithubRepositoryUrl(url)) return 'github';
+  return sourceUrlHref(url) ? 'external-link' : 'link';
+}
+
 function githubRepoLabel(url: string): string {
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(sourceUrlHref(url) ?? url);
     const parts = parsed.pathname.split('/').filter(Boolean);
     if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
   } catch {
@@ -3740,11 +3817,32 @@ function githubRepoLabel(url: string): string {
   return url;
 }
 
-function githubUrlsFromState(state: SetupState): string[] {
+function sourceUrlsFromState(state: SetupState): string[] {
   return Array.from(new Set([
-    ...state.githubUrls,
-    ...(state.githubUrl.trim() ? [normalizeGithubUrl(state.githubUrl)] : []),
+    ...state.sourceUrls,
+    ...(state.sourceUrl.trim() ? [normalizeSourceUrl(state.sourceUrl)] : []),
   ].filter(Boolean)));
+}
+
+function githubUrlsFromState(state: SetupState): string[] {
+  return sourceUrlsFromState(state).filter(isGithubRepositoryUrl);
+}
+
+function nonGithubSourceUrlsFromState(state: SetupState): string[] {
+  return sourceUrlsFromState(state).filter((url) => !isGithubRepositoryUrl(url));
+}
+
+function isGithubRepositoryUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (/^git@github\.com:[^/\s]+\/[^/\s#?]+(?:\.git)?(?:[?#].*)?$/iu.test(trimmed)) return true;
+  try {
+    const parsed = new URL(sourceUrlHref(trimmed) ?? trimmed);
+    if (parsed.hostname.toLowerCase() !== 'github.com') return false;
+    return parsed.pathname.split('/').filter(Boolean).length >= 2;
+  } catch {
+    return /^([^/\s]+)\/([^/\s#?]+?)(?:\.git)?$/u.test(trimmed);
+  }
 }
 
 function isComposioConfigured(composio: AppConfig['composio'] | undefined): boolean {
@@ -4091,10 +4189,14 @@ async function stageAssetFiles(projectId: string, files: File[]): Promise<Staged
 }
 
 function buildSourceNotes(state: SetupState): string {
+  const sourceUrls = sourceUrlsFromState(state);
   const githubUrls = githubUrlsFromState(state);
+  const websiteUrls = nonGithubSourceUrlsFromState(state);
   const localCode = localCodeReferences(state);
   return [
-    githubUrls.length ? `GitHub/code: ${githubUrls.join(', ')}` : '',
+    sourceUrls.length ? `Source links: ${sourceUrls.join(', ')}` : '',
+    githubUrls.length ? `GitHub repositories: ${githubUrls.join(', ')}` : '',
+    websiteUrls.length ? `Website/source URLs: ${websiteUrls.join(', ')}` : '',
     localCode.length ? `Local code: ${localCode.join(', ')}` : '',
     state.figFiles.length ? `Figma files: ${state.figFiles.join(', ')}` : '',
     state.assetFiles.length ? `Fonts, logos and assets: ${state.assetFiles.join(', ')}` : '',
@@ -4111,6 +4213,7 @@ function buildCreationAgentPrompt(
 ): string {
   const sourceNotes = buildSourceNotes(state);
   const githubUrls = githubUrlsFromState(state);
+  const websiteUrls = nonGithubSourceUrlsFromState(state);
   const localCode = localCodeReferences(state);
   const githubRunbook = buildGithubConnectorRunbook(githubUrls);
   const localFolderRunbook = buildLocalFolderRunbook(state.codeFolders);
@@ -4124,7 +4227,7 @@ function buildCreationAgentPrompt(
     '- The setup page already collected the brief. If target surfaces, review priority, or workspace depth are missing, choose sensible defaults and begin generating the design-system artifacts immediately.',
     '',
     'Project boundary:',
-    '- All GitHub extraction, local evidence intake, source reading, design-system construction, package audit, and final artifact writes must happen inside this project workspace and this project chat run.',
+    '- All GitHub extraction, website/source URL review, local evidence intake, source reading, design-system construction, package audit, and final artifact writes must happen inside this project workspace and this project chat run.',
     '- Treat `/design-systems/create` as setup only. Do not depend on that page for progress, review, or generated output; the project is the source of truth.',
     '',
     'Use the files in this project as the design system source for future projects. Update `DESIGN.md` as the canonical rules document, and update supporting files when they make the system easier to review or reuse.',
@@ -4148,10 +4251,11 @@ function buildCreationAgentPrompt(
     '',
     'Core execution order:',
     '1. Read `context/source-context.md` first, then run every intake command it lists for linked GitHub repositories and linked local code folders before editing design-system files.',
-    '2. Do not write `DESIGN.md`, token files, previews, UI-kit examples, or asset notes from URL text alone. When GitHub, local code, Figma, or assets were provided, preserve concrete evidence under `context/` and use it as the basis for the design-system files.',
-    '3. Before writing the design-system files, inventory the local evidence for product identity, real color/theme tokens, font families, brand assets, app shell layout, navigation, chat/input surfaces, and reusable components. Use this inventory to avoid generic tokens.',
-    '4. Copy high-signal source component examples from the snapshots when they explain the design system better than prose alone. Keep these examples outside `context/` as reusable package artifacts, not only as hidden evidence.',
-    '5. After evidence is collected, update the project files directly and keep the `Design System` tab reviewable.',
+    '2. Review linked website/source URLs when they are public and reachable. Treat them as source references, not repository snapshots; if a site cannot be reached, state that limitation and continue from the evidence that is available.',
+    '3. Do not write `DESIGN.md`, token files, previews, UI-kit examples, or asset notes from URL text alone. When GitHub, local code, Figma, or assets were provided, preserve concrete evidence under `context/` and use it as the basis for the design-system files.',
+    '4. Before writing the design-system files, inventory the local evidence for product identity, real color/theme tokens, font families, brand assets, app shell layout, navigation, chat/input surfaces, and reusable components. Use this inventory to avoid generic tokens.',
+    '5. Copy high-signal source component examples from the snapshots when they explain the design system better than prose alone. Keep these examples outside `context/` as reusable package artifacts, not only as hidden evidence.',
+    '6. After evidence is collected, update the project files directly and keep the `Design System` tab reviewable.',
     '',
     'Completion gate:',
     '- For each linked GitHub repository, there must be a `context/github/*.md` evidence note plus command-written snapshots under `context/github/*/files/` before writing final design-system rules or previews. The snapshots should include theme/token/source files and any available binary assets or fonts selected by the intake command.',
@@ -4169,9 +4273,12 @@ function buildCreationAgentPrompt(
     '',
     `Company / design system context:\n${state.company.trim()}`,
     sourceContextManifestPath
-      ? `\nSource context manifest:\n- Read \`${sourceContextManifestPath}\` before drafting. It records GitHub access readiness, local folder links, copied code snapshots, uploaded resources, and the review contract for this design system project.`
+      ? `\nSource context manifest:\n- Read \`${sourceContextManifestPath}\` before drafting. It records source links, GitHub access readiness, local folder links, copied code snapshots, uploaded resources, and the review contract for this design system project.`
       : '',
     sourceNotes ? `\nProvided resources:\n${sourceNotes}` : '',
+    websiteUrls.length
+      ? `Use the linked website/source URLs as public style and product references when they are reachable: ${websiteUrls.join(', ')}. Capture concrete observations in context notes before relying on them for design decisions.`
+      : '',
     githubUrls.length
       ? githubRunbook
       : '',
@@ -4214,7 +4321,9 @@ function buildSourceContextManifest(
     stagedAssets?: StagedAssetContext;
   },
 ): string {
+  const sourceUrls = sourceUrlsFromState(state);
   const githubUrls = githubUrlsFromState(state);
+  const websiteUrls = nonGithubSourceUrlsFromState(state);
   const linkedFolders = state.codeFolders;
   const copiedSnapshots = options.stagedLocalCode?.uploadedPaths ?? [];
   const skippedCount = options.stagedLocalCode?.skippedCount ?? 0;
@@ -4234,6 +4343,16 @@ function buildSourceContextManifest(
     '',
     state.company.trim() || 'No company or product context provided yet.',
   ];
+
+  sections.push('', '## Source Links', '');
+  if (sourceUrls.length > 0) {
+    sections.push(...sourceUrls.map((url) => `- ${url}`));
+  } else {
+    sections.push('- None linked.');
+  }
+  if (websiteUrls.length > 0) {
+    sections.push('', 'Website/source URLs should be treated as public style and product references when reachable. Record concrete observations before using them as design-system evidence.');
+  }
 
   sections.push('', '## GitHub Repositories', '');
   if (githubUrls.length > 0) {
@@ -4298,7 +4417,7 @@ function buildSourceContextManifest(
     '',
     '## Review Contract',
     '',
-    '- `/design-systems/create` only collected setup inputs. All GitHub extraction, local evidence intake, source reading, design-system construction, package audit, and artifact writes should happen inside this project workspace.',
+    '- `/design-systems/create` only collected setup inputs. All GitHub extraction, website/source URL review, local evidence intake, source reading, design-system construction, package audit, and artifact writes should happen inside this project workspace.',
     '- DESIGN.md is the canonical source of truth.',
     '- Use the canonical design-system title above for headings, README/SKILL names, preview labels, and UI-kit copy unless inspected evidence proves a more accurate product name. Never title the system from URL protocol text such as `https`.',
     '- colors_and_type.css should hold concrete reusable tokens when the source evidence supports them; if fonts/ contains preserved font files, colors_and_type.css must bind those files with @font-face, @import, or url(...) references so typography does not fall back to substitute fonts.',
@@ -4396,10 +4515,12 @@ function githubConnectorStatusForManifest(options: {
 }
 
 function buildProvenance(state: SetupState): DesignSystemProvenance {
+  const sourceUrls = sourceUrlsFromState(state);
   const githubUrls = githubUrlsFromState(state);
   const localCode = localCodeReferences(state);
   return {
     companyBlurb: state.company.trim(),
+    ...(sourceUrls.length ? { sourceUrls } : {}),
     ...(githubUrls.length ? { githubUrls } : {}),
     ...(localCode.length ? { localCodeFiles: localCode } : {}),
     ...(state.figFiles.length ? { figFiles: state.figFiles } : {}),
@@ -4413,6 +4534,7 @@ function provenanceRows(provenance: DesignSystemProvenance | undefined): Array<{
   if (!provenance) return [];
   return [
     provenance.companyBlurb ? { label: 'Company', value: truncateContext(provenance.companyBlurb) } : null,
+    provenance.sourceUrls?.length ? { label: 'Source links', value: provenance.sourceUrls.join(', ') } : null,
     provenance.githubUrls?.length ? { label: 'GitHub', value: provenance.githubUrls.join(', ') } : null,
     provenance.localCodeFiles?.length ? { label: 'Code', value: provenance.localCodeFiles.join(', ') } : null,
     provenance.figFiles?.length ? { label: 'Figma', value: provenance.figFiles.join(', ') } : null,

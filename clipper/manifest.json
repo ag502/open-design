@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Open Design Web Clipper",
   "version": "0.2.0",
-  "description": "Clip any page, screenshot, image, or Figma file into your Open Design Library — local-first, one click, no login.",
+  "description": "Clip pages, design systems, screenshots, images, and Figma import JSON into your Open Design Library — local-first, one click, no login.",
   "permissions": ["scripting", "storage", "contextMenus", "tabs", "downloads"],
   "host_permissions": ["<all_urls>"],
   "background": {

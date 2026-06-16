@@ -8,7 +8,7 @@
 // which copies the bytes into the project AND records a provenance back-link so
 // the registry knows the asset was consumed.
 
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import type { LibraryAsset } from '@open-design/contracts';
@@ -36,6 +36,7 @@ import styles from './LibraryPicker.module.css';
 const KIND_FILTERS: BadgeKind[] = [
   'image',
   'element',
+  'design-system',
   'video',
   'html',
   'font',
@@ -108,14 +109,17 @@ export function LibraryPicker({ onClose, onConfirm, title, confirmLabel }: Props
     });
   }, [assets, kind, debouncedSearch]);
 
-  function toggle(id: string) {
+  // Stable so the memoized PickerCard's shallow-prop compare holds: a selection
+  // toggle then only re-renders the one card whose `selected` flipped, not every
+  // visible card.
+  const toggle = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }
+  }, []);
 
   async function confirm() {
     const picked = assets.filter((asset) => selected.has(asset.id));
@@ -210,37 +214,14 @@ export function LibraryPicker({ onClose, onConfirm, title, confirmLabel }: Props
             <div className={styles.placeholder}>{t('libraryPicker.empty')}</div>
           ) : (
             <ul className={styles.grid}>
-              {visible.map((asset) => {
-                const isSelected = selected.has(asset.id);
-                return (
-                  <li key={asset.id}>
-                    <button
-                      type="button"
-                      className={`${styles.card}${isSelected ? ` ${styles.cardSelected}` : ''}`}
-                      onClick={() => toggle(asset.id)}
-                      aria-pressed={isSelected}
-                      title={assetTitle(asset)}
-                    >
-                      <span className={styles.thumb}>
-                        <AssetThumb asset={asset} />
-                        <span
-                          className={styles.kindBadge}
-                          style={{ ['--kind-tint' as string]: kindTint(badgeKind(asset)) }}
-                        >
-                          <KindIcon kind={badgeKind(asset)} size={11} />
-                          {kindLabel(badgeKind(asset))}
-                        </span>
-                        {isSelected ? (
-                          <span className={styles.check} aria-hidden>
-                            <Icon name="check" size={12} />
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className={styles.label}>{assetTitle(asset)}</span>
-                    </button>
-                  </li>
-                );
-              })}
+              {visible.map((asset) => (
+                <PickerCard
+                  key={asset.id}
+                  asset={asset}
+                  selected={selected.has(asset.id)}
+                  onToggle={toggle}
+                />
+              ))}
             </ul>
           )}
         </div>

@@ -16,7 +16,7 @@
 // Copy is intentionally inline (not yet i18n-keyed) — localization of the
 // Library surface is a tracked follow-up.
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ChatAttachment, DesignSystemSummary, LibraryAsset } from '@open-design/contracts';
 import {
   applyLibraryAsset,
@@ -64,6 +64,7 @@ const KIND_FILTERS: Array<{ value: string; label: string }> = [
   { value: '', label: 'All kinds' },
   { value: 'image', label: 'Images' },
   { value: 'element', label: 'Elements' },
+  { value: 'design-system', label: 'Design systems' },
   { value: 'video', label: 'Video' },
   { value: 'html', label: 'HTML' },
   { value: 'font', label: 'Fonts' },
@@ -109,39 +110,98 @@ function dayHeading(key: string): string {
   });
 }
 
-/** Kind-aware thumbnail. Stays fetch-free so the grid scrolls cheaply. */
-function Thumb({ asset }: { asset: LibraryAsset }) {
+// Image / video / html / design-system thumbnail with a shimmer-until-loaded
+// skeleton, mirroring the clipper's "Select images to save" picker
+// (clipper/content.js → `.thumb.shim`). The skeleton fills the 4:3 box and
+// animates only while the bytes are in flight; the media fades in over it on
+// `load`, then the skeleton unmounts. On `error` the skeleton also clears so a
+// broken asset doesn't shimmer forever, and a cached image that finished
+// loading before React attached `onLoad` is caught via the `complete` probe on
+// mount. Because heavy kinds are gated by {@link LibraryThumb} (which only
+// mounts in view) and `.card` carries `content-visibility:auto`, no off-screen
+// card runs the shimmer animation.
+function MediaThumb({ asset }: { asset: LibraryAsset }) {
+  const [loaded, setLoaded] = useState(false);
   const rawUrl = libraryAssetRawUrl(asset.id);
   const title = assetTitle(asset);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) setLoaded(true);
+  }, []);
+
+  const flag = loaded ? 'true' : 'false';
+  let media: React.ReactNode;
+  if (asset.kind === 'video') {
+    media = (
+      <>
+        <video
+          className={styles.thumbImg}
+          src={rawUrl}
+          muted
+          preload="metadata"
+          playsInline
+          data-loaded={flag}
+          onLoadedData={() => setLoaded(true)}
+          onError={() => setLoaded(true)}
+        />
+        <span className={styles.playGlyph} aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </span>
+      </>
+    );
+  } else if (asset.kind === 'html' || asset.kind === 'design-system') {
+    // Static (no scripts) sandboxed render — a faithful, lightweight preview
+    // of the captured page. The modal re-renders it with scripts for motion.
+    media = (
+      <iframe
+        className={styles.thumbFrame}
+        src={rawUrl}
+        sandbox=""
+        scrolling="no"
+        loading="lazy"
+        tabIndex={-1}
+        aria-hidden
+        title={title}
+        data-loaded={flag}
+        onLoad={() => setLoaded(true)}
+      />
+    );
+  } else {
+    media = (
+      <img
+        ref={imgRef}
+        className={styles.thumbImg}
+        src={rawUrl}
+        alt={title}
+        loading="lazy"
+        decoding="async"
+        data-loaded={flag}
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+      />
+    );
+  }
+
+  return (
+    <>
+      {loaded ? null : <span className={styles.thumbSkeleton} aria-hidden />}
+      {media}
+    </>
+  );
+}
+
+/** Kind-aware thumbnail. Stays fetch-free so the grid scrolls cheaply. */
+function Thumb({ asset }: { asset: LibraryAsset }) {
   switch (asset.kind) {
     case 'image':
-      return <img className={styles.thumbImg} src={rawUrl} alt={title} loading="lazy" />;
     case 'video':
-      return (
-        <>
-          <video className={styles.thumbImg} src={rawUrl} muted preload="metadata" playsInline />
-          <span className={styles.playGlyph} aria-hidden>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </span>
-        </>
-      );
+    case 'design-system':
     case 'html':
-      // Static (no scripts) sandboxed render — a faithful, lightweight preview
-      // of the captured page. The modal re-renders it with scripts for motion.
-      return (
-        <iframe
-          className={styles.thumbFrame}
-          src={rawUrl}
-          sandbox=""
-          scrolling="no"
-          loading="lazy"
-          tabIndex={-1}
-          aria-hidden
-          title={title}
-        />
-      );
+      return <MediaThumb asset={asset} />;
     case 'font':
       return (
         <div className={styles.thumbFont} style={{ fontFamily: `"${fontFamilyFor(asset.id)}", sans-serif` }}>
@@ -172,7 +232,7 @@ function Thumb({ asset }: { asset: LibraryAsset }) {
 // Kinds whose thumbnail does real off-screen work — a network fetch (image,
 // video, font face) or a whole browsing context (html `<iframe>`). These mount
 // lazily; cheap kinds (color swatch / text / url glyph) render immediately.
-const LAZY_THUMB_KINDS = new Set<string>(['image', 'video', 'html', 'font']);
+const LAZY_THUMB_KINDS = new Set<string>(['image', 'video', 'design-system', 'html', 'font']);
 
 // Wraps {@link Thumb} so the heavy content (full-bytes `<img>`/`<video>`, the
 // `<iframe>` html preview, or an injected `@font-face` specimen) only mounts
@@ -265,6 +325,149 @@ export interface Band {
   w: number;
   h: number;
 }
+
+interface LibraryCardProps {
+  asset: LibraryAsset;
+  /** Flat position in `assets` — drives shift-range + box selection. */
+  index: number;
+  selected: boolean;
+  /** This card's asset is mid "Edit as page" (spinner gate). */
+  editing: boolean;
+  onToggle: (id: string, index: number) => void;
+  onRange: (index: number) => void;
+  onPreview: (id: string) => void;
+  onDelete: (id: string) => void;
+  onEditAsPage: (id: string) => void;
+  onOpenProject: (projectId: string, fileName?: string) => void;
+}
+
+// One asset card. Shared by the grid and timeline views. Memoized so a
+// selection change — including the per-frame `setSelectedIds` of a rubber-band
+// drag — only re-renders the cards whose `selected`/`editing` actually flipped,
+// not the whole grid. On a large Library that turn-the-whole-list re-render was
+// the single biggest cost; all the callbacks below are stable (useCallback /
+// setState) so React.memo's shallow compare holds across those updates.
+const LibraryCard = memo(function LibraryCard({
+  asset,
+  index,
+  selected,
+  editing,
+  onToggle,
+  onRange,
+  onPreview,
+  onDelete,
+  onEditAsPage,
+  onOpenProject,
+}: LibraryCardProps) {
+  const src = primarySource(asset);
+  const projectId = originProjectId(asset);
+  const title = assetTitle(asset);
+  return (
+    <figure
+      className={styles.card}
+      data-asset-card
+      data-asset-id={asset.id}
+      data-selected={selected ? 'true' : 'false'}
+    >
+      <div className={styles.thumb}>
+        <LibraryThumb asset={asset} />
+        <button
+          type="button"
+          className={styles.thumbButton}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey) {
+              onToggle(asset.id, index);
+              return;
+            }
+            if (e.shiftKey) {
+              onRange(index);
+              return;
+            }
+            onPreview(asset.id);
+          }}
+          aria-label={`Preview ${title}`}
+        >
+          <span className={styles.previewOverlay} aria-hidden>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+        </button>
+        <button
+          type="button"
+          className={styles.selectCheck}
+          data-checked={selected ? 'true' : 'false'}
+          aria-pressed={selected}
+          aria-label={selected ? 'Deselect asset' : 'Select asset'}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.shiftKey) onRange(index);
+            else onToggle(asset.id, index);
+          }}
+        >
+          {selected ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          ) : null}
+        </button>
+        {src ? (
+          <span className={styles.badge} data-source={src}>
+            {SOURCE_LABELS[src]}
+          </span>
+        ) : null}
+        <span
+          className={styles.kindBadge}
+          style={{ ['--kind-tint' as string]: kindTint(badgeKind(asset)) }}
+        >
+          <KindIcon kind={badgeKind(asset)} size={12} />
+          {kindLabel(badgeKind(asset))}
+        </span>
+      </div>
+      <figcaption className={styles.meta}>
+        <button
+          type="button"
+          className={styles.title}
+          title={asset.sourceTitle ?? asset.sourceUrl ?? asset.id}
+          onClick={() => onPreview(asset.id)}
+        >
+          {title}
+        </button>
+        <span className={styles.sub}>
+          {asset.width && asset.height
+            ? `${asset.width}×${asset.height}`
+            : kindLabel(badgeKind(asset))}
+        </span>
+      </figcaption>
+      <div className={styles.cardActions}>
+        {asset.kind === 'html' ? (
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => onEditAsPage(asset.id)}
+            disabled={editing}
+          >
+            {editing ? 'Opening…' : 'Edit as page'}
+          </button>
+        ) : projectId ? (
+          <button type="button" className={styles.linkBtn} onClick={() => onOpenProject(projectId)}>
+            Open project
+          </button>
+        ) : asset.sourceUrl ? (
+          <a className={styles.linkBtn} href={asset.sourceUrl} target="_blank" rel="noreferrer">
+            Source
+          </a>
+        ) : (
+          <span />
+        )}
+        <button type="button" className={styles.deleteBtn} onClick={() => onDelete(asset.id)}>
+          Remove
+        </button>
+      </div>
+    </figure>
+  );
+});
 
 export function LibrarySection({ active, onOpenProject }: Props) {
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
@@ -836,120 +1039,24 @@ export function LibrarySection({ active, onOpenProject }: Props) {
       .map(([key, items]) => ({ key, items }));
   }, [assets]);
 
-  // One asset card. Shared by the grid and timeline views; `index` is the flat
-  // position in `assets` (drives shift-range + box selection).
-  const renderCard = (asset: LibraryAsset, index: number) => {
-    const src = primarySource(asset);
-    const projectId = originProjectId(asset);
-    const title = assetTitle(asset);
-    const selected = selectedIds.has(asset.id);
-    return (
-      <figure
-        key={asset.id}
-        className={styles.card}
-        data-asset-card
-        data-asset-id={asset.id}
-        data-selected={selected ? 'true' : 'false'}
-      >
-        <div className={styles.thumb}>
-          <LibraryThumb asset={asset} />
-          <button
-            type="button"
-            className={styles.thumbButton}
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey) {
-                toggleOne(asset.id, index);
-                return;
-              }
-              if (e.shiftKey) {
-                rangeTo(index);
-                return;
-              }
-              setPreviewId(asset.id);
-            }}
-            aria-label={`Preview ${title}`}
-          >
-            <span className={styles.previewOverlay} aria-hidden>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </span>
-          </button>
-          <button
-            type="button"
-            className={styles.selectCheck}
-            data-checked={selected ? 'true' : 'false'}
-            aria-pressed={selected}
-            aria-label={selected ? 'Deselect asset' : 'Select asset'}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (e.shiftKey) rangeTo(index);
-              else toggleOne(asset.id, index);
-            }}
-          >
-            {selected ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-            ) : null}
-          </button>
-          {src ? (
-            <span className={styles.badge} data-source={src}>
-              {SOURCE_LABELS[src]}
-            </span>
-          ) : null}
-          <span
-            className={styles.kindBadge}
-            style={{ ['--kind-tint' as string]: kindTint(badgeKind(asset)) }}
-          >
-            <KindIcon kind={badgeKind(asset)} size={12} />
-            {kindLabel(badgeKind(asset))}
-          </span>
-        </div>
-        <figcaption className={styles.meta}>
-          <button
-            type="button"
-            className={styles.title}
-            title={asset.sourceTitle ?? asset.sourceUrl ?? asset.id}
-            onClick={() => setPreviewId(asset.id)}
-          >
-            {title}
-          </button>
-          <span className={styles.sub}>
-            {asset.width && asset.height
-              ? `${asset.width}×${asset.height}`
-              : kindLabel(badgeKind(asset))}
-          </span>
-        </figcaption>
-        <div className={styles.cardActions}>
-          {asset.kind === 'html' ? (
-            <button
-              type="button"
-              className={styles.linkBtn}
-              onClick={() => void handleEditAsPage(asset.id)}
-              disabled={editingId === asset.id}
-            >
-              {editingId === asset.id ? 'Opening…' : 'Edit as page'}
-            </button>
-          ) : projectId ? (
-            <button type="button" className={styles.linkBtn} onClick={() => onOpenProject(projectId)}>
-              Open project
-            </button>
-          ) : asset.sourceUrl ? (
-            <a className={styles.linkBtn} href={asset.sourceUrl} target="_blank" rel="noreferrer">
-              Source
-            </a>
-          ) : (
-            <span />
-          )}
-          <button type="button" className={styles.deleteBtn} onClick={() => void onDelete(asset.id)}>
-            Remove
-          </button>
-        </div>
-      </figure>
-    );
-  };
+  // Render one memoized card. The wrapper just wires this render's per-card
+  // props; `LibraryCard` itself is what skips re-rendering when only another
+  // card's selection changed.
+  const renderCard = (asset: LibraryAsset, index: number) => (
+    <LibraryCard
+      key={asset.id}
+      asset={asset}
+      index={index}
+      selected={selectedIds.has(asset.id)}
+      editing={editingId === asset.id}
+      onToggle={toggleOne}
+      onRange={rangeTo}
+      onPreview={setPreviewId}
+      onDelete={onDelete}
+      onEditAsPage={handleEditAsPage}
+      onOpenProject={onOpenProject}
+    />
+  );
 
   return (
     <div
@@ -964,7 +1071,7 @@ export function LibrarySection({ active, onOpenProject }: Props) {
         <h1 className="entry-section__title">Library</h1>
         <div className={styles.clipperHint}>
           <p className={styles.headerHint}>
-            Clip any page, screenshot, image, or Figma file straight into your Library —
+            Clip any page, design system, screenshot, image, or Figma import JSON into your Library —
             local-first, one click, no login.
           </p>
           <a

@@ -212,6 +212,23 @@ async function fetchAsDataUri(url) {
   return bytesToDataUri(new Uint8Array(buf), mime);
 }
 
+// Run an async fn over items with a bounded number in flight at once. Decoding
+// and re-encoding images is memory-hungry, so a 300-image page must not fan all
+// of them out at once or the service worker can OOM mid-capture.
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next;
+      next += 1;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 async function buildResourceMap(urls, includeImages) {
   const map = new Map();
   let skipped = 0;
@@ -220,16 +237,14 @@ async function buildResourceMap(urls, includeImages) {
   // budget is spent — so we keep the most images and the ones we drop (left as
   // live URLs) are the largest. This bounds the inlined total by construction,
   // so the page's images can never push the body over the ingest limit.
-  const candidates = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        const dataUri = await fetchAsDataUri(url);
-        return { url, dataUri, size: dataUri.length };
-      } catch {
-        return null; // hotlink-protected / oversized / offline — leave the URL
-      }
-    }),
-  );
+  const candidates = await mapWithConcurrency(urls, 6, async (url) => {
+    try {
+      const dataUri = await fetchAsDataUri(url);
+      return { url, dataUri, size: dataUri.length };
+    } catch {
+      return null; // hotlink-protected / oversized / offline — leave the URL
+    }
+  });
   let used = 0;
   for (const c of candidates.filter(Boolean).sort((a, b) => a.size - b.size)) {
     if (used + c.size > MAX_TOTAL_INLINE_BYTES) {
@@ -348,6 +363,58 @@ async function downloadFigma(opts) {
     saveAs: false,
   });
   return { truncated: cap.truncated, partialImages: cap.partialImages || 0 };
+}
+
+// --- design-system capture -------------------------------------------------
+//
+// brand-capture.js does not snapshot the page. It extracts brand/design-system
+// signals and fills a stable HTML template, then the worker inlines the
+// discovered logos/images/fonts exactly like the full-page capture path.
+
+async function captureDesignSystem(opts) {
+  const includeImages = !opts || opts.includeImages !== false;
+  const tab = await activeTab();
+  await sendToTab(tab.id, { type: 'odClipper:hideForCapture' });
+  let cap;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['brand-capture.js'] });
+    const [out] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => window.__odBrandCapture(),
+    });
+    cap = out && out.result;
+  } finally {
+    await sendToTab(tab.id, { type: 'odClipper:restoreAfterCapture' });
+  }
+  if (!cap || !cap.html) throw new Error('design system capture failed');
+  const { map, skipped } = await buildResourceMap(cap.resources, includeImages);
+  return {
+    html: inlineHtml(cap.html, map),
+    partialImages: skipped,
+    title: cap.title || `${tab.title || 'Captured'} Design System`,
+    url: cap.url || tab.url,
+    summary: cap.summary || {},
+  };
+}
+
+async function captureDesignSystemToLibrary(opts) {
+  const cap = await captureDesignSystem(opts);
+  const r = await ingest({
+    text: cap.html,
+    kind: 'design-system',
+    mime: 'text/html',
+    sourceUrl: cap.url,
+    sourceTitle: cap.title,
+    tags: ['design-system', 'brand-capture'],
+    metadata: {
+      designSystemCapture: {
+        version: 1,
+        capturedAt: Date.now(),
+        ...cap.summary,
+      },
+    },
+  });
+  return { deduped: Boolean(r.deduped), partialImages: cap.partialImages || 0 };
 }
 
 // --- element + selected-image capture --------------------------------------
@@ -500,6 +567,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case 'downloadFigma': {
           const r = await downloadFigma(msg.opts);
           sendResponse({ ok: true, truncated: r.truncated, partialImages: r.partialImages });
+          break;
+        }
+        case 'captureDesignSystemToLibrary': {
+          const r = await captureDesignSystemToLibrary(msg.opts);
+          sendResponse({ ok: true, deduped: r.deduped, partialImages: r.partialImages });
           break;
         }
         case 'captureElement': {

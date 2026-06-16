@@ -3,7 +3,7 @@
 // Three on-page surfaces, all isolated in their own Shadow DOM so page CSS
 // can't bleed in (and the extension's own nodes are excluded from captures):
 //
-//   1. A floating launcher toolbar (page / figma / shot / images / element),
+//   1. A floating launcher toolbar (page / design system / figma / shot / images / element),
 //      led by the Open Design brand mark. HIDDEN by default — turned on from
 //      the popup; the preference is remembered. A grip handle on its leading
 //      edge drags it anywhere on the page, and the resting spot is remembered.
@@ -94,6 +94,7 @@
   const shadow = host.attachShadow({ mode: 'open' });
   const ICON = {
     page: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M8 13h8"/><path d="M8 17h5"/>',
+    system: '<path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M8 8h8"/><path d="M8 12h3"/><path d="M13 12h3"/><path d="M8 16h8"/>',
     figma: '<line x1="22" y1="6" x2="2" y2="6"/><line x1="22" y1="18" x2="2" y2="18"/><line x1="6" y1="2" x2="6" y2="22"/><line x1="18" y1="2" x2="18" y2="22"/>',
     shot: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
     region: '<path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/>',
@@ -219,7 +220,8 @@
       </a>
       <span class="sep"></span>
       ${btn('page', 'Capture page → Library')}
-      ${btn('figma', 'Download Figma file')}
+      ${btn('system', 'Extract design system')}
+      ${btn('figma', 'Download Figma import JSON')}
       ${btn('shot', 'Capture screenshot')}
       ${btn('region', 'Capture a region')}
       ${btn('imgs', 'Pick images to save')}
@@ -278,7 +280,12 @@
   document.addEventListener('scroll', onDocScroll, true);
 
   // Toolbar actions sent straight to the worker (no on-page UI of their own).
-  const WORKER_ACTIONS = { shot: 'captureScreenshot', page: 'capturePageToLibrary', figma: 'downloadFigma' };
+  const WORKER_ACTIONS = {
+    shot: 'captureScreenshot',
+    page: 'capturePageToLibrary',
+    system: 'captureDesignSystemToLibrary',
+    figma: 'downloadFigma',
+  };
 
   shadow.querySelectorAll('button[data-act]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -319,7 +326,9 @@
           const base = res.hasFigma ? 'Saved page + Figma' : 'Saved page';
           toast(res.partialImages ? `${base} (some images left as links)` : base);
         }
-      } else if (type === 'downloadFigma') toast('Figma capture downloaded');
+      } else if (type === 'captureDesignSystemToLibrary') {
+        toast(res.deduped ? 'Design system already in library' : 'Saved design system');
+      } else if (type === 'downloadFigma') toast('Figma import JSON downloaded');
       else toast(res.deduped ? 'Already in library' : 'Saved screenshot');
     });
   });

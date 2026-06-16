@@ -14,6 +14,7 @@
 export type LibraryAssetKind =
   | 'image'
   | 'color'
+  | 'design-system'
   | 'font'
   | 'html'
   | 'text'
@@ -166,7 +167,7 @@ export interface LibraryIngestRequest {
    * Clipper-only: the OD Figma capture IR (a JSON node-tree string, see the
    * `figma-plugin/IR.md` schema) produced from the live page alongside an
    * `html` capture. Stored as a sidecar of the HTML asset so the Library can
-   * export it as a Figma file without re-rendering the page.
+   * export it as Figma import JSON without re-rendering the page.
    */
   figmaCapture?: string;
   /** Node count of `figmaCapture`, supplied so the daemon never parses the IR. */

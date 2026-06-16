@@ -198,6 +198,7 @@ $('page').addEventListener('click', async () => {
     // links. Tell the user when either happened so the result isn't surprising.
     const notes = [];
     if (r.truncated) notes.push('large page — partial layout');
+    if (r.figmaDropped) notes.push('Figma layout skipped — page too large');
     if (r.partialImages) {
       notes.push(`${r.partialImages} image${r.partialImages === 1 ? '' : 's'} left as links`);
     }
@@ -210,9 +211,21 @@ $('page').addEventListener('click', async () => {
 
 $('figma').addEventListener('click', async () => {
   setBusy(true);
-  setMsg('Building Figma capture…', 'loading');
+  setMsg('Building Figma import JSON…', 'loading');
   const res = await send({ type: 'downloadFigma', opts: captureOpts() });
-  reportCapture(res, () => 'Figma file downloaded — import it with the Open Design Figma plugin.');
+  reportCapture(res, () => 'Figma import JSON downloaded — run the OD Figma Import plugin inside Figma, then choose this file.');
+});
+
+$('system')?.addEventListener('click', async () => {
+  setBusy(true);
+  setMsg('Extracting design system…', 'loading');
+  const res = await send({ type: 'captureDesignSystemToLibrary', opts: captureOpts() });
+  reportCapture(res, (r) => {
+    const suffix = r.partialImages
+      ? ` (${r.partialImages} resource${r.partialImages === 1 ? '' : 's'} left as links)`
+      : '';
+    return r.deduped ? `Design system already in library${suffix}.` : `Design system saved to library${suffix}.`;
+  });
 });
 
 $('shot').addEventListener('click', async () => {

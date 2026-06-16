@@ -1495,6 +1495,86 @@ describe('DesignSystemCreationFlow', () => {
     );
   });
 
+  it('adds website source links with Enter and keeps them out of GitHub intake', async () => {
+    const system: DesignSystemDetail = {
+      id: 'user:open-design-website-design-system',
+      title: 'Open Design Website Design System',
+      category: 'Custom',
+      summary: 'Open Design website source.',
+      swatches: [],
+      surface: 'web',
+      body: '# Open Design Website Design System\n',
+      source: 'user',
+      status: 'draft',
+      isEditable: true,
+      projectId: 'ds-open-design-website-design-system',
+    };
+    const project: Project = {
+      id: 'ds-open-design-website-design-system',
+      name: 'Open Design Website Design System',
+      skillId: null,
+      designSystemId: system.id,
+      createdAt: 1,
+      updatedAt: 1,
+      metadata: {
+        kind: 'other',
+        importedFrom: 'design-system',
+        entryFile: 'DESIGN.md',
+        sourceFileName: system.id,
+      },
+    };
+    const onBeforeGenerate = vi.fn();
+    mocks.createDesignSystemDraft.mockResolvedValue(system);
+    mocks.ensureDesignSystemWorkspace.mockResolvedValue({ project, files: [] });
+    mocks.patchProject.mockResolvedValue({ ...project, pendingPrompt: 'Create this project as a design system.' });
+
+    render(
+      <DesignSystemCreationFlow
+        onBack={() => {}}
+        onCreated={() => {}}
+        onBeforeGenerate={onBeforeGenerate}
+      />,
+    );
+
+    const sourceInput = screen.getByPlaceholderText('https://example.com or https://github.com/owner/repo') as HTMLInputElement;
+    fireEvent.change(sourceInput, { target: { value: 'open-design.ai' } });
+    fireEvent.keyDown(sourceInput, { key: 'Enter', code: 'Enter' });
+
+    const previewLink = screen.getByRole('link', { name: 'Open open-design.ai' }) as HTMLAnchorElement;
+    expect(previewLink.href).toBe('https://open-design.ai/');
+    expect(sourceInput.value).toBe('');
+
+    fireEvent.change(screen.getByPlaceholderText(/Mission Impastabowl/i), {
+      target: { value: 'Open Design website source' },
+    });
+    continueToGeneration();
+    continueToGeneration();
+
+    await waitFor(() => expect(mocks.createDesignSystemDraft).toHaveBeenCalled());
+    expect(onBeforeGenerate).toHaveBeenCalledWith(expect.objectContaining({
+      sourceCount: 1,
+      sourceUrlCount: 1,
+      githubRepoCount: 0,
+    }));
+    const draftInput = mocks.createDesignSystemDraft.mock.calls[0]?.[0];
+    expect(draftInput?.provenance?.sourceUrls).toEqual(['https://open-design.ai']);
+    expect(draftInput?.provenance?.githubUrls).toBeUndefined();
+
+    await waitFor(() => expect(mocks.writeProjectTextFile).toHaveBeenCalled());
+    const sourceManifestCall = mocks.writeProjectTextFile.mock.calls.find(
+      (call) => call[0] === project.id && call[1] === 'context/source-context.md',
+    );
+    expect(sourceManifestCall?.[2]).toEqual(expect.stringContaining('## Source Links'));
+    expect(sourceManifestCall?.[2]).toEqual(expect.stringContaining('- https://open-design.ai'));
+    expect(sourceManifestCall?.[2]).not.toEqual(expect.stringContaining('GitHub Connector Intake Runbook'));
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('Use the linked website/source URLs as public style and product references'),
+      }),
+    );
+  });
+
   it('allows GitHub repo links without Composio by using local GitHub intake', () => {
     const onOpenConnectorsTab = vi.fn();
     const config = {
@@ -1510,9 +1590,9 @@ describe('DesignSystemCreationFlow', () => {
       />,
     );
 
-    const input = screen.getByPlaceholderText('https://github.com/owner/repo') as HTMLInputElement;
+    const input = screen.getByPlaceholderText('https://example.com or https://github.com/owner/repo') as HTMLInputElement;
     expect(input.disabled).toBe(false);
-    expect(screen.getByText('Repository access: Auto')).toBeTruthy();
+    expect(screen.getByText('GitHub access: Auto')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Show access methods' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Configure Composio' })).toBeNull();
 
@@ -1559,7 +1639,7 @@ describe('DesignSystemCreationFlow', () => {
         />,
       );
 
-      expect(screen.getByText('Repository access: Auto')).toBeTruthy();
+      expect(screen.getByText('GitHub access: Auto')).toBeTruthy();
       fireEvent.click(screen.getByRole('button', { name: 'Show access methods' }));
       expect(screen.queryByText('Checking GitHub connector')).toBeNull();
 
@@ -1630,7 +1710,7 @@ describe('DesignSystemCreationFlow', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Show access methods' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Connect via Composio' })).toBeTruthy());
-      expect((screen.getByPlaceholderText('https://github.com/owner/repo') as HTMLInputElement).disabled).toBe(false);
+      expect((screen.getByPlaceholderText('https://example.com or https://github.com/owner/repo') as HTMLInputElement).disabled).toBe(false);
 
       fireEvent.click(screen.getByRole('button', { name: 'Connect via Composio' }));
 
@@ -1639,7 +1719,7 @@ describe('DesignSystemCreationFlow', () => {
       await waitFor(() => expect(onConnectorsChanged).toHaveBeenCalledTimes(1));
       expect(screen.queryByRole('button', { name: 'Configure' })).toBeNull();
       expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
-      const input = screen.getByPlaceholderText('https://github.com/owner/repo') as HTMLInputElement;
+      const input = screen.getByPlaceholderText('https://example.com or https://github.com/owner/repo') as HTMLInputElement;
       expect(input.disabled).toBe(false);
 
       fireEvent.change(input, { target: { value: 'https://github.com/nexu-io/open-design/' } });
@@ -1783,7 +1863,7 @@ describe('DesignSystemCreationFlow', () => {
     fireEvent.change(screen.getByPlaceholderText(/Mission Impastabowl/i), {
       target: { value: 'GitHub: product workspace' },
     });
-    const input = screen.getByPlaceholderText('https://github.com/owner/repo') as HTMLInputElement;
+    const input = screen.getByPlaceholderText('https://example.com or https://github.com/owner/repo') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'https://github.com/nexu-io/open-design' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     continueToGeneration();
@@ -1939,7 +2019,7 @@ describe('DesignSystemCreationFlow', () => {
     fireEvent.change(screen.getByPlaceholderText(/Mission Impastabowl/i), {
       target: { value: 'GitHub: product workspace' },
     });
-    const input = screen.getByPlaceholderText('https://github.com/owner/repo') as HTMLInputElement;
+    const input = screen.getByPlaceholderText('https://example.com or https://github.com/owner/repo') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'https://github.com/nexu-io/open-design' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     continueToGeneration();

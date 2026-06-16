@@ -3,7 +3,8 @@
 // The grid only shows a thumbnail; this modal renders the asset for real:
 //   image   → contained <img>
 //   video   → <video controls autoplay loop>
-//   html    → sandboxed <iframe> (scripts run so captured pages / CSS+JS
+//   html /
+//   design-system → sandboxed <iframe> (scripts run so captured pages / CSS+JS
 //             animations actually move, but it sits in an opaque origin and
 //             cannot reach the daemon — matches the rest of the app's
 //             untrusted-HTML rendering)
@@ -155,6 +156,7 @@ function Stage({ asset }: { asset: LibraryAsset }) {
       return <img className={styles.stageImage} src={rawUrl} alt={title} />;
     case 'video':
       return <video className={styles.stageVideo} src={rawUrl} controls autoPlay loop playsInline />;
+    case 'design-system':
     case 'html':
       // Opaque-origin sandbox: scripts/animations run, daemon stays unreachable.
       return <iframe className={styles.stageFrame} src={rawUrl} sandbox="allow-scripts" title={title} />;
@@ -280,7 +282,7 @@ export function LibraryPreviewModal({
   const size = formatBytes(asset.size);
   const date = formatDate(asset.capturedAt);
   // Clipper-captured pages carry an OD Figma capture; only then can we export
-  // it as an importable Figma file.
+  // it as Figma import JSON.
   const hasFigmaCapture =
     asset.kind === 'html' && Boolean((asset.metadata as { figmaCapture?: unknown } | undefined)?.figmaCapture);
 
@@ -395,9 +397,9 @@ export function LibraryPreviewModal({
                 className={styles.linkAction}
                 href={libraryAssetFigmaUrl(asset.id)}
                 download
-                title="Download an importable Figma capture — rebuild it with the OD Figma plugin"
+                title="Download Figma import JSON — rebuild it with the OD Figma Import plugin"
               >
-                Download Figma
+                Download Figma JSON
               </a>
             ) : null}
             <a className={styles.linkAction} href={rawUrl} target="_blank" rel="noreferrer" download>

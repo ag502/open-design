@@ -711,6 +711,7 @@ export type TrackingDesignSystemsEntryFrom =
 export type TrackingDesignSystemOrigin =
   | 'onboarding'
   | 'manual_create'
+  | 'source_url'
   | 'github_repo'
   | 'local_code'
   | 'fig'
@@ -1531,7 +1532,7 @@ export interface DesignSystemsCreateClickProps {
   page_name: 'design_systems';
   area: 'design_system_create';
   element:
-    | 'github_repo_add'
+    | 'source_url_add'
     | 'show_access_methods'
     | 'browse_folder'
     | 'upload_fig'

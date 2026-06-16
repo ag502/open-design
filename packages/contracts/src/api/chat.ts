@@ -110,6 +110,7 @@ export type ChatAnalyticsLengthBucket =
 export type ChatAnalyticsDesignSystemOrigin =
   | 'onboarding'
   | 'manual_create'
+  | 'source_url'
   | 'github_repo'
   | 'local_code'
   | 'fig'

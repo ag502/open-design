@@ -6339,7 +6339,8 @@ Commands:
 Options:
   --json                    Machine-readable output.
   --daemon-url <url>        Override daemon URL (default: auto-discover).
-  --kind <image|video|...>  Filter/declare asset kind.
+  --kind <image|design-system|video|...>
+                            Filter/declare asset kind.
   --tag <tag>               Filter by / attach a tag.
   --source <kind>           Filter by source (clipper|manual-upload|agent-task|design-system|generated).
   --date <YYYY-MM-DD>       Filter by archive date.
