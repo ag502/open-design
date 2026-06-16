@@ -2723,7 +2723,12 @@ export function ProjectView({
                 requestOpenFile(recoveredExistingArtifact.name);
               } else {
                 savedArtifactRef.current = null;
-                await persistArtifact(artifactToPersist, nextFiles, replayedContent);
+                await persistArtifact(
+                  artifactToPersist,
+                  nextFiles,
+                  replayedContent,
+                  { pointerMinMtime: runStartedAt },
+                );
                 nextFiles = await refreshProjectFiles();
               }
             }
@@ -2988,7 +2993,12 @@ export function ProjectView({
                       requestOpenFile(recoveredExistingArtifact.name);
                     } else {
                       savedArtifactRef.current = null;
-                      await persistArtifact(artifactToPersist, nextFiles, replayedContent);
+                      await persistArtifact(
+                        artifactToPersist,
+                        nextFiles,
+                        replayedContent,
+                        { pointerMinMtime: runStartedAt },
+                      );
                       nextFiles = await refreshProjectFiles();
                       recoveredExistingArtifact = findExistingArtifactProjectFile(
                         artifactToPersist,
@@ -3190,7 +3200,12 @@ export function ProjectView({
             requestOpenFile(recoveredExistingArtifact.name);
           } else {
             savedArtifactRef.current = null;
-            await persistArtifact(artifactToPersist, nextFiles, sourceText);
+            await persistArtifact(
+              artifactToPersist,
+              nextFiles,
+              sourceText,
+              { pointerMinMtime: runStartedAt },
+            );
             nextFiles = await refreshProjectFiles();
             recoveredExistingArtifact = findExistingArtifactProjectFile(
               artifactToPersist,

@@ -419,8 +419,8 @@ test('[P0] @critical BYOK clearing the API key restores the suggested OpenAI mod
 
   await modelSelect.click();
   const popover = page.locator(MODEL_POPOVER_SELECTOR).last();
-  await expect(popover.getByRole('option', { name: /^gpt-4o$/i })).toBeVisible();
-  await expect(popover.getByRole('option', { name: /^gpt-4o-mini$/i })).toBeVisible();
+  await expect(popover.getByText('gpt-4o', { exact: true })).toBeVisible();
+  await expect(popover.getByText('gpt-4o-mini', { exact: true })).toBeVisible();
   await expect(popover.getByRole('option', { name: 'Account Only Model (account-only-model)' })).toHaveCount(0);
 });
 
