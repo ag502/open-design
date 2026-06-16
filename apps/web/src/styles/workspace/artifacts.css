@@ -1279,16 +1279,24 @@
 .agent-card-name--amr {
   align-items: center;
   gap: 8px;
+  row-gap: 5px;
+  flex-wrap: wrap;
+  white-space: normal;
+  overflow: visible;
 }
-.agent-card-name--amr .agent-card-title {
+.agent-card-name.agent-card-name--amr .agent-card-title {
   flex: 0 0 auto;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 .agent-card-benefits {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
-  min-width: 0;
-  overflow: hidden;
+  min-width: min(100%, 220px);
+  overflow: visible;
 }
 .agent-card-benefit {
   display: inline-flex;
