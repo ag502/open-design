@@ -132,6 +132,9 @@ export function AmrAccountControl({
 }: AmrAccountControlProps) {
   const { t } = useI18n();
   const [codeCopied, setCodeCopied] = useState(false);
+  useEffect(() => {
+    setCodeCopied(false);
+  }, [activationUrl, userCode]);
   const isSignedIn = status === 'signed-in';
   const isSigningIn = status === 'signing-in';
   const isCanceled = status === 'canceled';

@@ -43,6 +43,8 @@ let lastPillProps: {
   signInLabel?: string;
   amrEntrySourceDetail?: string;
   initialStatus?: VelaLoginStatus | null;
+  metricsConsent?: boolean;
+  installationId?: string | null;
   onStatusChange?: (s: VelaLoginStatus | null) => void;
 } | null = null;
 vi.mock('../../src/components/AmrLoginPill', () => ({
@@ -50,6 +52,8 @@ vi.mock('../../src/components/AmrLoginPill', () => ({
     signInLabel?: string;
     amrEntrySourceDetail?: string;
     initialStatus?: VelaLoginStatus | null;
+    metricsConsent?: boolean;
+    installationId?: string | null;
     onStatusChange?: (s: VelaLoginStatus | null) => void;
   }) => {
     lastPillProps = props;
@@ -113,7 +117,12 @@ function renderChat(onRetry: (m: ChatMessage) => void) {
       activeConversationId="conv-1"
       onSelectConversation={vi.fn()}
       onDeleteConversation={vi.fn()}
-      config={{ agentId: 'amr', agentCliEnv: {} } as unknown as AppConfig}
+      config={{
+        agentId: 'amr',
+        agentCliEnv: {},
+        installationId: 'install-123',
+        telemetry: { metrics: true },
+      } as unknown as AppConfig}
     />,
   );
 }
@@ -132,6 +141,8 @@ describe('ChatPane inline AMR auth', () => {
     expect(screen.getByTestId('amr-login-pill')).toBeTruthy();
     expect(lastPillProps?.signInLabel).toBe('chat.amrError.authorizeCta');
     expect(lastPillProps?.amrEntrySourceDetail).toBe('chat_error_authorize_retry');
+    expect(lastPillProps?.metricsConsent).toBe(true);
+    expect(lastPillProps?.installationId).toBe('install-123');
   });
 
   it('retries the failed run exactly once when sign-in succeeds', () => {

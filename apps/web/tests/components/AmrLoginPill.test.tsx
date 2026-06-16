@@ -117,6 +117,41 @@ describe('AmrAccountControl', () => {
     ).toBeTruthy();
   });
 
+  it('resets the copied label when a fresh activation code arrives', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    const view = renderAccountControl({
+      status: 'signing-in',
+      compact: true,
+      activationUrl: 'https://app.vela.example/device?user_code=OLD-CODE',
+      userCode: 'OLD-CODE',
+      onSignIn: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy verification code' }));
+    await waitFor(() => {
+      expect(screen.getByText('Copied')).toBeTruthy();
+    });
+
+    view.rerender(
+      <I18nProvider initial="en">
+        <AmrAccountControl
+          status="signing-in"
+          compact
+          activationUrl="https://app.vela.example/device?user_code=NEW-CODE"
+          userCode="NEW-CODE"
+          onSignIn={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText('NEW-CODE')).toBeTruthy();
+    expect(screen.getByText('Copy')).toBeTruthy();
+    expect(screen.queryByText('Copied')).toBeNull();
+  });
+
   it('shows the browser-failed hint when vela could not open the browser', () => {
     renderAccountControl({
       status: 'signing-in',
