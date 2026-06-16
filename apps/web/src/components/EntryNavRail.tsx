@@ -149,15 +149,6 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose }
           <Icon name="folder" size={18} />
         </NavButton>
         <NavButton
-          active={view === 'tasks'}
-          ariaLabel={t('entry.navTasks')}
-          tooltip={t('entry.navTasks')}
-          onClick={() => selectView('tasks')}
-          testId="entry-nav-tasks"
-        >
-          <Icon name="kanban" size={18} />
-        </NavButton>
-        <NavButton
           active={view === 'design-systems'}
           ariaLabel={t('entry.navDesignSystems')}
           tooltip={t('entry.navDesignSystems')}
@@ -167,6 +158,24 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose }
           <Icon name="blocks" size={18} />
         </NavButton>
         <NavButton
+          active={view === 'library'}
+          ariaLabel="Library"
+          tooltip="Library"
+          onClick={() => selectView('library')}
+          testId="entry-nav-library"
+        >
+          <Icon name="layers-filled" size={18} />
+        </NavButton>
+        <NavButton
+          active={view === 'tasks'}
+          ariaLabel={t('entry.navTasks')}
+          tooltip={t('entry.navTasks')}
+          onClick={() => selectView('tasks')}
+          testId="entry-nav-tasks"
+        >
+          <Icon name="kanban" size={18} />
+        </NavButton>
+        <NavButton
           active={view === 'plugins'}
           ariaLabel={t('entry.navPlugins')}
           tooltip={t('entry.navPlugins')}
@@ -174,15 +183,6 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose }
           testId="entry-nav-plugins"
         >
           <Icon name="grid" size={18} />
-        </NavButton>
-        <NavButton
-          active={view === 'library'}
-          ariaLabel="Library"
-          tooltip="Library"
-          onClick={() => selectView('library')}
-          testId="entry-nav-library"
-        >
-          <Icon name="image" size={18} />
         </NavButton>
         <NavButton
           active={view === 'integrations'}

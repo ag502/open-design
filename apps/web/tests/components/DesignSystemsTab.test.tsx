@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesignSystemSummary } from '@open-design/contracts';
 
@@ -12,32 +12,17 @@ vi.mock('../../src/providers/registry', async () => {
   );
   return {
     ...actual,
+    // The detail pane fetches the showcase HTML for the selected system; keep
+    // it inert so the tests only exercise the list/scope behaviour.
     fetchDesignSystemShowcase: vi.fn(async () => null),
     updateDesignSystemDraft: vi.fn(async () => null),
     deleteDesignSystemDraft: vi.fn(async () => true),
   };
 });
 
-// DesignSystemCard lazy-loads its showcase iframe through an
-// IntersectionObserver; an idle observer keeps thumbnails (and the registry
-// fetch) out of the way so the tests only exercise filtering.
-const originalIntersectionObserver = globalThis.IntersectionObserver;
-
-class IdleIntersectionObserver {
-  observe() {}
-  disconnect() {}
-  unobserve() {}
-}
-
-beforeEach(() => {
-  globalThis.IntersectionObserver =
-    IdleIntersectionObserver as unknown as typeof IntersectionObserver;
-});
-
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  globalThis.IntersectionObserver = originalIntersectionObserver;
 });
 
 const systems: DesignSystemSummary[] = [
@@ -64,8 +49,18 @@ const systems: DesignSystemSummary[] = [
   },
 ];
 
+// The active scope's first row auto-selects into the detail pane, so a title
+// can appear twice (row + detail). Scope row lookups to the sidebar list.
+function list() {
+  return within(screen.getByTestId('design-systems-list'));
+}
+
+function openOfficialPresets() {
+  fireEvent.click(screen.getByRole('tab', { name: 'Official presets' }));
+}
+
 describe('DesignSystemsTab', () => {
-  it('surfaces user-created design systems in the gallery', () => {
+  it('separates user-created design systems from the official preset library', () => {
     render(
       <DesignSystemsTab
         systems={systems}
@@ -77,15 +72,17 @@ describe('DesignSystemsTab', () => {
       />,
     );
 
-    expect(screen.getByText('Create')).toBeTruthy();
-    expect(screen.getByText('Acme Design System')).toBeTruthy();
-    expect(screen.queryByText('Linear')).toBeNull();
+    // "Your systems" is the default scope: Acme shows, Linear (a preset) does not.
+    expect(screen.getByTestId('design-systems-create')).toHaveTextContent('Create');
+    expect(screen.getByTestId('design-system-card-user:acme')).toBeTruthy();
+    expect(screen.queryByTestId('design-system-card-linear')).toBeNull();
 
     openOfficialPresets();
-    expect(screen.getByText('Linear')).toBeTruthy();
+    expect(screen.getByTestId('design-system-card-linear')).toBeTruthy();
+    expect(list().queryByText('Acme Design System')).toBeNull();
   });
 
-  it('routes create and open actions to the dedicated design-system flow', () => {
+  it('routes create and edit actions to the dedicated design-system flow', () => {
     const onCreate = vi.fn();
     const onOpenSystem = vi.fn();
     render(
@@ -99,34 +96,54 @@ describe('DesignSystemsTab', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Create'));
+    fireEvent.click(screen.getByTestId('design-systems-create'));
     expect(onCreate).toHaveBeenCalledOnce();
 
+    // Acme is the only user system, so it auto-selects into the detail pane,
+    // exposing the Edit action that routes back into the authoring flow.
     fireEvent.click(screen.getByText('Edit'));
     expect(onOpenSystem).toHaveBeenCalledWith('user:acme');
   });
 
-  it('omits the built-in library Open button while keeping preview clicks', () => {
+  it('keeps preview distinct from edit for built-in library systems', () => {
     const onOpenSystem = vi.fn();
     const onPreview = vi.fn();
     render(
       <DesignSystemsTab
         systems={systems}
         selectedId={null}
-        onSelect={() => {}}
         onPreview={onPreview}
+        onSelect={() => {}}
         onCreate={() => {}}
         onOpenSystem={onOpenSystem}
       />,
     );
 
-    expect(screen.queryByRole('button', { name: 'Open' })).toBeNull();
-
     openOfficialPresets();
+    // Linear auto-selects; a built-in preset is previewable but not editable.
+    expect(screen.queryByText('Edit')).toBeNull();
     fireEvent.click(screen.getByTestId('design-system-preview-linear'));
 
     expect(onPreview).toHaveBeenCalledWith('linear');
     expect(onOpenSystem).not.toHaveBeenCalledWith('linear');
+  });
+
+  it('sets a system as the global default through the detail pane', () => {
+    const onSelect = vi.fn();
+    render(
+      <DesignSystemsTab
+        systems={systems}
+        selectedId={null}
+        onSelect={onSelect}
+        onPreview={() => {}}
+        onCreate={() => {}}
+        onOpenSystem={() => {}}
+      />,
+    );
+
+    openOfficialPresets();
+    fireEvent.click(screen.getByTestId('design-system-select-linear'));
+    expect(onSelect).toHaveBeenCalledWith('linear');
   });
 });
 
@@ -167,17 +184,14 @@ function renderTab(items: DesignSystemSummary[] = librarySystems) {
   );
 }
 
-function openOfficialPresets() {
-  fireEvent.click(screen.getByRole('tab', { name: 'Official presets' }));
-}
-
 // The surface pill renders its label and a `.filter-pill-count` span; read
 // the count back by the visible label so assertions describe the UI.
 function surfacePillCount(label: string): string | null {
   for (const pill of screen.getAllByRole('tab')) {
     const countEl = pill.querySelector('.filter-pill-count');
-    const labelText = (pill.textContent ?? '').replace(countEl?.textContent ?? '', '');
-    if (labelText === label) return countEl?.textContent ?? null;
+    if (!countEl) continue;
+    const labelText = (pill.textContent ?? '').replace(countEl.textContent ?? '', '');
+    if (labelText === label) return countEl.textContent ?? null;
   }
   return null;
 }
@@ -222,10 +236,10 @@ describe('DesignSystemsTab surface filtering', () => {
     expect(
       (screen.getByTestId('design-systems-category-select') as HTMLSelectElement).value,
     ).toBe('Retro');
-    expect(screen.getByText('Retro Web One')).toBeTruthy();
-    expect(screen.getByText('Retro Web Two')).toBeTruthy();
+    expect(list().getByText('Retro Web One')).toBeTruthy();
+    expect(list().getByText('Retro Web Two')).toBeTruthy();
     // A web system from a different category must not leak back in.
-    expect(screen.queryByText('Social Web One')).toBeNull();
+    expect(list().queryByText('Social Web One')).toBeNull();
   });
 
   it('hides a surface chip that has no systems in the selected style category', () => {
@@ -252,7 +266,7 @@ describe('DesignSystemsTab surface filtering', () => {
     // PR #2141 review (Looper): the scoped-count hide rule must never remove
     // the chip the user is currently on. Select Image, then search for text
     // only web systems match — the Image chip must stay, and stay selected,
-    // so the active filter is visible instead of an empty grid with no chip.
+    // so the active filter is visible instead of an empty list with no chip.
     renderTab();
     openOfficialPresets();
     fireEvent.click(screen.getByRole('tab', { name: /^Image/ }));

@@ -1,51 +1,59 @@
-// OD Clipper service worker.
+// Open Design web clipper service worker.
 //
-// All daemon traffic flows through here: the service-worker fetch carries the
-// extension's chrome-extension:// origin (allowlisted at pairing time) and the
-// library bearer token, and host_permissions let it reach the loopback daemon
-// without CORS friction. The popup and the on-page toolbar both message this
-// worker rather than talking to the daemon directly, so token handling lives
-// in one place.
+// Zero-config: there is no pairing and no token. The daemon is loopback-bound,
+// and a web page cannot forge this extension's chrome-extension:// origin, so
+// the daemon auto-trusts our requests to /api/library/*. All we need is the
+// daemon URL (default below; overridable in the popup). host_permissions let
+// the service worker reach the loopback daemon without CORS friction.
+//
+// The popup and the on-page toolbar both message this worker rather than
+// talking to the daemon directly, so all daemon traffic lives in one place.
 
 const DEFAULT_DAEMON_URL = 'http://127.0.0.1:7456';
 
-async function getConfig() {
-  const { daemonUrl, token } = await chrome.storage.local.get(['daemonUrl', 'token']);
-  return { daemonUrl: daemonUrl || DEFAULT_DAEMON_URL, token: token || null };
+async function getDaemonUrl() {
+  const { daemonUrl } = await chrome.storage.local.get(['daemonUrl']);
+  return daemonUrl || DEFAULT_DAEMON_URL;
 }
 
-function extensionOrigin() {
-  return `chrome-extension://${chrome.runtime.id}`;
+// Is Open Design running and reachable? We probe a library route (the daemon
+// auto-trusts our extension origin there) and treat any 2xx as connected.
+async function probe() {
+  const daemonUrl = await getDaemonUrl();
+  try {
+    const resp = await fetch(`${daemonUrl}/api/library/assets?limit=1`, { method: 'GET' });
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function ingest(body) {
-  const { daemonUrl, token } = await getConfig();
-  if (!token) throw new Error('not paired');
-  const resp = await fetch(`${daemonUrl}/api/library/ingest`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
+  const daemonUrl = await getDaemonUrl();
+  let resp;
+  try {
+    resp = await fetch(`${daemonUrl}/api/library/ingest`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // Network-level failure → the daemon almost certainly isn't running.
+    throw new Error('not running');
+  }
   if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`ingest ${resp.status}${text ? `: ${text}` : ''}`);
+    // 413 means the capture is bigger than the daemon will accept — surface a
+    // concise, actionable message instead of the server's full HTML error page.
+    if (resp.status === 413) {
+      throw new Error('capture too large — try unchecking “Inline images” in Advanced');
+    }
+    const raw = await resp.text().catch(() => '');
+    // Strip any HTML (Express error pages) and collapse whitespace so the popup
+    // never shows a wall of markup.
+    const snippet = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    throw new Error(`ingest ${resp.status}${snippet ? `: ${snippet}` : ''}`);
   }
   return resp.json();
-}
-
-async function pair(code) {
-  const { daemonUrl } = await getConfig();
-  const resp = await fetch(`${daemonUrl}/api/library/pair/confirm`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code, extensionOrigin: extensionOrigin(), label: 'OD Clipper' }),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error((data && (data.error?.message || data.error)) || `pair failed (${resp.status})`);
-  }
-  await chrome.storage.local.set({ token: data.token });
-  return data;
 }
 
 async function activeTab() {
@@ -54,9 +62,31 @@ async function activeTab() {
   return tab;
 }
 
+// Best-effort message to a tab's content script. Resolves regardless of whether
+// a receiver exists (e.g. chrome:// pages have no content script).
+function sendToTab(tabId, message) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, (res) => {
+        void chrome.runtime.lastError; // swallow "no receiving end"
+        resolve(res);
+      });
+    } catch {
+      resolve(undefined);
+    }
+  });
+}
+
 async function captureScreenshot() {
   const tab = await activeTab();
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  // Pull our own on-page bar out of frame so it never lands in the screenshot.
+  await sendToTab(tab.id, { type: 'odClipper:hideForCapture' });
+  let dataUrl;
+  try {
+    dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  } finally {
+    await sendToTab(tab.id, { type: 'odClipper:restoreAfterCapture' });
+  }
   return ingest({
     dataUrl,
     kind: 'image',
@@ -100,27 +130,251 @@ async function grabImages() {
   return { count, total: images.length };
 }
 
+// --- page capture (high-fidelity HTML + Figma IR) --------------------------
+//
+// capture.js runs in the page and returns the snapshot with cross-origin
+// resource URLs left intact; only the service worker can fetch those without
+// CORS, so it does the fetch-and-inline pass here. One fetch per resource feeds
+// both the HTML string and the Figma IR's image fills.
+
+const MAX_RESOURCE_BYTES = 6 * 1024 * 1024;
+
+// Service workers have no FileReader/createObjectURL — base64 the bytes by hand.
+async function fetchAsDataUri(url) {
+  const resp = await fetch(url, { redirect: 'follow' });
+  if (!resp.ok) throw new Error(String(resp.status));
+  const declared = Number(resp.headers.get('content-length') || '0');
+  if (declared && declared > MAX_RESOURCE_BYTES) throw new Error('too large');
+  const buf = await resp.arrayBuffer();
+  if (buf.byteLength > MAX_RESOURCE_BYTES) throw new Error('too large');
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  const mime = (resp.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim();
+  return `data:${mime};base64,${btoa(bin)}`;
+}
+
+async function buildResourceMap(urls, includeImages) {
+  const map = new Map();
+  if (!includeImages || !Array.isArray(urls) || !urls.length) return map;
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        map.set(url, await fetchAsDataUri(url));
+      } catch {
+        // hotlink-protected / oversized / offline — leave the original URL
+      }
+    }),
+  );
+  return map;
+}
+
+function inlineHtml(html, map) {
+  let out = html;
+  for (const [url, data] of map) out = out.split(url).join(data);
+  return out;
+}
+
+function inlineFigmaIr(ir, map) {
+  const walk = (node) => {
+    if (!node) return;
+    if (Array.isArray(node.fills)) {
+      node.fills = node.fills
+        .map((f) => {
+          if (f && f.type === 'IMAGE' && f.url) {
+            const data = map.get(f.url);
+            return data ? { type: 'IMAGE', scaleMode: f.scaleMode || 'FILL', dataUri: data } : null;
+          }
+          return f;
+        })
+        .filter(Boolean);
+      if (!node.fills.length) delete node.fills;
+    }
+    if (Array.isArray(node.children)) node.children.forEach(walk);
+  };
+  if (ir && ir.root) walk(ir.root);
+  return ir;
+}
+
+function slugify(title) {
+  const slug = String(title || '')
+    .slice(0, 60)
+    .replace(/[^a-z0-9._-]+/gi, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'capture';
+}
+
+// Run capture.js in the active tab and inline its cross-origin resources.
+async function capturePage(opts) {
+  const includeImages = !opts || opts.includeImages !== false;
+  const tab = await activeTab();
+  await sendToTab(tab.id, { type: 'odClipper:hideForCapture' });
+  let cap;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['capture.js'] });
+    const [out] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (o) => window.__odCapture(o),
+      args: [{ includeImages }],
+    });
+    cap = out && out.result;
+  } finally {
+    await sendToTab(tab.id, { type: 'odClipper:restoreAfterCapture' });
+  }
+  if (!cap || !cap.html) throw new Error('capture failed');
+  const map = await buildResourceMap(cap.resources, includeImages);
+  return {
+    html: inlineHtml(cap.html, map),
+    figmaIr: cap.figmaIr ? inlineFigmaIr(cap.figmaIr, map) : null,
+    figmaNodeCount: cap.figmaNodeCount || 0,
+    truncated: Boolean(cap.figmaTruncated),
+    title: cap.title || tab.title,
+    url: cap.url || tab.url,
+  };
+}
+
+async function capturePageToLibrary(opts) {
+  const cap = await capturePage(opts);
+  const figmaCapture = cap.figmaIr ? JSON.stringify(cap.figmaIr) : undefined;
+  const r = await ingest({
+    text: cap.html,
+    kind: 'html',
+    mime: 'text/html',
+    sourceUrl: cap.url,
+    sourceTitle: cap.title,
+    tags: ['page-capture'],
+    figmaCapture,
+    figmaNodeCount: cap.figmaNodeCount,
+  });
+  return {
+    deduped: Boolean(r.deduped),
+    hasFigma: Boolean(figmaCapture),
+    truncated: cap.truncated,
+  };
+}
+
+async function downloadFigma(opts) {
+  const cap = await capturePage(opts);
+  if (!cap.figmaIr) throw new Error('no figma capture produced');
+  const json = JSON.stringify(cap.figmaIr, null, 2);
+  const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+  await chrome.downloads.download({
+    url: dataUrl,
+    filename: `${slugify(cap.title)}.od-figma.json`,
+    saveAs: false,
+  });
+  return { truncated: cap.truncated };
+}
+
+// --- element + selected-image capture --------------------------------------
+
+// Blob → base64 data URL (service workers have no FileReader).
+async function blobToDataUrl(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return `data:${blob.type || 'image/png'};base64,${btoa(bin)}`;
+}
+
+// Crop a captured-tab PNG (data URL) to a viewport rect given in CSS pixels.
+// The captured image is the visible viewport scaled by the device/zoom factor,
+// so we derive the scale from the real image width vs the reported viewport
+// width (robust against retina + page zoom, which a raw devicePixelRatio is
+// not) and fall back to dpr when the viewport width is unknown.
+async function cropToRect(tabDataUrl, rect, viewportWidth, dpr) {
+  const blob = await (await fetch(tabDataUrl)).blob();
+  const bmp = await createImageBitmap(blob);
+  const scale = viewportWidth && bmp.width ? bmp.width / viewportWidth : dpr || 1;
+  const sx = Math.max(0, Math.round((rect.x || 0) * scale));
+  const sy = Math.max(0, Math.round((rect.y || 0) * scale));
+  const sw = Math.max(1, Math.min(Math.round((rect.width || 0) * scale), bmp.width - sx));
+  const sh = Math.max(1, Math.min(Math.round((rect.height || 0) * scale), bmp.height - sy));
+  const canvas = new OffscreenCanvas(sw, sh);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
+  bmp.close();
+  const out = await canvas.convertToBlob({ type: 'image/png' });
+  return blobToDataUrl(out);
+}
+
+// Screenshot the picked element (cropped from the visible tab) + store its
+// outerHTML + metadata as one enriched image asset.
+async function captureElement(payload) {
+  const tab = await activeTab();
+  const tabDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  const cropped = await cropToRect(tabDataUrl, payload.rect || {}, payload.viewportWidth, payload.dpr);
+  const meta = payload.meta || {};
+  const r = await ingest({
+    dataUrl: cropped,
+    kind: 'image',
+    sourceUrl: payload.sourceUrl || tab.url,
+    sourceTitle: payload.sourceTitle || tab.title,
+    tags: ['element', meta.tag].filter(Boolean),
+    elementHtml: typeof payload.elementHtml === 'string' ? payload.elementHtml : undefined,
+    metadata: { element: meta },
+  });
+  return { deduped: Boolean(r.deduped) };
+}
+
+// Screenshot a user-dragged region (cropped from the visible tab). Same crop
+// path as element capture, minus the element markup/metadata.
+async function captureRegion(payload) {
+  const tab = await activeTab();
+  const tabDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  const cropped = await cropToRect(tabDataUrl, payload.rect || {}, payload.viewportWidth, payload.dpr);
+  const r = await ingest({
+    dataUrl: cropped,
+    kind: 'image',
+    sourceUrl: payload.sourceUrl || tab.url,
+    sourceTitle: payload.sourceTitle || tab.title,
+    tags: ['region', 'screenshot'],
+  });
+  return { deduped: Boolean(r.deduped) };
+}
+
+// Ingest a user-chosen subset of page images (from the on-page picker).
+async function ingestImages(payload) {
+  const tab = await activeTab().catch(() => null);
+  const images = Array.isArray(payload.images) ? payload.images.slice(0, 100) : [];
+  let count = 0;
+  for (const img of images) {
+    if (!img || !img.src) continue;
+    try {
+      await ingest({
+        url: img.src,
+        kind: 'image',
+        sourceUrl: payload.sourceUrl || (tab && tab.url),
+        sourceTitle: img.alt || payload.sourceTitle || (tab && tab.title),
+      });
+      count += 1;
+    } catch {
+      // skip individual failures (hotlink-protected / oversized)
+    }
+  }
+  return { count, total: images.length };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     try {
       switch (msg && msg.type) {
         case 'getStatus': {
-          const c = await getConfig();
-          sendResponse({ ok: true, paired: Boolean(c.token), daemonUrl: c.daemonUrl });
+          const [daemonUrl, connected] = await Promise.all([getDaemonUrl(), probe()]);
+          sendResponse({ ok: true, connected, daemonUrl });
           break;
         }
-        case 'setDaemonUrl':
+        case 'setDaemonUrl': {
           await chrome.storage.local.set({ daemonUrl: msg.url || DEFAULT_DAEMON_URL });
-          sendResponse({ ok: true });
+          const connected = await probe();
+          sendResponse({ ok: true, connected });
           break;
-        case 'unpair':
-          await chrome.storage.local.remove('token');
-          sendResponse({ ok: true });
-          break;
-        case 'pair':
-          await pair(msg.code);
-          sendResponse({ ok: true });
-          break;
+        }
         case 'captureScreenshot': {
           const r = await captureScreenshot();
           sendResponse({ ok: true, deduped: Boolean(r.deduped) });
@@ -128,6 +382,31 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         case 'grabImages': {
           const r = await grabImages();
+          sendResponse({ ok: true, count: r.count, total: r.total });
+          break;
+        }
+        case 'capturePageToLibrary': {
+          const r = await capturePageToLibrary(msg.opts);
+          sendResponse({ ok: true, deduped: r.deduped, hasFigma: r.hasFigma, truncated: r.truncated });
+          break;
+        }
+        case 'downloadFigma': {
+          const r = await downloadFigma(msg.opts);
+          sendResponse({ ok: true, truncated: r.truncated });
+          break;
+        }
+        case 'captureElement': {
+          const r = await captureElement(msg);
+          sendResponse({ ok: true, deduped: r.deduped });
+          break;
+        }
+        case 'captureRegion': {
+          const r = await captureRegion(msg);
+          sendResponse({ ok: true, deduped: r.deduped });
+          break;
+        }
+        case 'ingestImages': {
+          const r = await ingestImages(msg);
           sendResponse({ ok: true, count: r.count, total: r.total });
           break;
         }
@@ -145,7 +424,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'od-save-image',
-    title: 'Save image to OD Library',
+    title: 'Save image to Open Design Library',
     contexts: ['image'],
   });
 });

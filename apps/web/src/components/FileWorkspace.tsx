@@ -25,6 +25,7 @@ import {
   fetchProjectFolders,
   projectFileUrl,
   projectRawUrl,
+  applyLibraryAsset,
   createProjectFolder,
   deleteProjectFolder,
   renameProjectFile,
@@ -79,6 +80,7 @@ import { TerminalViewer } from './workspace/TerminalViewer';
 import { LiveArtifactBadges } from './LiveArtifactBadges';
 import { MissingBrandFontsBanner } from './MissingBrandFontsBanner';
 import { PasteTextDialog } from './PasteTextDialog';
+import { LibraryPicker } from './LibraryPicker';
 import { QuestionsPanel } from './QuestionsPanel';
 import { QuickSwitcher } from './QuickSwitcher';
 import { SketchEditor } from './SketchEditor';
@@ -471,6 +473,7 @@ export function FileWorkspace({
   );
 
   const [showPasteDialog, setShowPasteDialog] = useState(false);
+  const [showLibraryPicker, setShowLibraryPicker] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   // The folder the Design Files panel is currently viewing (synced via
   // onCurrentDirChange). New files — uploads, pastes, sketches, dropped files —
@@ -2175,6 +2178,14 @@ export function FileWorkspace({
               });
               startNewSketch();
             }}
+            onSelectFromLibrary={() => {
+              trackFileManagerClick(analytics.track, {
+                page_name: 'file_manager',
+                area: 'file_manager',
+                element: 'library',
+              });
+              setShowLibraryPicker(true);
+            }}
             uploadError={uploadError}
             onClearUploadError={() => setUploadError(null)}
             preferredPreviewFile={preferredPreviewFile}
@@ -2309,6 +2320,26 @@ export function FileWorkspace({
                 await onRefreshFiles();
                 openFile(file.name);
               }
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showLibraryPicker ? (
+          <LibraryPicker
+            onClose={() => setShowLibraryPicker(false)}
+            onConfirm={async (assets) => {
+              // Copy each picked asset into the project's design files (under the
+              // folder currently in view, if any). Apply records a provenance
+              // back-link so the registry knows the asset was consumed.
+              const dir = uploadDir || undefined;
+              let lastRelPath: string | null = null;
+              for (const asset of assets) {
+                const relPath = await applyLibraryAsset(asset.id, projectId, dir);
+                if (relPath) lastRelPath = relPath;
+              }
+              await onRefreshFiles();
+              if (lastRelPath) openFile(lastRelPath);
             }}
           />
         ) : null}

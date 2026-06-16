@@ -32,6 +32,15 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 export interface Dict {
   // Common
   'common.cancel': string;
+  'chat.selectFromLibrary': string;
+  'designFiles.library.label': string;
+  'designFiles.library.title': string;
+  'libraryPicker.title': string;
+  'libraryPicker.searchPlaceholder': string;
+  'libraryPicker.empty': string;
+  'libraryPicker.allKinds': string;
+  'libraryPicker.add': string;
+  'libraryPicker.loading': string;
   'common.save': string;
   'common.close': string;
   'common.clear': string;

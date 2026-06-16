@@ -1123,6 +1123,9 @@ export interface HomeChatComposerClickProps {
     // composer's `element: 'attachment'` so the same dashboard counts
     // "user opened the file picker" across both surfaces.
     | 'attachment'
+    // Opening the "Import from library" picker from the home composer's "+"
+    // menu. Mirrors the chat_panel composer's `element: 'library'`.
+    | 'library'
     // Local-storage / working-dir picker under the home composer; `task_chip`
     // is the task-type rail (原型 / 幻灯片 / HyperFrames / 视频 / …).
     | 'working_dir'
@@ -1598,6 +1601,7 @@ export interface ChatPanelClickProps {
     | 'chat_input'
     | 'composer_settings'
     | 'attachment'
+    | 'library'
     | 'send'
     | 'mention_popover_trigger'
     | 'resources_popover_trigger';
@@ -1810,6 +1814,7 @@ export interface FileManagerClickProps {
     | 'new_sketch'
     | 'paste'
     | 'upload'
+    | 'library'
     | 'select_all_on_page'
     | 'select_everything'
     | 'download_as_zip'

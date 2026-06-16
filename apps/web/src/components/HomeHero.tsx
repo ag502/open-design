@@ -35,10 +35,8 @@ import type { SkillSummary } from '../types';
 import { Icon, type IconName } from './Icon';
 import { useAnalytics } from '../analytics/provider';
 import {
-  trackComposerSessionModeClick,
   trackHomeChatComposerClick,
 } from '../analytics/events';
-import { sessionModeToTracking } from '@open-design/contracts/analytics';
 import {
   chipsForGroup,
   type ChipGroup,
@@ -74,8 +72,11 @@ import { sortByVisualAppeal } from './plugins-home/visualScore';
 import { applyFacetSelection } from './plugins-home/facets';
 import { inferPluginPreview } from './plugins-home/preview';
 import { pluginSubfacetLabel } from './plugins-home/subfacetLabel';
-import { SessionModeToggle } from './SessionModeToggle';
 import { ComposerPlusMenu } from './ComposerPlusMenu';
+import { LibraryPicker } from './LibraryPicker';
+import { assetTitle } from './LibraryAssetMeta';
+import { libraryAssetRawUrl } from '../providers/registry';
+import type { LibraryAsset } from '@open-design/contracts';
 import { WorkingDirPicker } from './WorkingDirPicker';
 import {
   LexicalComposerInput,
@@ -300,6 +301,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   const [mentionTab, setMentionTab] = useState<HomeMentionTab>('all');
   const [hoveredPlugin, setHoveredPlugin] = useState<InstalledPluginRecord | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Two-flash attention pulse on the send button; armed via the
   // imperative `pulseSend()` handle, cleared when the animation ends.
@@ -855,6 +857,18 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     onAddFiles(files);
   }
 
+  // "Import from library": the home composer has no project yet, so we fetch
+  // each picked asset's bytes and stage them as regular files. They ride the
+  // existing upload-on-submit path into the new project's design files.
+  async function importLibraryAssets(assets: LibraryAsset[]) {
+    const files: File[] = [];
+    for (const asset of assets) {
+      const file = await fileFromLibraryAsset(asset);
+      if (file) files.push(file);
+    }
+    handleFiles(files);
+  }
+
   function removeFileChip(index: number, file: File) {
     const nextPrompt = stripHomeMentionToken(prompt, file.name);
     if (nextPrompt !== prompt) onPromptChange(nextPrompt);
@@ -1018,6 +1032,9 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
                       className="home-hero__active-chip home-hero__active-chip--context home-hero__active-chip--file"
                       title={`${file.name} · ${formatFileSize(file.size)}`}
                     >
+                      <span className="home-hero__active-order" aria-label={`Attachment ${index + 1}`}>
+                        {index + 1}
+                      </span>
                       {previewUrl ? (
                         <button
                           type="button"
@@ -1431,7 +1448,21 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
                 });
                 fileInputRef.current?.click();
               }}
+              onSelectFromLibrary={() => {
+                trackHomeChatComposerClick(analytics.track, {
+                  page_name: 'home',
+                  area: 'chat_composer',
+                  element: 'library',
+                });
+                setLibraryPickerOpen(true);
+              }}
             />
+            {libraryPickerOpen ? (
+              <LibraryPicker
+                onClose={() => setLibraryPickerOpen(false)}
+                onConfirm={(assets) => importLibraryAssets(assets)}
+              />
+            ) : null}
             {activeCreateChip ? (
               <ActiveTypeChip chip={activeCreateChip} onClear={onClearActiveChip} />
             ) : null}
@@ -1456,22 +1487,6 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
             ) : null}
           </div>
           <div className="home-hero__foot-right">
-            <SessionModeToggle
-              mode={sessionMode}
-              onChange={(next) => {
-                if (next !== sessionMode) {
-                  trackComposerSessionModeClick(analytics.track, {
-                    page_name: 'home',
-                    area: 'chat_composer',
-                    element: 'session_mode_toggle',
-                    mode_before: sessionModeToTracking(sessionMode),
-                    mode_after: sessionModeToTracking(next),
-                  });
-                }
-                onSessionModeChange?.(next);
-              }}
-              disabled={Boolean(submitDisabled)}
-            />
             {executionSwitcher ? (
               <div className="home-hero__execution-switcher">
                 {executionSwitcher}
@@ -1766,6 +1781,45 @@ function promptExampleChipLabel(example: string): string {
 
 function homeFileKey(file: File, index: number): string {
   return `${file.name}-${file.size}-${file.lastModified}-${index}`;
+}
+
+const LIBRARY_MIME_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/avif': 'avif',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'text/html': 'html',
+  'text/css': 'css',
+  'text/plain': 'txt',
+  'application/json': 'json',
+  'font/woff2': 'woff2',
+  'font/woff': 'woff',
+  'font/ttf': 'ttf',
+  'font/otf': 'otf',
+};
+
+/** Fetch a library asset's bytes and wrap them in a named File for staging. */
+async function fileFromLibraryAsset(asset: LibraryAsset): Promise<File | null> {
+  try {
+    const resp = await fetch(libraryAssetRawUrl(asset.id));
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    let name =
+      asset.relPath?.split('/').pop() ||
+      assetTitle(asset).replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) ||
+      `library-${asset.id.slice(0, 8)}`;
+    if (!/\.[a-z0-9]{1,8}$/i.test(name)) {
+      const ext = LIBRARY_MIME_EXT[(blob.type || asset.mime || '').toLowerCase()];
+      if (ext) name = `${name}.${ext}`;
+    }
+    return new File([blob], name, { type: blob.type || asset.mime || 'application/octet-stream' });
+  } catch {
+    return null;
+  }
 }
 
 function isImageFile(file: File): boolean {

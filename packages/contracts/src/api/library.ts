@@ -160,6 +160,60 @@ export interface LibraryIngestRequest {
   sourceTitle?: string;
   tags?: string[];
   filename?: string;
+  /** Free-form metadata to persist on the asset (e.g. clipper back-links). */
+  metadata?: Record<string, unknown>;
+  /**
+   * Clipper-only: the OD Figma capture IR (a JSON node-tree string, see the
+   * `figma-plugin/IR.md` schema) produced from the live page alongside an
+   * `html` capture. Stored as a sidecar of the HTML asset so the Library can
+   * export it as a Figma file without re-rendering the page.
+   */
+  figmaCapture?: string;
+  /** Node count of `figmaCapture`, supplied so the daemon never parses the IR. */
+  figmaNodeCount?: number;
+  /**
+   * Clipper element-pick only: the captured element's `outerHTML`. Stored as a
+   * `.element.html` sidecar of the screenshot asset (kept out of the asset row
+   * so the grid list stays lean) and served from
+   * `/api/library/assets/:id/element`. The lightweight summary travels in
+   * `metadata.element` (see {@link LibraryElementMeta}).
+   */
+  elementHtml?: string;
+}
+
+/**
+ * Summary of a captured DOM element, stored at `metadata.element` on the
+ * screenshot asset produced by the clipper's element picker. Its presence gates
+ * the Library preview's "Element HTML" panel; the full markup lives in the
+ * `.element.html` sidecar (fetched on demand).
+ */
+export interface LibraryElementMeta {
+  /** Lowercased tag name (e.g. `section`). */
+  tag: string;
+  id?: string;
+  classes?: string[];
+  /** A short, human-readable CSS-ish selector for display. */
+  selector?: string;
+  /** Rendered size in CSS pixels at capture time. */
+  width?: number;
+  height?: number;
+  /** Trimmed text-content preview. */
+  text?: string;
+  /** True when a `.element.html` sidecar is available. */
+  hasHtml?: boolean;
+}
+
+/**
+ * Marker stamped onto an `html` asset's `metadata.figmaCapture` when a clipper
+ * capture shipped an OD Figma IR sidecar. Its presence is what gates the
+ * Library "Download as Figma" action and the `od library figma` CLI command.
+ */
+export interface LibraryFigmaCaptureMeta {
+  version: number;
+  /** Byte length of the stored IR JSON. */
+  size: number;
+  /** Number of IR nodes (frames/text/rectangles). */
+  nodeCount: number;
 }
 
 export interface LibraryIngestResponse {
@@ -218,6 +272,130 @@ export interface LibraryApplyRequest {
 
 export interface LibraryApplyResponse {
   relPath: string;
+}
+
+/**
+ * Turn a captured `html` library asset into a brand-new, editable OD project.
+ * The daemon copies the asset's self-contained HTML into a fresh project as an
+ * `index.html` file, seeds a conversation, and records a project back-link on
+ * the asset. The web client then opens the project on that file so the user can
+ * edit it (srcDoc bridge + agent surgical edits) immediately — this is the
+ * clipper "capture → editable OD page" exit, driven from the Library.
+ */
+export interface LibraryEditAsPageResponse {
+  projectId: string;
+  conversationId: string;
+  /** Path of the editable HTML file relative to the project root. */
+  relPath: string;
+}
+
+// ---------------------------------------------------------------------------
+// Manual-upload format policy
+// ---------------------------------------------------------------------------
+//
+// The Library is a design-asset registry, so manual uploads (the web upload UI
+// and `od library import`) are restricted to design-relevant resources —
+// images, fonts, and the text family (plain text, HTML, CSS, Markdown, CSV…)
+// plus JSON / design data. Audio and video are explicitly turned away. This is
+// the single shared policy: the daemon ingest route enforces it as the source
+// of truth, and the web upload UI runs the same checks for a pre-flight `accept`
+// filter and instant per-file feedback. Clipper captures bypass it entirely —
+// the extension curates its own payloads (including page video) over a trusted
+// origin.
+
+/**
+ * Largest manual upload accepted, in bytes. The web UI sends file bytes inline
+ * as a base64 `data:` URI through `/api/library/ingest`, which rides the
+ * daemon's 4 MB JSON body limit; base64 inflates payloads by ~33%, so the raw
+ * ceiling sits at ~3 MB. Enforced on both surfaces so an oversized file fails
+ * with a clear message instead of a generic body-parser 413.
+ */
+export const LIBRARY_UPLOAD_MAX_BYTES = 3_000_000;
+
+/** MIME families accepted for manual upload (prefix match). */
+export const LIBRARY_UPLOAD_MIME_PREFIXES = ['image/', 'font/', 'text/'] as const;
+
+/**
+ * Exact MIME types accepted beyond the prefixes — JSON / design data and the
+ * `application/*`-namespaced font and XML types. Any `application/*+json` or
+ * `application/*+xml` subtype is also accepted via the suffix check in
+ * {@link isLibraryUploadMimeAllowed}.
+ */
+export const LIBRARY_UPLOAD_MIME_EXACT = [
+  'application/json',
+  'application/ld+json',
+  'application/xml',
+  'application/font-woff',
+  'application/font-sfnt',
+  'application/x-font-ttf',
+  'application/x-font-otf',
+  'application/vnd.ms-opentype',
+  'image/vnd.microsoft.icon',
+] as const;
+
+/**
+ * MIME families explicitly rejected. Audio and video are not useful as design
+ * assets, so they are refused even though some future accepted prefix could
+ * otherwise sweep them in.
+ */
+export const LIBRARY_UPLOAD_REJECT_PREFIXES = ['audio/', 'video/'] as const;
+
+/**
+ * File extensions accepted for manual upload, driving the file-picker `accept`
+ * attribute and the drag-drop / paste pre-filter, and the daemon's extension
+ * fallback when a file arrives without a usable MIME type. Kept in sync with the
+ * MIME policy above; the MIME policy stays authoritative.
+ */
+export const LIBRARY_UPLOAD_EXTENSIONS = [
+  // images
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif', '.bmp', '.ico', '.tiff', '.tif',
+  // fonts
+  '.woff', '.woff2', '.ttf', '.otf',
+  // text & markup
+  '.txt', '.md', '.markdown', '.csv', '.html', '.htm', '.css', '.xml',
+  // data
+  '.json', '.json5', '.geojson',
+] as const;
+
+function libraryUploadExtensionOf(filename: string | undefined): string | undefined {
+  if (!filename) return undefined;
+  const dot = filename.lastIndexOf('.');
+  if (dot < 0) return undefined;
+  return filename.slice(dot).toLowerCase();
+}
+
+/**
+ * Whether a `(mime, filename)` pair may be manually uploaded to the Library.
+ *
+ * The MIME type is authoritative: an `audio/*` or `video/*` type is rejected
+ * outright; an accepted prefix / `+json` / `+xml` / exact type passes; anything
+ * else is refused. When the MIME is missing or a generic
+ * `application/octet-stream` (the daemon's sniff fallback, or a browser that
+ * reports no type), the file extension is consulted so a known design extension
+ * still gets through.
+ *
+ * Pure string logic — safe to run in the browser pre-flight and in the daemon
+ * ingest guard from this one shared definition.
+ */
+export function isLibraryUploadMimeAllowed(mime: string | undefined, filename?: string): boolean {
+  const m = (mime ?? '').toLowerCase().split(';')[0]?.trim() ?? '';
+  if (LIBRARY_UPLOAD_REJECT_PREFIXES.some((p) => m.startsWith(p))) return false;
+  if (m && m !== 'application/octet-stream') {
+    if (LIBRARY_UPLOAD_MIME_PREFIXES.some((p) => m.startsWith(p))) return true;
+    if (m.endsWith('+json') || m.endsWith('+xml')) return true;
+    return (LIBRARY_UPLOAD_MIME_EXACT as readonly string[]).includes(m);
+  }
+  // No usable MIME — fall back to the file extension.
+  const ext = libraryUploadExtensionOf(filename);
+  return ext ? (LIBRARY_UPLOAD_EXTENSIONS as readonly string[]).includes(ext) : false;
+}
+
+/** `accept` attribute value for a Library upload file-picker. */
+export function libraryUploadAcceptAttr(): string {
+  return [
+    ...LIBRARY_UPLOAD_MIME_PREFIXES.map((p) => `${p}*`),
+    ...LIBRARY_UPLOAD_EXTENSIONS,
+  ].join(',');
 }
 
 // ---------------------------------------------------------------------------

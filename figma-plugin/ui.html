@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        color: #111827;
+        background: #fff;
+        font-size: 13px;
+      }
+      h1 { font-size: 14px; margin: 0 0 4px; }
+      p.lead { margin: 0 0 14px; color: #6b7280; line-height: 1.45; }
+      .drop {
+        border: 1.5px dashed #d1d5db;
+        border-radius: 10px;
+        padding: 18px 12px;
+        text-align: center;
+        color: #6b7280;
+        cursor: pointer;
+        transition: border-color 160ms, background 160ms;
+      }
+      .drop:hover, .drop.over { border-color: #2563eb; background: #f8faff; color: #2563eb; }
+      .drop strong { color: #111827; }
+      .or { text-align: center; color: #9ca3af; font-size: 11px; margin: 10px 0; }
+      textarea {
+        width: 100%;
+        height: 96px;
+        resize: vertical;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+      }
+      .row { display: flex; gap: 8px; margin-top: 12px; }
+      button {
+        flex: 1;
+        height: 34px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary { background: #2563eb; color: #fff; }
+      .primary:hover { background: #1d4ed8; }
+      .primary:disabled { background: #93b4f5; cursor: default; }
+      .ghost { background: #fff; border-color: #e5e7eb; color: #111827; }
+      .ghost:hover { background: #f9fafb; }
+      .msg { margin-top: 10px; min-height: 16px; font-size: 12px; }
+      .msg[data-kind='ok'] { color: #16a34a; }
+      .msg[data-kind='err'] { color: #dc2626; }
+      input[type='file'] { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>OD Figma Import</h1>
+    <p class="lead">
+      Load an <strong>.od-figma.json</strong> capture from the OD Clipper or the OD Library
+      (“Download Figma”) to rebuild it as editable layers.
+    </p>
+
+    <label class="drop" id="drop">
+      Drop or <strong>choose a .od-figma.json file</strong>
+      <input id="file" type="file" accept=".json,application/json" />
+    </label>
+
+    <div class="or">— or paste the JSON —</div>
+    <textarea id="json" placeholder='{ "version": 1, "root": { … } }'></textarea>
+
+    <div class="row">
+      <button class="ghost" id="cancel" type="button">Close</button>
+      <button class="primary" id="import" type="button" disabled>Import</button>
+    </div>
+    <div class="msg" id="msg" role="status"></div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let pending = null; // parsed IR awaiting import
+
+      function setMsg(text, kind) {
+        const el = $('msg');
+        el.textContent = text || '';
+        el.dataset.kind = kind || '';
+      }
+
+      function accept(text, label) {
+        try {
+          const ir = JSON.parse(text);
+          if (!ir || !ir.root) throw new Error('missing root');
+          pending = ir;
+          $('import').disabled = false;
+          setMsg(`Ready: ${label || (ir.source && ir.source.title) || 'capture'}`, 'ok');
+        } catch (e) {
+          pending = null;
+          $('import').disabled = true;
+          setMsg('That doesn’t look like an OD Figma capture.', 'err');
+        }
+      }
+
+      $('file').addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => accept(String(reader.result), f.name);
+        reader.onerror = () => setMsg('Could not read that file.', 'err');
+        reader.readAsText(f);
+      });
+
+      const drop = $('drop');
+      ['dragenter', 'dragover'].forEach((ev) =>
+        drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }),
+      );
+      ['dragleave', 'drop'].forEach((ev) =>
+        drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }),
+      );
+      drop.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => accept(String(reader.result), f.name);
+        reader.readAsText(f);
+      });
+
+      $('json').addEventListener('input', (e) => {
+        const v = e.target.value.trim();
+        if (v) accept(v, 'pasted JSON');
+        else { pending = null; $('import').disabled = true; setMsg(''); }
+      });
+
+      $('import').addEventListener('click', () => {
+        if (!pending) return;
+        setMsg('Importing…');
+        $('import').disabled = true;
+        parent.postMessage({ pluginMessage: { type: 'import', ir: pending } }, '*');
+      });
+
+      $('cancel').addEventListener('click', () => {
+        parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+      });
+
+      window.onmessage = (e) => {
+        const m = e.data && e.data.pluginMessage;
+        if (!m) return;
+        if (m.type === 'done') {
+          setMsg(`Imported “${m.name}”.`, 'ok');
+          $('import').disabled = false;
+        } else if (m.type === 'error') {
+          setMsg(`Failed: ${m.message}`, 'err');
+          $('import').disabled = false;
+        }
+      };
+    </script>
+  </body>
+</html>

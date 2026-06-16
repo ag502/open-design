@@ -27,6 +27,7 @@ import {
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectRawUrl } from '../providers/registry';
+import { takeComposerSeedFor } from '../state/libraryHandoff';
 import type { TodoItem } from '../runtime/todos';
 import type { AppliedPluginSnapshot, ChatSessionMode, WorkspaceContextItem } from '@open-design/contracts';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
@@ -1053,6 +1054,22 @@ export function ChatPane({
     lastDraftSignalNonceRef.current = composerDraftSignal.nonce;
     composerRef.current?.setDraft(composerDraftSignal.text);
   }, [composerDraftSignal]);
+
+  // Library "optimize design system" hand-off: when the user pushed selected
+  // assets into this project's design system from the Library, pre-fill the
+  // composer with the query + those assets (as attachment chips) so they only
+  // need to review and Send. Fires once, after the composer mounts for the
+  // routed conversation; re-checks on conversation change so an async-loaded
+  // composer still gets seeded. The seed is consumed (cleared) on apply.
+  const seededComposerSeedRef = useRef(false);
+  useEffect(() => {
+    if (seededComposerSeedRef.current) return;
+    if (!projectId || !composerRef.current) return;
+    const seed = takeComposerSeedFor(projectId);
+    if (!seed) return;
+    seededComposerSeedRef.current = true;
+    composerRef.current.restoreDraft({ text: seed.text, attachments: seed.attachments });
+  }, [projectId, activeConversationId]);
 
   useEffect(() => {
     if (!editingQueuedSendId) return;

@@ -4602,6 +4602,14 @@ export async function startServer({
 
   const app = express();
   installRouteRegistrationGuard(app);
+  // Clipper page captures are self-contained HTML with inlined images plus a
+  // Figma IR, which for an image-heavy site (The Economist, news front pages)
+  // runs to tens of MB — far past a normal JSON body. Give the ingest route a
+  // dedicated generous limit so a full-page capture doesn't 413; the rest of the
+  // API stays at the conservative 4mb. Registered first so this parser claims
+  // the ingest body before the global one (express.json is a no-op once a body
+  // has already been read).
+  app.use('/api/library/ingest', express.json({ limit: '128mb' }));
   app.use(express.json({ limit: '4mb' }));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
 
@@ -4934,11 +4942,23 @@ export async function startServer({
     // the structured error shape and preflight headers for preview embeds.
     if (/^\/live-artifacts\/[^/]+\/preview$/.test(req.path)) return next();
 
-    // Extension pairing handshake: the extension's chrome-extension:// origin
-    // is not allowlisted until pairing completes, so this one route must be
-    // reachable from an unknown origin. The short-lived pairing code is the
-    // gate; the route sets its own CORS headers.
-    if (req.path === '/library/pair/confirm') return next();
+    // Zero-config browser extension: the OD Clipper talks only to
+    // /api/library/*. A web page cannot forge a chrome-extension:// (or
+    // moz-extension://) origin, and the daemon is loopback-bound, so a request
+    // carrying an extension origin is necessarily a locally-installed extension
+    // reaching the local daemon. Auto-trust it for the library surface — no
+    // pairing handshake, no token. (Loopback already constrains this to the
+    // user's own machine; the tradeoff is that any locally-installed extension
+    // can reach the library, acceptable for a local-first creative tool.)
+    if (req.path.startsWith('/library/')) {
+      const extOrigin = req.headers.origin;
+      if (
+        typeof extOrigin === 'string' &&
+        (extOrigin.startsWith('chrome-extension://') || extOrigin.startsWith('moz-extension://'))
+      ) {
+        return next();
+      }
+    }
 
     const origin = req.headers.origin;
     // Non-browser client → allow.
@@ -6039,6 +6059,8 @@ export async function startServer({
     http: httpDeps,
     paths: pathDeps,
     projectStore: projectStoreDeps,
+    projectFiles: projectFileDeps,
+    conversations: conversationDeps,
     auth: authDeps,
   });
   registerSocialShareRoutes(app, { http: httpDeps });

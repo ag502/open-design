@@ -151,6 +151,11 @@ const residualAllowedPathPrefixes = [
   // JavaScript (service worker, content script, popup) the same way as the
   // web notifications service worker; it must not be retypecast to TypeScript.
   "clipper/",
+  // OD Figma Import — a standalone Figma plugin subproject (no build step,
+  // not a pnpm workspace package). Figma plugins load hand-written
+  // browser-loadable JavaScript (`code.js` sandbox + `ui.html`); same
+  // precedent as the clipper, and it must not be retypecast to TypeScript.
+  "figma-plugin/",
   "test-results/",
   "vendor/",
 ];

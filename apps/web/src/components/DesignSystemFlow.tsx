@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Button, Textarea } from '@open-design/components';
-import type { ConnectorConnectResponse, ConnectorDetail, ConnectorStatusResponse } from '@open-design/contracts';
+import type { ConnectorConnectResponse, ConnectorDetail, ConnectorStatusResponse, LibraryAsset } from '@open-design/contracts';
 import { streamViaDaemon } from '../providers/daemon';
 import {
   connectConnector,
@@ -10,6 +10,7 @@ import {
   fetchDesignSystemGenerationJob,
   fetchDesignSystem,
   fetchConnectorStatuses,
+  fetchLibraryAssetAsFile,
   fetchProjectFileText,
   fetchProjectFiles,
   fetchProjectDesignSystemPackageAudit,
@@ -62,8 +63,12 @@ import type {
   ProjectFile,
   ProjectMetadata,
 } from '../types';
+import { takeDesignSystemAssetSeed } from '../state/libraryHandoff';
 import { decideAutoOpenAfterWrite } from './auto-open-file';
 import { ChatPane } from './ChatPane';
+import { DesignSystemAssetDropzone } from './DesignSystemAssetDropzone';
+import { DesignSystemCreateHero } from './DesignSystemCreateHero';
+import { LibraryPicker } from './LibraryPicker';
 import { notifyConnectorsChanged } from './connectors-events';
 import { connectorAuthSnapshotChanged } from './connectors-state';
 import { FileWorkspace } from './FileWorkspace';
@@ -306,10 +311,21 @@ export function DesignSystemCreationFlow({
   onGenerateSettled,
 }: CreationProps) {
   const [step, setStep] = useState<SetupStep>('setup');
-  const [state, setState] = useState<SetupState>(EMPTY_SETUP);
+  // A Library "create design system from selection" hand-off pre-fills the
+  // source material with the chosen assets (single-shot; cleared on read).
+  const [state, setState] = useState<SetupState>(() => {
+    const seed = takeDesignSystemAssetSeed();
+    if (!seed || seed.files.length === 0) return EMPTY_SETUP;
+    return {
+      ...EMPTY_SETUP,
+      assetFiles: seed.files.map((file) => file.name),
+      assetFileObjects: seed.files,
+    };
+  });
   const [error, setError] = useState<string | null>(null);
   const [generationStarting, setGenerationStarting] = useState(false);
   const [sourceProcessingCount, setSourceProcessingCount] = useState(0);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const composioConfigured = isComposioConfigured(config?.composio);
   const [githubConnector, setGithubConnector] = useState<ConnectorDetail | null>(null);
   const [githubConnectorLoading, setGithubConnectorLoading] = useState(false);
@@ -556,12 +572,74 @@ export function DesignSystemCreationFlow({
     }));
   }
 
-  function handleRemoveAssetFile(name: string) {
-    setState((curr) => ({
-      ...curr,
-      assetFiles: curr.assetFiles.filter((item) => item !== name),
-      assetFileObjects: curr.assetFileObjects.filter((file) => resourceRelativePath(file) !== name),
-    }));
+  function handleRemoveAssetFile(target: File) {
+    setState((curr) => {
+      const nextObjects = curr.assetFileObjects.filter((file) => file !== target);
+      return {
+        ...curr,
+        assetFileObjects: nextObjects,
+        assetFiles: nextObjects.map((file) => resourceRelativePath(file)),
+      };
+    });
+  }
+
+  // Filter + dedupe raw files into the staged asset state, keeping the parallel
+  // `assetFiles` (names) and `assetFileObjects` arrays perfectly in lockstep.
+  // Returns the subset that actually survived the size/count filter.
+  function mergeAssetFiles(rawFiles: File[]): File[] {
+    const stagedFiles = selectAssetFiles(rawFiles);
+    if (stagedFiles.length === 0) return stagedFiles;
+    setError(null);
+    setState((curr) => {
+      const nextObjects = dedupeResourceFiles([...curr.assetFileObjects, ...stagedFiles]);
+      return {
+        ...curr,
+        assetFileObjects: nextObjects,
+        assetFiles: nextObjects.map((file) => resourceRelativePath(file)),
+      };
+    });
+    return stagedFiles;
+  }
+
+  // Click + paste land here as a flat File[]; drops route through the
+  // directory-aware reader first (see handleAssetDrop).
+  function handleAssetUpload(rawFiles: File[]) {
+    const staged = mergeAssetFiles(rawFiles);
+    emitDsFileUpload('assets', rawFiles, staged);
+  }
+
+  async function handleAssetDrop(dataTransfer: DataTransfer) {
+    setError(null);
+    const finish = beginSourceProcessing();
+    try {
+      const dropped = await filesFromDataTransfer(dataTransfer);
+      const staged = mergeAssetFiles(dropped);
+      emitDsFileUpload('assets', dropped, staged);
+    } catch (dropError) {
+      if (!isFileSystemReadError(dropError)) throw dropError;
+      setError(FILE_SYSTEM_READ_ERROR_MESSAGE);
+    } finally {
+      finish();
+    }
+  }
+
+  // "Select from library": fetch each chosen OD Library asset's bytes into a
+  // browser File and stage it like any other asset, so generation uploads them
+  // through the same path. No project exists yet at setup time, so we seed File
+  // objects (fetchLibraryAssetAsFile) rather than apply-into-project.
+  async function addAssetsFromLibrary(assets: LibraryAsset[]) {
+    if (assets.length === 0) return;
+    const finish = beginSourceProcessing();
+    try {
+      const fetched = await Promise.all(assets.map((asset) => fetchLibraryAssetAsFile(asset)));
+      const files = fetched.filter((file): file is File => file !== null);
+      mergeAssetFiles(files);
+      if (files.length < assets.length) {
+        setError(`Added ${files.length} of ${assets.length} item(s) from the library.`);
+      }
+    } finally {
+      finish();
+    }
   }
 
   async function generate() {
@@ -764,9 +842,18 @@ export function DesignSystemCreationFlow({
       )}
 
       <main className="ds-setup-form">
-        <h1>Generate from your material</h1>
-        <p>Start with a short description, then add any source files you already have.</p>
+        {embedded ? (
+          <>
+            <h1>Generate from your material</h1>
+            <p>Start with a short description, then add any source files you already have.</p>
+          </>
+        ) : (
+          <aside className="ds-setup-hero-col">
+            <DesignSystemCreateHero stacked />
+          </aside>
+        )}
 
+        <div className="ds-setup-form-col">
         <label className="ds-setup-field">
           <span>Describe your brand or product</span>
           <textarea
@@ -872,25 +959,19 @@ export function DesignSystemCreationFlow({
                 }));
               }}
             />
-            <DropZone
-              label="Add assets"
-              prompt="Drag files here or browse"
-              names={state.assetFiles}
-              onZoneClick={() => emitCreateFormClick('add_assets')}
-              onRemoveName={handleRemoveAssetFile}
-              onError={setError}
-              onProcessingStart={beginSourceProcessing}
-              onFiles={(_names, files) => {
-                const stagedFiles = selectAssetFiles(files);
-                const stagedNames = stagedFiles.map((file) => resourceRelativePath(file));
-                emitDsFileUpload('assets', files, stagedFiles);
-                setState((curr) => ({
-                  ...curr,
-                  assetFiles: Array.from(new Set([...curr.assetFiles, ...stagedNames])),
-                  assetFileObjects: dedupeResourceFiles([...curr.assetFileObjects, ...stagedFiles]),
-                }));
-              }}
-            />
+            <div className="ds-resource-row ds-resource-row--assets">
+              <strong>Add assets</strong>
+              <DesignSystemAssetDropzone
+                files={state.assetFileObjects}
+                onAddFiles={handleAssetUpload}
+                onDrop={(dataTransfer) => void handleAssetDrop(dataTransfer)}
+                onRemove={handleRemoveAssetFile}
+                onSelectFromLibrary={() => {
+                  emitCreateFormClick('add_assets');
+                  setLibraryPickerOpen(true);
+                }}
+              />
+            </div>
           </div>
         </section>
 
@@ -935,7 +1016,16 @@ export function DesignSystemCreationFlow({
             </Button>
           </div>
         ) : null}
+        </div>
       </main>
+      {libraryPickerOpen ? (
+        <LibraryPicker
+          title="Select from library"
+          confirmLabel="Add to assets"
+          onClose={() => setLibraryPickerOpen(false)}
+          onConfirm={addAssetsFromLibrary}
+        />
+      ) : null}
     </div>
   );
 }

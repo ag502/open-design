@@ -13,39 +13,49 @@
 // loopback binding + same-origin middleware like the rest of `/api`.
 
 import { createReadStream } from 'node:fs';
-import { copyFile, stat, unlink } from 'node:fs/promises';
+import { copyFile, readFile, stat, unlink } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { Express, Request, Response } from 'express';
 import type {
   LibraryAsset,
   LibraryAssetFilter,
   LibraryAssetKind,
+  LibraryEditAsPageResponse,
   LibrarySourceKind,
 } from '@open-design/contracts';
+import { LIBRARY_UPLOAD_MAX_BYTES, isLibraryUploadMimeAllowed } from '@open-design/contracts';
 import type { RouteDeps } from '../server-context.js';
 import {
   addLibraryAssetSource,
   deleteLibraryAsset,
   getLibraryAsset,
   listLibraryAssets,
+  updateLibraryAsset,
   type LibraryAssetRecord,
 } from '../library-store.js';
 import {
+  detectMime,
   extForMime,
   registerLibraryAsset,
   resolveAssetBytesPath,
+  resolveAssetElementSidecarPath,
+  resolveAssetFigmaSidecarPath,
+  writeElementSidecar,
+  writeFigmaSidecar,
 } from '../library.js';
 import { ensureProjectSubdir } from '../projects.js';
 import {
   confirmPairing,
-  isAllowedExtensionOrigin,
   libraryConnectionStatus,
   startPairing,
   validateLibraryToken,
 } from '../library-tokens.js';
 
 export interface RegisterLibraryRoutesDeps
-  extends RouteDeps<'db' | 'http' | 'paths' | 'projectStore' | 'auth'> {}
+  extends RouteDeps<
+    'db' | 'http' | 'paths' | 'projectStore' | 'projectFiles' | 'conversations' | 'auth'
+  > {}
 
 const MAX_REMOTE_BYTES = 25 * 1024 * 1024;
 
@@ -76,6 +86,13 @@ function applyExtensionCors(req: Request, res: Response): void {
   }
 }
 
+/** A filesystem-safe `<title>.od-figma.json` download name for a capture. */
+function figmaDownloadName(asset: LibraryAssetRecord): string {
+  const raw = (asset.sourceTitle || asset.sourceDomain || 'capture').slice(0, 60);
+  const slug = raw.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'capture';
+  return `${slug}.od-figma.json`;
+}
+
 function parseDataUrl(dataUrl: string): { bytes: Buffer; mime: string | undefined } | null {
   const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(dataUrl);
   if (!match) return null;
@@ -104,7 +121,9 @@ export function registerLibraryRoutes(app: Express, ctx: RegisterLibraryRoutesDe
   const { sendApiError, createSseResponse, requireLocalDaemonRequest, isLocalSameOrigin, resolvedPortRef } =
     ctx.http;
   const { LIBRARY_DIR, PROJECTS_DIR } = ctx.paths;
-  const { getProject } = ctx.projectStore;
+  const { getProject, insertProject } = ctx.projectStore;
+  const { writeProjectFile } = ctx.projectFiles;
+  const { insertConversation } = ctx.conversations;
   const { authorizeToolRequest } = ctx.auth;
 
   // Copy an asset's bytes into a project (under a `library/` subdir) and record
@@ -190,24 +209,60 @@ export function registerLibraryRoutes(app: Express, ctx: RegisterLibraryRoutesDe
   });
   app.post('/api/library/ingest', async (req, res) => {
     applyExtensionCors(req, res);
-    // Two trusted callers: the browser extension (library token) and the local
-    // CLI / web UI (loopback / same-origin). Token → 'clipper'; trusted local
-    // → 'manual-upload'.
-    const token = bearerToken(req);
-    const validation = validateLibraryToken(db, token);
+    // Trusted callers, no pairing required. A browser-extension origin can only
+    // be presented by a locally-installed extension reaching the loopback
+    // daemon (a web page cannot forge it), so it's trusted as 'clipper'. The
+    // local CLI / web UI (loopback / same-origin) → 'manual-upload'. A legacy
+    // library token, if one is still present, also counts as 'clipper'.
+    const origin = req.get('origin') ?? '';
+    const isExtensionOrigin =
+      origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://');
     let sourceKind: LibrarySourceKind;
-    if (validation.ok) {
+    if (isExtensionOrigin || validateLibraryToken(db, bearerToken(req)).ok) {
       sourceKind = 'clipper';
     } else if (isLocalSameOrigin(req, resolvedPortRef.current)) {
       sourceKind = 'manual-upload';
     } else {
-      return sendApiError(res, 401, 'LIBRARY_TOKEN_INVALID', 'a valid library token is required');
+      return sendApiError(
+        res,
+        401,
+        'LIBRARY_INGEST_FORBIDDEN',
+        'ingest must come from the local UI/CLI or the browser extension',
+      );
     }
 
     const body = req.body ?? {};
     let bytes: Buffer | undefined;
     let mime: string | undefined = typeof body.mime === 'string' ? body.mime : undefined;
     const text = typeof body.text === 'string' ? body.text : undefined;
+    const filename = typeof body.filename === 'string' ? body.filename : undefined;
+
+    // Clipper page captures may ship an OD Figma capture IR (a JSON node-tree)
+    // alongside the HTML. It is stored as a sidecar of the HTML asset and a
+    // marker is stamped onto the asset metadata so the Library can offer a
+    // Figma export. The daemon never parses the (potentially large) IR — the
+    // clipper supplies the node count.
+    const figmaIr =
+      typeof body.figmaCapture === 'string' && body.figmaCapture ? body.figmaCapture : undefined;
+    const figmaMeta = figmaIr
+      ? {
+          version: 1,
+          size: Buffer.byteLength(figmaIr, 'utf8'),
+          nodeCount: Number.isFinite(body.figmaNodeCount) ? Number(body.figmaNodeCount) : 0,
+        }
+      : undefined;
+    const reqMetadata =
+      body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+        ? (body.metadata as Record<string, unknown>)
+        : undefined;
+    const metadata =
+      reqMetadata || figmaMeta
+        ? { ...(reqMetadata ?? {}), ...(figmaMeta ? { figmaCapture: figmaMeta } : {}) }
+        : undefined;
+    // Element-pick captures ship the element's outerHTML; it is stored as a
+    // sidecar of the screenshot (the summary travels in metadata.element).
+    const elementHtml =
+      typeof body.elementHtml === 'string' && body.elementHtml ? body.elementHtml : undefined;
 
     try {
       if (typeof body.dataUrl === 'string') {
@@ -226,6 +281,32 @@ export function registerLibraryRoutes(app: Express, ctx: RegisterLibraryRoutesDe
       return sendApiError(res, 502, 'INGEST_FETCH_FAILED', err instanceof Error ? err.message : String(err));
     }
 
+    // Manual uploads (local web UI / `od library import`) are restricted to a
+    // safe inline size and design-relevant formats — images, fonts, text/HTML,
+    // and JSON/design data. Audio, video, and other binaries are turned away.
+    // Clipper captures are exempt: the extension curates its own payloads
+    // (including page video) and arrives on a trusted extension origin. Text-
+    // only payloads are always a text-family asset, so they skip the check.
+    if (sourceKind === 'manual-upload' && bytes) {
+      if (bytes.length > LIBRARY_UPLOAD_MAX_BYTES) {
+        return sendApiError(
+          res,
+          413,
+          'PAYLOAD_TOO_LARGE',
+          `file is too large to upload (max ${Math.round(LIBRARY_UPLOAD_MAX_BYTES / 1_000_000)} MB)`,
+        );
+      }
+      const effectiveMime = mime ?? detectMime(bytes, filename);
+      if (!isLibraryUploadMimeAllowed(effectiveMime, filename)) {
+        return sendApiError(
+          res,
+          415,
+          'UNSUPPORTED_MEDIA_TYPE',
+          'this file type cannot be uploaded to the Library — images, fonts, text, HTML, and JSON/design data only',
+        );
+      }
+    }
+
     try {
       const result = await registerLibraryAsset({
         db,
@@ -235,13 +316,38 @@ export function registerLibraryRoutes(app: Express, ctx: RegisterLibraryRoutesDe
         text,
         kind: typeof body.kind === 'string' ? (body.kind as LibraryAssetKind) : undefined,
         mime,
-        filename: typeof body.filename === 'string' ? body.filename : undefined,
+        filename,
         sourceUrl: typeof body.sourceUrl === 'string' ? body.sourceUrl : undefined,
         sourceTitle: typeof body.sourceTitle === 'string' ? body.sourceTitle : undefined,
         tags: Array.isArray(body.tags) ? body.tags.filter((t: unknown) => typeof t === 'string') : undefined,
+        metadata,
         source: { sourceKind },
       });
-      const asset = toPublicAsset(result.asset);
+
+      // Persist derived sidecars (idempotent overwrite). On dedup the registrar
+      // ignores `metadata`, so stamp the marker explicitly when an existing
+      // asset gains a capture it didn't have before.
+      let assetRecord = result.asset;
+      if (figmaIr) {
+        await writeFigmaSidecar(LIBRARY_DIR, assetRecord.contentHash, figmaIr);
+        if (result.deduped && !assetRecord.metadata?.figmaCapture && figmaMeta) {
+          updateLibraryAsset(db, assetRecord.id, {
+            metadata: { ...(assetRecord.metadata ?? {}), figmaCapture: figmaMeta },
+          });
+          assetRecord = getLibraryAsset(db, assetRecord.id) ?? assetRecord;
+        }
+      }
+      if (elementHtml) {
+        await writeElementSidecar(LIBRARY_DIR, assetRecord.contentHash, elementHtml);
+        if (result.deduped && !assetRecord.metadata?.element && reqMetadata?.element) {
+          updateLibraryAsset(db, assetRecord.id, {
+            metadata: { ...(assetRecord.metadata ?? {}), element: reqMetadata.element },
+          });
+          assetRecord = getLibraryAsset(db, assetRecord.id) ?? assetRecord;
+        }
+      }
+
+      const asset = toPublicAsset(assetRecord);
       emit('ingest', { assetId: asset.id, deduped: result.deduped });
       res.json({ asset, taskId: result.taskId, deduped: result.deduped });
     } catch (err) {
@@ -308,6 +414,48 @@ export function registerLibraryRoutes(app: Express, ctx: RegisterLibraryRoutesDe
     }
   });
 
+  // --- figma capture export ------------------------------------------------
+  // Serve the OD Figma capture IR sidecar (clipper-captured `html` assets) as a
+  // downloadable JSON, importable via the OD Figma plugin. Reads ride loopback
+  // same-origin like /raw; the clipper downloads its own captures directly.
+  app.get('/api/library/assets/:id/figma', async (req, res) => {
+    const asset = getLibraryAsset(db, req.params.id);
+    if (!asset) return sendApiError(res, 404, 'NOT_FOUND', 'asset not found');
+    const sidecar = resolveAssetFigmaSidecarPath(asset, LIBRARY_DIR);
+    if (!sidecar) return sendApiError(res, 404, 'NOT_FOUND', 'no figma capture for this asset');
+    try {
+      const info = await stat(sidecar);
+      if (!info.isFile()) return sendApiError(res, 404, 'NOT_FOUND', 'no figma capture for this asset');
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Length', String(info.size));
+      res.setHeader('Content-Disposition', `attachment; filename="${figmaDownloadName(asset)}"`);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      createReadStream(sidecar).pipe(res);
+    } catch {
+      return sendApiError(res, 404, 'NOT_FOUND', 'no figma capture for this asset');
+    }
+  });
+
+  // --- captured element markup --------------------------------------------
+  // Serve the outerHTML sidecar of an element-pick screenshot. Read on demand
+  // by the Library preview's "Element HTML" panel.
+  app.get('/api/library/assets/:id/element', async (req, res) => {
+    const asset = getLibraryAsset(db, req.params.id);
+    if (!asset) return sendApiError(res, 404, 'NOT_FOUND', 'asset not found');
+    const sidecar = resolveAssetElementSidecarPath(asset, LIBRARY_DIR);
+    if (!sidecar) return sendApiError(res, 404, 'NOT_FOUND', 'no element markup for this asset');
+    try {
+      const info = await stat(sidecar);
+      if (!info.isFile()) return sendApiError(res, 404, 'NOT_FOUND', 'no element markup for this asset');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Length', String(info.size));
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      createReadStream(sidecar).pipe(res);
+    } catch {
+      return sendApiError(res, 404, 'NOT_FOUND', 'no element markup for this asset');
+    }
+  });
+
   // --- apply to project (web / Insert from Library) ------------------------
 
   app.post('/api/library/assets/:id/apply', requireLocalDaemonRequest, async (req, res) => {
@@ -320,6 +468,61 @@ export function registerLibraryRoutes(app: Express, ctx: RegisterLibraryRoutesDe
       res.json({ relPath });
     } catch (err) {
       return sendApiError(res, 500, 'APPLY_FAILED', err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  // --- edit as page (clipper capture → editable OD project) ----------------
+  // Turn a captured `html` asset into a brand-new project whose `index.html`
+  // is the captured page, seed a conversation, and back-link the asset to the
+  // new project. The web client then opens the project on `index.html` so the
+  // user can edit it (srcDoc bridge + agent surgical edits) right away. This is
+  // the clipper "capture → editable OD page" exit, driven from the Library.
+  app.post('/api/library/assets/:id/edit-as-page', requireLocalDaemonRequest, async (req, res) => {
+    const asset = getLibraryAsset(db, req.params.id);
+    if (!asset) return sendApiError(res, 404, 'NOT_FOUND', 'asset not found');
+    if (asset.kind !== 'html') {
+      return sendApiError(res, 400, 'NOT_HTML', 'only html captures can be opened as an editable page');
+    }
+    const bytesPath = resolveAssetBytesPath(asset, PROJECTS_DIR);
+    if (!bytesPath) return sendApiError(res, 404, 'NOT_FOUND', 'asset bytes not available');
+    try {
+      const html = await readFile(bytesPath, 'utf8');
+      const now = Date.now();
+      const projectId = randomUUID();
+      const conversationId = randomUUID();
+      const baseName = (asset.sourceTitle || asset.sourceDomain || 'Captured page').trim().slice(0, 80);
+      // `prototype` keeps the new project in the design/canvas surface; the
+      // back-link to the source asset rides on metadata so the asset's "Open
+      // project" affordance can resolve it.
+      const metadata = { kind: 'prototype', odLibraryAssetId: asset.id };
+      insertProject(db, {
+        id: projectId,
+        name: baseName || 'Captured page',
+        skillId: null,
+        designSystemId: null,
+        pendingPrompt: null,
+        metadata,
+        createdAt: now,
+        updatedAt: now,
+      });
+      insertConversation(db, {
+        id: conversationId,
+        projectId,
+        title: null,
+        sessionMode: 'design',
+        createdAt: now,
+        updatedAt: now,
+      });
+      // writeProjectFile ensures the project dir; write the capture as the
+      // editable entry file. No artifact manifest — a plain HTML file avoids
+      // the publication/stub guards (a captured page is arbitrary markup) while
+      // still rendering and editing like any project HTML.
+      await writeProjectFile(PROJECTS_DIR, projectId, 'index.html', Buffer.from(html, 'utf8'), {}, metadata);
+      addLibraryAssetSource(db, { assetId: asset.id, sourceKind: 'manual-upload', projectId });
+      const body: LibraryEditAsPageResponse = { projectId, conversationId, relPath: 'index.html' };
+      res.json(body);
+    } catch (err) {
+      return sendApiError(res, 500, 'EDIT_AS_PAGE_FAILED', err instanceof Error ? err.message : String(err));
     }
   });
 

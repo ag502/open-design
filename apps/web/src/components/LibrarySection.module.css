@@ -1,76 +1,159 @@
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
+/* Positioning context for the drag-to-upload overlay. */
+.root {
+  position: relative;
 }
 
-.connStatus {
-  font-size: 12px;
-  color: var(--od-text-muted, #6b7280);
-  white-space: nowrap;
-}
-.connStatus[data-paired='true'] {
-  color: var(--od-success, #16a34a);
-}
-
-.pairPanel {
+/* Clipper call-out in the section head — description + a download CTA, hugging
+   the right edge opposite the "Library" title. */
+.clipperHint {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-  padding: 16px 20px;
-  margin: 12px 0 4px;
-  border: 1px solid var(--od-border, #e5e7eb);
-  border-radius: 12px;
-  background: var(--od-surface-subtle, #f9fafb);
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 62ch;
 }
-.pairCode {
-  font-family: var(--od-font-mono, ui-monospace, monospace);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 6px;
-  color: var(--od-text, #111827);
-}
-.pairHint {
+.headerHint {
   margin: 0;
   font-size: 13px;
-  color: var(--od-text-muted, #6b7280);
-  max-width: 48ch;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Download link — an accent-tinted pill matching the toolbar control sizing. */
+.clipperDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.clipperDownload:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 16px 0;
+  gap: 8px;
+  margin: 18px 0;
   flex-wrap: wrap;
 }
+
+/* Search is the only control that expands; everything else stays compact so
+   the whole bar reads as one tidy row. */
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+.searchIcon {
+  position: absolute;
+  left: 11px;
+  color: var(--text-soft);
+  pointer-events: none;
+}
 .search {
-  flex: 1 1 260px;
-  min-width: 200px;
+  width: 100%;
   height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--od-border, #e5e7eb);
-  border-radius: 8px;
-  background: var(--od-surface, #fff);
-  color: var(--od-text, #111827);
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-panel);
+  color: var(--text);
   font-size: 14px;
 }
+
+/* Filters — content-width pills. Override the global `width:100%` base rule
+   (primitives.css) so they sit inline instead of each wrapping to its own
+   row; the chevron is painted by that same global <select> rule. */
 .select {
+  width: auto;
+  flex: 0 0 auto;
   height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--od-border, #e5e7eb);
-  border-radius: 8px;
-  background: var(--od-surface, #fff);
-  color: var(--od-text, #111827);
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background-color: var(--bg-panel);
+  color: var(--text);
   font-size: 14px;
+  cursor: pointer;
+}
+
+/* Refresh — compact icon + label, closes out the row. */
+.refreshBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+/* View-mode segmented control (Grid / Timeline). */
+.viewToggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  height: 36px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-panel);
+}
+.viewToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms cubic-bezier(0.23, 1, 0.32, 1), color 140ms;
+}
+.viewToggleBtn[data-active='true'] {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+/* Upload — primary action, anchors the right end of the toolbar. */
+.uploadBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 15px;
+  white-space: nowrap;
+}
+.spin {
+  animation: librarySpin 700ms linear infinite;
+}
+@keyframes librarySpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty {
   padding: 48px 16px;
   text-align: center;
-  color: var(--od-text-muted, #6b7280);
+  color: var(--text-muted);
 }
 .emptyHint {
   font-size: 13px;
@@ -78,8 +161,8 @@
   margin: 8px auto 0;
 }
 .emptyHint code {
-  font-family: var(--od-font-mono, ui-monospace, monospace);
-  background: var(--od-surface-subtle, #f3f4f6);
+  font-family: var(--mono);
+  background: var(--bg-subtle);
   padding: 1px 5px;
   border-radius: 4px;
 }
@@ -90,46 +173,198 @@
   gap: 16px;
 }
 
+/* --- timeline view ------------------------------------------------------ */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+/* Each day is a segment of one continuous left spine, marked by a node dot at
+   its heading; the day's assets sit in the same auto-fill grid as the grid view. */
+.timelineDay {
+  position: relative;
+  margin-left: 6px;
+  padding: 0 0 26px 26px;
+  border-left: 2px solid var(--border);
+}
+.timelineDay:last-child {
+  padding-bottom: 4px;
+  border-left-color: transparent;
+}
+.timelineDot {
+  position: absolute;
+  left: -7px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--bg-panel);
+}
+.timelineHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.timelineDate {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+.timelineCount {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+.timelineGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
 .card {
   margin: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--od-border, #e5e7eb);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--od-surface, #fff);
+  background: var(--bg-panel);
   transition: box-shadow 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .card:hover {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
 }
+.card[data-selected='true'] {
+  border-color: var(--selected);
+  box-shadow: 0 0 0 2px var(--selected);
+}
+
+/* Transparent fill-button over the thumbnail; opens the preview on click. */
+.thumbButton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
 
 .thumb {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: var(--od-surface-subtle, #f3f4f6);
+  background: var(--bg-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.thumb img {
+.thumbImg {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.thumbFallback {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: var(--od-text-muted, #9ca3af);
+.thumbFrame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+  pointer-events: none;
+}
+.thumbFont {
+  font-size: 64px;
+  line-height: 1;
+  color: var(--text);
+}
+.thumbColor {
+  width: 100%;
+  height: 100%;
+}
+.thumbGlyph {
+  color: var(--text-soft);
+}
+
+/* Centered play affordance over a video thumbnail. */
+.playGlyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.6);
+  color: #fff;
+  pointer-events: none;
+}
+
+/* Magnifier that fades in on hover to signal the card is previewable. */
+.previewOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(17, 24, 39, 0.28);
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  pointer-events: none;
+}
+.thumbButton:hover .previewOverlay,
+.thumbButton:focus-visible .previewOverlay {
+  opacity: 1;
+}
+
+/* Selection checkbox — top-left, fades in on hover or while selecting. */
+.selectCheck {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  background: rgba(17, 24, 39, 0.35);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), background 160ms,
+    border-color 160ms;
+}
+.card:hover .selectCheck,
+.grid[data-selecting='true'] .selectCheck,
+.timeline[data-selecting='true'] .selectCheck,
+.card[data-selected='true'] .selectCheck {
+  opacity: 1;
+}
+.selectCheck[data-checked='true'] {
+  background: var(--selected);
+  border-color: var(--selected);
 }
 
 .badge {
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   left: 8px;
+  z-index: 2;
+  pointer-events: none;
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
@@ -139,16 +374,36 @@
   backdrop-filter: blur(4px);
 }
 .badge[data-source='clipper'] {
-  background: rgba(37, 99, 235, 0.85);
+  background: color-mix(in srgb, var(--accent) 88%, transparent);
 }
 .badge[data-source='generated'] {
-  background: rgba(168, 85, 247, 0.85);
+  background: color-mix(in srgb, var(--purple) 88%, transparent);
 }
 .badge[data-source='design-system'] {
-  background: rgba(13, 148, 136, 0.85);
+  background: color-mix(in srgb, var(--green) 88%, transparent);
 }
 .badge[data-source='agent-task'] {
-  background: rgba(217, 119, 6, 0.85);
+  background: color-mix(in srgb, var(--amber) 88%, transparent);
+}
+
+/* Kind badge — always visible, top-right, tinted per asset kind. */
+.kindBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px 2px 6px;
+  border-radius: 999px;
+  color: var(--kind-tint, #374151);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(4px);
 }
 
 .meta {
@@ -159,16 +414,26 @@
   min-width: 0;
 }
 .title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
   font-size: 13px;
   font-weight: 600;
-  color: var(--od-text, #111827);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.title:hover {
+  color: var(--accent);
+}
 .sub {
   font-size: 12px;
-  color: var(--od-text-muted, #6b7280);
+  color: var(--text-muted);
 }
 
 .cardActions {
@@ -184,12 +449,202 @@
   padding: 4px 0;
   font-size: 12px;
   cursor: pointer;
-  color: var(--od-accent, #2563eb);
+  color: var(--accent);
   text-decoration: none;
 }
 .deleteBtn {
-  color: var(--od-text-muted, #9ca3af);
+  color: var(--text-soft);
 }
 .deleteBtn:hover {
-  color: var(--od-danger, #dc2626);
+  color: var(--red);
+}
+
+/* --- multi-select ------------------------------------------------------- */
+
+/* Rubber-band rectangle drawn while box-selecting (viewport-fixed coords). */
+.band {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  border: 1px solid var(--selected);
+  border-radius: 2px;
+  background: var(--selected-soft);
+}
+
+.selectionBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--selected);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--selected) 7%, var(--bg-panel));
+}
+.selectionCount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.selectionLink {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--accent);
+}
+.selectionLink:hover {
+  text-decoration: underline;
+}
+.selectionSpacer {
+  flex: 1 1 auto;
+}
+
+/* "Use in design system" split action + dropdown. */
+.dsMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+.dsMenuBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.dsMenuBtn:hover {
+  background: var(--bg-subtle);
+}
+.dsMenuBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.dsMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 244px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  animation: libraryDropFade 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.dsMenuItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.dsMenuItem:hover {
+  background: var(--bg-subtle);
+}
+.dsMenuItemTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsMenuItemSub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.dsMenuDivider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border);
+}
+.dsMenuHeader {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+.dsMenuEmpty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.selectionDelete {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.selectionDelete:hover {
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+}
+
+/* --- drag-anywhere upload overlay --------------------------------------- */
+
+/* Shown while OS files are dragged over the whole Library section. Sits above
+   the grid but ignores pointer events so the browser still fires the drop. */
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 10%, rgba(255, 255, 255, 0.7));
+  backdrop-filter: blur(2px);
+  animation: libraryDropFade 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.dropOverlayInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 40px;
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  background: var(--bg-panel);
+  color: var(--accent);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.dropOverlayText {
+  font-size: 15px;
+  font-weight: 600;
+}
+@keyframes libraryDropFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

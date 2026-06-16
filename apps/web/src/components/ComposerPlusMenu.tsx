@@ -128,6 +128,9 @@ export interface ComposerPlusMenuProps {
   onAttachFiles: () => void;
   attachLoading?: boolean;
 
+  /** Opens the "Select from library" picker; omit to hide the row. */
+  onSelectFromLibrary?: () => void;
+
   /**
    * Optional "Design toolbox" row, rendered LAST. Only the project composer
    * passes this; the home composer omits it. The returned node is shown in a
@@ -182,6 +185,7 @@ export function ComposerPlusMenu({
   onAddMcp,
   onAttachFiles,
   attachLoading,
+  onSelectFromLibrary,
   renderToolbox,
   toolboxLabel,
   triggerTestId,
@@ -399,6 +403,21 @@ export function ComposerPlusMenu({
             />
             <span>{t('chat.attachAria')}</span>
           </button>
+          {onSelectFromLibrary ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="plus-menu__item"
+              data-testid="composer-plus-library"
+              onClick={() => {
+                close();
+                onSelectFromLibrary();
+              }}
+            >
+              <Icon name="layers-filled" size={15} className="plus-menu__item-icon" />
+              <span>{t('chat.selectFromLibrary')}</span>
+            </button>
+          ) : null}
           <PlusSubmenuRow
             label={t('connectors.title')}
             icon="link"

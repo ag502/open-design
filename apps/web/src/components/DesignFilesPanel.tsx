@@ -57,6 +57,8 @@ interface Props {
   onUploadFiles: (files: File[]) => void;
   onPaste: () => void;
   onNewSketch: () => void;
+  /** Opens the "Select from library" picker to pull registry assets in. */
+  onSelectFromLibrary?: () => void;
   // Reports the folder the panel is currently viewing so the parent can create
   // new files (upload / paste / new sketch / dropped files) under it instead
   // of the project root. Fires whenever the user navigates folders.
@@ -282,6 +284,7 @@ export function DesignFilesPanel({
   onUploadFiles,
   onPaste,
   onNewSketch,
+  onSelectFromLibrary,
   uploadError = null,
   onClearUploadError,
   preferredPreviewFile = null,
@@ -803,6 +806,17 @@ export function DesignFilesPanel({
 
   const fileActions = (
     <div className="df-actions">
+      {onSelectFromLibrary ? (
+        <button
+          type="button"
+          data-testid="design-files-library-trigger"
+          onClick={onSelectFromLibrary}
+          title={t('designFiles.library.title')}
+        >
+          <Icon name="layers-filled" size={13} />
+          <span>{t('designFiles.library.label')}</span>
+        </button>
+      ) : null}
       <button type="button" onClick={onNewSketch} title={t('designFiles.newSketch')}>
         <Icon name="pencil" size={13} />
         <span>{t('designFiles.newSketch')}</span>

@@ -418,6 +418,20 @@
 .home-hero__active-file-group {
   display: contents;
 }
+.home-hero__active-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--text) 7%, var(--bg-subtle));
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1;
+}
 .home-hero__active-label {
   min-width: 0;
   overflow: hidden;

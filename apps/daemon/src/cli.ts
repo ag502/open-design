@@ -177,7 +177,7 @@ const LIBRARY_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 // `od library …` (OD Library asset registry). Hoisted so the dispatcher can
 // parse flags without hitting a temporal-dead-zone on these sets.
 const LIBRARY_ASSET_STRING_FLAGS = new Set([
-  'daemon-url', 'kind', 'tag', 'source', 'date', 'query', 'project', 'label',
+  'daemon-url', 'kind', 'tag', 'source', 'date', 'query', 'project', 'label', 'out', 'dir',
 ]);
 const LIBRARY_ASSET_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const DIAGNOSTICS_STRING_FLAGS = new Set(['daemon-url', 'output']);
@@ -6328,7 +6328,12 @@ Commands:
   get <id>                  Print one asset (JSON).
   rm <id>                   Delete an asset.
   search <query>            Keyword search across captions / tags / titles.
-  import <file|url>         Import a local file or remote URL into the library.
+  import <file|url>...      Import one or more local files / remote URLs into the library.
+                            Restricted to design formats (images, fonts, text, HTML, JSON);
+                            audio, video, and other binaries are rejected.
+  apply <id>                Copy an asset into a project's design files. Requires --project.
+  edit-as-page <id>         Turn a captured html asset into a new editable OD project (prints projectId).
+  figma <id>                Export an html asset's OD Figma capture IR (clipper-captured pages).
   pair                      Mint a browser-extension pairing code.
 
 Options:
@@ -6337,7 +6342,10 @@ Options:
   --kind <image|video|...>  Filter/declare asset kind.
   --tag <tag>               Filter by / attach a tag.
   --source <kind>           Filter by source (clipper|manual-upload|agent-task|design-system|generated).
-  --date <YYYY-MM-DD>       Filter by archive date.`);
+  --date <YYYY-MM-DD>       Filter by archive date.
+  --project <id>            Target project for apply.
+  --dir <subdir>            Subdirectory inside the project for apply (default: library).
+  --out <file>              Write the figma export to a file (default: stdout).`);
 }
 
 async function runLibrary(args) {
@@ -6411,26 +6419,73 @@ async function runLibrary(args) {
         return;
       }
       case 'import': {
-        const src = pos[0];
-        if (!src) {
-          console.error('Usage: od library import <file|url>');
+        const sources = pos;
+        if (!sources.length) {
+          console.error('Usage: od library import <file|url> [<file|url> ...]');
           process.exit(2);
         }
-        const body = {};
-        if (/^https?:\/\//i.test(src)) {
-          body.url = src;
-          body.sourceUrl = src;
-        } else {
-          const { readFile } = await import('node:fs/promises');
-          const nodePath = await import('node:path');
-          const bytes = await readFile(src);
-          // Empty mediatype → daemon sniffs the bytes for the real mime.
-          body.dataUrl = `data:;base64,${bytes.toString('base64')}`;
-          body.filename = nodePath.basename(src);
+        const { readFile } = await import('node:fs/promises');
+        const nodePath = await import('node:path');
+        const results = [];
+        let failed = false;
+        for (const src of sources) {
+          const body = {};
+          try {
+            if (/^https?:\/\//i.test(src)) {
+              body.url = src;
+              body.sourceUrl = src;
+            } else {
+              const bytes = await readFile(src);
+              // Empty mediatype → daemon sniffs the bytes for the real mime.
+              body.dataUrl = `data:;base64,${bytes.toString('base64')}`;
+              body.filename = nodePath.basename(src);
+            }
+          } catch (err) {
+            failed = true;
+            results.push({ source: src, ok: false, error: err?.message ?? String(err) });
+            if (!flags.json) console.error(`${src}\terror\t${err?.message ?? err}`);
+            continue;
+          }
+          if (flags.kind) body.kind = flags.kind;
+          if (flags.tag) body.tags = [flags.tag];
+          const resp = await fetch(`${base}/api/library/ingest`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!resp.ok) {
+            failed = true;
+            // The daemon rejects unsupported formats (415) and oversized files
+            // (413); surface the reason per source instead of aborting the run.
+            const detail = await resp.json().catch(() => null);
+            const message = detail?.error?.message ?? `HTTP ${resp.status}`;
+            results.push({ source: src, ok: false, status: resp.status, error: message });
+            if (!flags.json) console.error(`${src}\trejected\t${message}`);
+            continue;
+          }
+          const data = await resp.json();
+          results.push({ source: src, ok: true, ...data });
+          if (!flags.json) {
+            console.log(`${data.asset.id}\t${data.deduped ? 'deduped' : 'imported'}\t${data.asset.kind}`);
+          }
         }
-        if (flags.kind) body.kind = flags.kind;
-        if (flags.tag) body.tags = [flags.tag];
-        const resp = await fetch(`${base}/api/library/ingest`, {
+        if (flags.json) writeJson(sources.length === 1 ? results[0] : results);
+        if (failed) process.exit(1);
+        return;
+      }
+      case 'apply': {
+        const id = pos[0];
+        if (!id) {
+          console.error('Usage: od library apply <id> --project <projectId> [--dir <subdir>]');
+          process.exit(2);
+        }
+        if (!flags.project) {
+          console.error('Usage: od library apply <id> --project <projectId> [--dir <subdir>]');
+          process.exit(2);
+        }
+        const body = { projectId: flags.project };
+        if (flags.dir) body.dir = flags.dir;
+        const resp = await fetch(`${base}/api/library/assets/${encodeURIComponent(id)}/apply`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
@@ -6438,7 +6493,43 @@ async function runLibrary(args) {
         if (!resp.ok) return structuredHttpFailure(resp);
         const data = await resp.json();
         if (flags.json) return writeJson(data);
-        console.log(`${data.asset.id}\t${data.deduped ? 'deduped' : 'imported'}\t${data.asset.kind}`);
+        console.log(`applied ${id} → ${data.relPath}`);
+        return;
+      }
+      case 'edit-as-page': {
+        const id = pos[0];
+        if (!id) {
+          console.error('Usage: od library edit-as-page <id>');
+          process.exit(2);
+        }
+        const resp = await fetch(`${base}/api/library/assets/${encodeURIComponent(id)}/edit-as-page`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        });
+        if (!resp.ok) return structuredHttpFailure(resp);
+        const data = await resp.json();
+        if (flags.json) return writeJson(data);
+        console.log(`created project ${data.projectId} → ${data.relPath}`);
+        return;
+      }
+      case 'figma': {
+        const id = pos[0];
+        if (!id) {
+          console.error('Usage: od library figma <id> [--out <file>]');
+          process.exit(2);
+        }
+        const resp = await fetch(`${base}/api/library/assets/${encodeURIComponent(id)}/figma`);
+        if (!resp.ok) return structuredHttpFailure(resp);
+        const ir = await resp.text();
+        if (flags.out) {
+          const { writeFile } = await import('node:fs/promises');
+          await writeFile(flags.out, ir, 'utf8');
+          if (flags.json) return writeJson({ ok: true, id, out: flags.out, bytes: Buffer.byteLength(ir) });
+          console.log(`wrote ${flags.out}`);
+          return;
+        }
+        process.stdout.write(ir.endsWith('\n') ? ir : ir + '\n');
         return;
       }
       case 'pair': {

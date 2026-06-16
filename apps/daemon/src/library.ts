@@ -43,6 +43,74 @@ export function libraryObjectPath(libraryDir: string, contentHash: string, ext: 
   return path.join(libraryObjectsDir(libraryDir), shard, `${contentHash}${ext}`);
 }
 
+// Sidecars live next to an owned content-addressed object, keyed by the same
+// content hash with a distinguishing suffix. They hold derived data that should
+// not bloat the asset row / list responses (the clipper's Figma capture IR and
+// the picked-element outerHTML).
+function resolveAssetSidecarPath(
+  asset: LibraryAssetRecord,
+  libraryDir: string,
+  ext: string,
+): string | null {
+  if (asset.storage !== 'owned' || !asset.contentHash) return null;
+  return libraryObjectPath(libraryDir, asset.contentHash, ext);
+}
+
+/** Write a sidecar next to an owned object. Best-effort, never throws. */
+async function writeAssetSidecar(
+  libraryDir: string,
+  contentHash: string,
+  ext: string,
+  content: string,
+): Promise<boolean> {
+  try {
+    const sidecar = libraryObjectPath(libraryDir, contentHash, ext);
+    await mkdir(path.dirname(sidecar), { recursive: true });
+    await writeFile(sidecar, content, 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const FIGMA_SIDECAR_EXT = '.od-figma.json';
+const ELEMENT_SIDECAR_EXT = '.element.html';
+
+/**
+ * OD Figma capture IR sidecar for an owned `html` asset. The clipper produces
+ * the IR (a JSON node-tree, see `figma-plugin/IR.md`) from the live page at
+ * capture time; it lives next to the HTML object so the Library can export it
+ * as a Figma file without re-rendering. Keyed by the HTML asset's content hash.
+ */
+export function resolveAssetFigmaSidecarPath(
+  asset: LibraryAssetRecord,
+  libraryDir: string,
+): string | null {
+  return resolveAssetSidecarPath(asset, libraryDir, FIGMA_SIDECAR_EXT);
+}
+
+/** Write a Figma IR sidecar next to an owned object. Best-effort, never throws. */
+export function writeFigmaSidecar(libraryDir: string, contentHash: string, ir: string): Promise<boolean> {
+  return writeAssetSidecar(libraryDir, contentHash, FIGMA_SIDECAR_EXT, ir);
+}
+
+/**
+ * Picked-element `outerHTML` sidecar for an owned screenshot asset produced by
+ * the clipper's element picker. Keeps potentially large markup out of the asset
+ * row; the lightweight summary stays in `metadata.element`.
+ */
+export function resolveAssetElementSidecarPath(
+  asset: LibraryAssetRecord,
+  libraryDir: string,
+): string | null {
+  return resolveAssetSidecarPath(asset, libraryDir, ELEMENT_SIDECAR_EXT);
+}
+
+/** Write an element-HTML sidecar next to an owned object. Best-effort. */
+export function writeElementSidecar(libraryDir: string, contentHash: string, html: string): Promise<boolean> {
+  return writeAssetSidecar(libraryDir, contentHash, ELEMENT_SIDECAR_EXT, html);
+}
+
 /** Local `YYYY-MM-DD` for the daily archive feed. */
 export function archivedDateFor(ts: number): string {
   const d = new Date(ts);

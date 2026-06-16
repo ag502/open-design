@@ -23,17 +23,15 @@ import { useAnalytics } from '../analytics/provider';
 import {
   trackChatPanelClick,
   trackComposerBarClick,
-  trackComposerSessionModeClick,
   trackDesignToolboxClick,
   trackFileUploadResult,
 } from '../analytics/events';
-import { sessionModeToTracking } from '@open-design/contracts/analytics';
 import type {
   ComposerBarClickProps,
   DesignToolboxClickProps,
 } from '@open-design/contracts/analytics';
 import { deriveUploadCohort } from '../analytics/upload-tracking';
-import { projectRawUrl, uploadProjectFiles, openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir, dirExists } from "../providers/registry";
+import { projectRawUrl, uploadProjectFiles, openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir, dirExists, applyLibraryAsset } from "../providers/registry";
 import { WorkingDirPicker } from './WorkingDirPicker';
 import { patchProject } from "../state/projects";
 import { fetchMcpServers } from "../state/mcp";
@@ -53,8 +51,10 @@ import type {
 } from '@open-design/contracts';
 import { buildVisualAnnotationAttachment, commentTargetDisplayName } from '../comments';
 import { Icon, type IconName } from "./Icon";
-import { SessionModeToggle } from './SessionModeToggle';
 import { ComposerPlusMenu } from './ComposerPlusMenu';
+import { LibraryPicker } from './LibraryPicker';
+import { assetTitle } from './LibraryAssetMeta';
+import type { LibraryAsset } from '@open-design/contracts';
 import {
   DESIGN_TOOLBOX_ACTIONS,
   designToolboxActionBadge,
@@ -393,6 +393,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // 2026-05-20 04:08 for the rationale.
     const [staged, setStaged] = useState<ChatAttachment[]>([]);
     const nextAttachmentOrderRef = useRef(0);
+    const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
     const [stagedVisualComments, setStagedVisualComments] = useState<ChatCommentAttachment[]>([]);
     const streamingAnnotationSendPendingRef = useRef(false);
     const [streamingAnnotationSendPending, setStreamingAnnotationSendPendingState] = useState(false);
@@ -1355,6 +1356,51 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       }
     }
 
+    // "Select from library" (资源库): copy each chosen asset into the project's
+    // design files and stage it as an attachment chip, mirroring how the native
+    // file picker materializes uploads into the project on attach. The apply
+    // call records a provenance back-link so the registry knows the asset was
+    // consumed.
+    async function addAssetsFromLibrary(assets: LibraryAsset[]) {
+      if (assets.length === 0) return;
+      const id = await ensureProject();
+      if (!id) return;
+      setUploading(true);
+      setUploadError(null);
+      const orderStart = reserveAttachmentOrders(assets.length);
+      try {
+        const applied: ChatAttachment[] = [];
+        let failed = 0;
+        for (const asset of assets) {
+          const relPath = await applyLibraryAsset(asset.id, id);
+          if (!relPath) {
+            failed += 1;
+            continue;
+          }
+          applied.push({
+            path: relPath,
+            name: assetTitle(asset),
+            kind: asset.kind === 'image' ? 'image' : 'file',
+          });
+        }
+        if (applied.length > 0) {
+          appendOrderedStagedAttachments(assignChatAttachmentOrders(applied, orderStart));
+        }
+        if (failed > 0) {
+          setUploadError(
+            applied.length > 0
+              ? `Added ${applied.length} item(s), but ${failed} failed.`
+              : `Could not add ${failed} item(s) from the library.`,
+          );
+        }
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        setUploadError(`Could not add from library (${detail}).`);
+      } finally {
+        setUploading(false);
+      }
+    }
+
     async function uploadClipboardImagesFromAsyncClipboard() {
       if (!navigator.clipboard?.read) return false;
       try {
@@ -2308,6 +2354,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 fileInputRef.current?.click();
               }}
               attachLoading={uploading}
+              onSelectFromLibrary={() => {
+                trackChatPanelClick(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'chat_panel',
+                  element: 'library',
+                });
+                setLibraryPickerOpen(true);
+              }}
               toolboxLabel={t('chat.designToolbox.title')}
               renderToolbox={(close) => (
                 <DesignToolboxPanel
@@ -2412,22 +2466,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
             {leadingAccessory}
             <span className="composer-spacer" />
             {footerAccessory}
-            <SessionModeToggle
-              mode={sessionMode}
-              onChange={(next) => {
-                if (next !== sessionMode) {
-                  trackComposerSessionModeClick(analytics.track, {
-                    page_name: 'chat_panel',
-                    area: 'chat_composer',
-                    element: 'session_mode_toggle',
-                    mode_before: sessionModeToTracking(sessionMode),
-                    mode_after: sessionModeToTracking(next),
-                    ...(projectId ? { project_id: projectId } : {}),
-                  });
-                }
-                onSessionModeChange?.(next);
-              }}
-            />
             {showStopButton ? (
               <button
                 type="button"
@@ -2490,6 +2528,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               setDetailsRecord(null);
             }}
             hideUseAction
+          />
+        ) : null}
+        {libraryPickerOpen ? (
+          <LibraryPicker
+            onClose={() => setLibraryPickerOpen(false)}
+            onConfirm={(assets) => addAssetsFromLibrary(assets)}
           />
         ) : null}
       </div>
