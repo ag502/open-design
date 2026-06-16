@@ -47,10 +47,10 @@ beforeEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function renderPill() {
+function renderPill(props: ComponentProps<typeof AmrLoginPill> = {}) {
   return render(
     <I18nProvider initial="en">
-      <AmrLoginPill />
+      <AmrLoginPill {...props} />
     </I18nProvider>,
   );
 }
@@ -509,6 +509,43 @@ describe('AmrLoginPill', () => {
       expect(loginCalls).toBe(1);
     });
     expect(await screen.findByText('Signing in…')).toBeTruthy();
+  });
+
+  it('does not reuse stale activation details when a new login starts after a canceled attempt', async () => {
+    const fetchMock = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as URL).toString();
+      if (
+        url.endsWith('/api/integrations/vela/login') &&
+        init?.method === 'POST'
+      ) {
+        return jsonResponse({ status: 202, body: { pid: 4242 } });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    renderPill({
+      skipInitialRefresh: true,
+      initialStatus: {
+        loggedIn: false,
+        loginInFlight: false,
+        profile: 'prod',
+        user: null,
+        configPath: '/x',
+        activationUrl: 'https://app.vela.example/expired-device-code',
+        userCode: 'EXPIRED',
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Signing in…')).toBeTruthy();
+    });
+    expect(
+      screen.queryByRole('link', { name: 'Open sign-in page' }),
+    ).toBeNull();
+    expect(screen.queryByText('EXPIRED')).toBeNull();
   });
 
   it('recovers from transient /status failures and still flips to signed-in when polling succeeds later', async () => {

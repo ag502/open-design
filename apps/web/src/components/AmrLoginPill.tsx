@@ -573,6 +573,8 @@ export function AmrLoginPill({
     pending === 'login' || (status?.loggedIn !== true && status?.loginInFlight === true);
   const logoutInFlight = pending === 'logout';
   const cancelInFlight = pending === 'cancel';
+  const activeLoginActivationStatus =
+    status?.loggedIn !== true && status?.loginInFlight === true ? status : null;
   const accountStatus: AmrAccountControlStatus = errorMessage
     ? 'error'
     : loggedIn
@@ -604,9 +606,9 @@ export function AmrLoginPill({
         signOutDisabled={logoutInFlight}
         showCancelSignInAction={revealPendingCancelAction && loginInFlight}
         cancelSignInDisabled={cancelInFlight}
-        activationUrl={status?.activationUrl}
-        userCode={status?.userCode}
-        browserOpenFailed={status?.browserOpenFailed}
+        activationUrl={activeLoginActivationStatus?.activationUrl}
+        userCode={activeLoginActivationStatus?.userCode}
+        browserOpenFailed={activeLoginActivationStatus?.browserOpenFailed}
         onSignIn={handleLogin}
         onSignOut={handleLogout}
         onCancelSignIn={handleCancelLogin}
