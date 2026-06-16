@@ -969,9 +969,7 @@
     };
     const background = byRole('background', '#FFFFFF');
     const foreground = byRole('foreground', '#1A1A18');
-    const accent = byRole('accent', '#C96442');
-    const ink = accentInk(accent, foreground);
-    const onAccent = contrastText(accent);
+    const accentObserved = byRole('accent', '#C96442');
 
     const specs = (data.typography && data.typography.specs) || [];
     const stackAt = (i, fallback) => (specs[i] && specs[i].stack) || fallback;

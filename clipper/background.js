@@ -305,19 +305,18 @@ function slugify(title) {
 async function capturePage(opts) {
   const includeImages = !opts || opts.includeImages !== false;
   const tab = await activeTab();
-  await sendToTab(tab.id, { type: 'odClipper:hideForCapture' });
-  let cap;
-  try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['capture.js'] });
-    const [out] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (o) => window.__odCapture(o),
-      args: [{ includeImages }],
-    });
-    cap = out && out.result;
-  } finally {
-    await sendToTab(tab.id, { type: 'odClipper:restoreAfterCapture' });
-  }
+  // No hideForCapture here: this is a DOM/IR snapshot, not a pixel screenshot,
+  // and capture.js already strips our own on-page UI by id ([id^="od-clipper-"])
+  // from both the HTML clone and the Figma IR. So the bar stays put and keeps
+  // showing its in-progress strip through the whole (often slow) snapshot —
+  // hiding it here is what used to make the toolbar vanish mid-capture.
+  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['capture.js'] });
+  const [out] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (o) => window.__odCapture(o),
+    args: [{ includeImages }],
+  });
+  const cap = out && out.result;
   if (!cap || !cap.html) throw new Error('capture failed');
   const { map, skipped } = await buildResourceMap(cap.resources, includeImages);
   return {
@@ -383,20 +382,18 @@ async function downloadFigma(opts) {
 async function captureDesignSystem(opts) {
   const includeImages = !opts || opts.includeImages !== false;
   const tab = await activeTab();
-  await sendToTab(tab.id, { type: 'odClipper:hideForCapture' });
-  let cap;
   const locale = currentLocale();
-  try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['i18n.js', 'brand-capture.js'] });
-    const [out] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (captureLocale) => window.__odBrandCapture({ locale: captureLocale }),
-      args: [locale],
-    });
-    cap = out && out.result;
-  } finally {
-    await sendToTab(tab.id, { type: 'odClipper:restoreAfterCapture' });
-  }
+  // No hideForCapture: brand-capture.js reads the page through the light DOM
+  // (our toolbar lives in a shadow root it can't see) and skips any
+  // [id^="od-clipper-"] node, so the bar stays visible with its progress strip
+  // through the whole extraction instead of disappearing for several seconds.
+  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['i18n.js', 'brand-capture.js'] });
+  const [out] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (captureLocale) => window.__odBrandCapture({ locale: captureLocale }),
+    args: [locale],
+  });
+  const cap = out && out.result;
   if (!cap || !cap.html) throw new Error(t('errorDesignSystemCaptureFailed'));
   const { map, skipped } = await buildResourceMap(cap.resources, includeImages);
   return {

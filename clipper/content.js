@@ -333,11 +333,11 @@
 
       const type = WORKER_ACTIONS[act];
       if (!type) return;
-      // Spinner on the bar for the whole operation, like element/region capture.
-      // For page/figma/shot the worker briefly pulls the bar out for the capture
-      // itself; the spinner carries the rest (the slower save/build). No start
-      // toast — it would only be hidden again for the capture frame; the spinner
-      // is the in-progress signal and the result toast is the outcome.
+      // The progress strip stays on the bar for the whole operation. page /
+      // system / figma are DOM/IR snapshots that exclude our UI by id, so the
+      // bar never leaves the screen; only `shot` (a pixel screenshot) is briefly
+      // pulled out for the capture frame, then comes right back with the strip.
+      // The result toast is the outcome.
       startBusy(act);
       let res;
       try {
