@@ -275,6 +275,22 @@ function expectStringField(record: Record<string, unknown>, field: string, expec
   }
 }
 
+function expectStringFieldIfPresent(
+  record: Record<string, unknown>,
+  field: string,
+  expected: string,
+  sourceName: string,
+): void {
+  const value = readStringField(record, field);
+  if (value == null) {
+    log(`${sourceName}.${field}: missing; accepted for prerelease metadata generated before attribution hardening`);
+    return;
+  }
+  if (value !== expected) {
+    fail(`${sourceName}.${field} must be ${expected}; got ${value}`);
+  }
+}
+
 function expectBooleanField(record: Record<string, unknown>, field: string, expected: boolean, sourceName: string): void {
   const value = readBooleanField(record, field);
   if (value !== expected) {
@@ -351,18 +367,27 @@ async function validateStablePrereleaseMetadata(options: {
   expectBooleanField(metadata, "signed", true, sourceName);
 
   const github = requireObjectField(metadata, "github", sourceName);
-  expectStringField(github, "branch", options.branch, `${sourceName}.github`);
-  expectStringField(github, "commit", options.commit, `${sourceName}.github`);
-  expectStringField(github, "repository", options.repository, `${sourceName}.github`);
-  expectStringField(github, "workflow", "release-prerelease", `${sourceName}.github`);
+  expectStringFieldIfPresent(github, "branch", options.branch, `${sourceName}.github`);
+  expectStringFieldIfPresent(github, "commit", options.commit, `${sourceName}.github`);
+  expectStringFieldIfPresent(github, "repository", options.repository, `${sourceName}.github`);
+  expectStringFieldIfPresent(github, "workflow", "release-prerelease", `${sourceName}.github`);
 
   const r2 = requireObjectField(metadata, "r2", sourceName);
   expectStringField(r2, "versionPrefix", expectedVersionPrefix, `${sourceName}.r2`);
   expectStringField(r2, "versionMetadataUrl", metadataUrl, `${sourceName}.r2`);
-  expectStringField(r2, "reportZipUrl", `${expectedVersionUrl}/report.zip`, `${sourceName}.r2`);
   const report = requireObjectField(r2, "report", `${sourceName}.r2`);
-  expectStringField(report, "type", "zip", `${sourceName}.r2.report`);
-  expectStringField(report, "url", `${expectedVersionUrl}/report.zip`, `${sourceName}.r2.report`);
+  const reportType = readStringField(report, "type");
+  if (reportType !== "zip" && reportType !== "directory") {
+    fail(`${sourceName}.r2.report.type must be zip or directory; got ${reportType ?? "(missing)"}`);
+  }
+  requireVersionedUrlField(report, "url", expectedVersionUrl, `${sourceName}.r2.report`);
+  const reportZipUrl = readStringField(r2, "reportZipUrl");
+  if (reportZipUrl != null) {
+    validateHttpsUrl(reportZipUrl, `${sourceName}.r2.reportZipUrl`);
+    if (!reportZipUrl.startsWith(`${expectedVersionUrl}/`)) {
+      fail(`${sourceName}.r2.reportZipUrl must point under ${expectedVersionUrl}/; got ${reportZipUrl}`);
+    }
+  }
 
   const platforms = requireObjectField(metadata, "platforms", sourceName);
   const mac = requireObjectField(platforms, "mac", `${sourceName}.platforms`);

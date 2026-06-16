@@ -313,7 +313,7 @@ describe("release workflows", () => {
     expect(stable).toContain("RELEASE_METADATA_PATH:");
     expect(stable).not.toContain("inputs.channel");
     expect(stable).not.toContain("prepare ${{ inputs.channel }}");
-    expect(stablePrepare).toContain('expectStringField(github, "workflow", "release-prerelease"');
+    expect(stablePrepare).toContain('expectStringFieldIfPresent(github, "workflow", "release-prerelease"');
     expect(stablePrepare).toContain('parseStableDryRunMode');
     expect(stablePrepare).toContain('setOutput("run_prepublish_jobs"');
     expect(stablePrepare).toContain('setOutput("publish_side_effects_enabled"');
