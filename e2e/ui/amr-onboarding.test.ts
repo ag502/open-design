@@ -332,7 +332,7 @@ test('[P0] onboarding AMR model selection carries into the first Home run reques
   });
 });
 
-test('[P0] onboarding skip exits to home and marks onboarding completed', async ({ page }) => {
+test('[P0] onboarding Connect step exposes no Skip affordance', async ({ page }) => {
   const config = await wireOnboardingMocks(page, {
     amrAvailable: true,
     initialLoggedIn: true,
@@ -341,12 +341,9 @@ test('[P0] onboarding skip exits to home and marks onboarding completed', async 
   await seedOnboardingConfig(page, config);
   await gotoOnboarding(page);
 
-  await page.getByRole('button', { name: /Skip for now/i }).click();
-
-  await expectOnboardingFinished(page);
-  await pollStoredConfig(page).toMatchObject({
-    onboardingCompleted: true,
-  });
+  // "Skip for now" was removed — Connect is now a required step, so there is
+  // no way to exit onboarding from here without connecting a runtime.
+  await expect(page.getByRole('button', { name: /Skip for now/i })).toHaveCount(0);
 });
 
 test('[P0] onboarding about-you step accepts profile selections and completes setup', async ({ page }) => {
@@ -618,7 +615,11 @@ async function gotoOnboarding(page: Page) {
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
   await dismissPrivacyDialog(page);
-  await expect(page.getByRole('heading', { name: /Welcome|欢迎/i })).toBeVisible();
+  // The "Welcome" hero title was removed; the Connect step's "Choose a
+  // runtime" heading is the stable marker that onboarding has rendered.
+  await expect(
+    page.getByRole('heading', { name: /Choose a runtime|选择运行方式/i }),
+  ).toBeVisible();
 }
 
 async function seedOnboardingConfig(page: Page, config: OnboardingConfig) {
