@@ -99,12 +99,19 @@ export function ensureCoreQualityStages(input: EnsureCoreStagesInput): PluginPip
   const needCritique = !hasStage('critique');
   if (!needPlan && !needCritique) return pipeline;
 
+  // Insert plan immediately BEFORE and critique immediately AFTER the
+  // matched generate stage so the restored loop is exactly
+  // plan -> generate -> critique. The runner executes stages strictly in
+  // declaration order, so a pipeline with post-generate work (e.g.
+  // generate -> handoff) must keep critique between generate and handoff —
+  // appending critique to the very end would let downstream stages consume
+  // or publish output before the quality loop runs.
   const next: PipelineStage[] = [];
   for (const [i, stage] of stages.entries()) {
     if (i === generateIdx && needPlan) next.push(buildPlanStage());
     next.push(stage);
+    if (i === generateIdx && needCritique) next.push(buildCritiqueStage());
   }
-  if (needCritique) next.push(buildCritiqueStage());
 
   return { ...pipeline, stages: next };
 }

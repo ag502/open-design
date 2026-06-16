@@ -177,6 +177,22 @@ describe('core quality-stage floor', () => {
     expect(ids.indexOf('critique')).toBeGreaterThan(ids.indexOf('generate'));
   });
 
+  // Regression: critique must land immediately AFTER generate, not at the
+  // end of the pipeline. A template with post-generate work
+  // (generate -> handoff) would otherwise become generate -> handoff ->
+  // critique, letting the downstream stage run before the quality loop.
+  it('inserts critique right after generate, before any post-generate stage', () => {
+    const plugin = templateFixture({
+      stages: [
+        { id: 'generate', atoms: ['file-write', 'live-artifact'] },
+        { id: 'handoff', atoms: ['file-write'] },
+      ],
+    });
+    const { result } = applyPlugin({ plugin, inputs: {}, registry: REGISTRY });
+    const ids = stageIds(result.pipeline);
+    expect(ids).toEqual(['plan', 'generate', 'critique', 'handoff']);
+  });
+
   it('does not duplicate stages a template already declares', () => {
     const plugin = templateFixture({
       stages: [
