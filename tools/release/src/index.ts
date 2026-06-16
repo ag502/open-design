@@ -33,6 +33,12 @@ cli
   });
 
 cli
+  .command("check-storage", "Validate release storage write access")
+  .action(async () => {
+    await import("./storage/check-storage.ts");
+  });
+
+cli
   .command("publish-platform", "Publish one platform's release artifacts and manifest")
   .action(async () => {
     await import("./storage/publish-platform.ts");
