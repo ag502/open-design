@@ -21,7 +21,8 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { createJsonIpcServer } from '@open-design/sidecar';
+import { createJsonIpcServer, resolveAppIpcPath } from '@open-design/sidecar';
+import { APP_KEYS, OPEN_DESIGN_SIDECAR_CONTRACT } from '@open-design/sidecar-proto';
 
 import {
   buildPackagedDaemonSpawnEnv,
@@ -509,7 +510,11 @@ describe('waitForStatus child-exit fast-fail', () => {
   it('does not accept ready status from a stale IPC endpoint owned by a different pid', async () => {
     const child = fakeChild();
     child.pid = 5678;
-    const ipcPath = join(tmpdir(), `od-test-stale-ipc-${Date.now()}.sock`);
+    const ipcPath = resolveAppIpcPath({
+      app: APP_KEYS.WEB,
+      contract: OPEN_DESIGN_SIDECAR_CONTRACT,
+      namespace: `stale-ipc-${process.pid}-${Date.now()}`,
+    });
     const server = await createJsonIpcServer({
       socketPath: ipcPath,
       handler: async () => ({
@@ -527,7 +532,7 @@ describe('waitForStatus child-exit fast-fail', () => {
           ipcPath,
           (status) => status.url != null,
           250,
-          { child, logPath: '/tmp/od-test-web.log' },
+          { child, logPath: join(tmpdir(), 'od-test-web.log') },
         );
       } catch (err) {
         captured = err;
