@@ -7,7 +7,8 @@ Status: proposed · Parent: #3408 · Sibling: agent-startup-latency-profiling.md
 ## Why · Why this matters
 
 - **Use case**: While taking over the performance thread for #3408, strict profiling found the real major contributor to AMR first token latency of ~11s per turn, and both the root cause and implementation target are now clear.
-- **Pain**: ① Latency — AMR follow-up TTFT p50 ~11s, so users wait ~11s after every message; ② Cost/stability — AMR repays 100-153k input tokens every turn, directly burning AMR Cloud balance, and `insufficient_balance` is AMR's largest failure bucket (7,053/week, #4455 is addressing it). **This performance optimization is also a stability optimization**.
+- **Pain**: ① Latency — AMR follow-up TTFT p50 ~11s, so users wait ~11s after every message; ② Cost/stability — every turn's **first upstream call re-pays most of the conversation as uncached input** (measured below: turn-2+ first call hits only ~21% cache, ~24.5k uncached), directly burning AMR Cloud balance, and `insufficient_balance` is AMR's largest failure bucket (7,053/week, #4455 is addressing it). **This performance optimization is also a stability optimization**.
+  - **Correction (this session, production-measured)**: an earlier draft claimed "AMR repays 100-153k *uncached* tokens every turn." That was wrong — the ~153k is the *context size*, most of which is cached. The real per-turn-first-call uncached is **~24.5k** (see "Production measurement" below). The headline problem is not the raw resend volume; it is that the **cross-turn first call is cache-cold (~21% hit) and sits on the TTFT path**.
 
 ## Sources · Verified facts (checked item by item in this session)
 
@@ -51,9 +52,24 @@ A counter-intuitive fact to pre-empt: AMR's per-turn cache rate can look healthy
 
 - vela reports `cachedReadTokens` by **summing `cache.read` across every `step-finish` part within one turn** (`opencode_client.go:140`), and since vela opens a fresh session per turn, `exportSessionUsage` only covers that one turn → the number is a **per-turn aggregate**.
 - One turn is an **agentic loop** = many model calls (plan → tool → observe → tool → … → answer). Calls 2..N reuse the same growing-but-stable within-turn prefix → high hit rate. That is real and already good.
-- But the **first call of each turn** must re-pay the ~153k flattened history from scratch (cross-turn miss: structure destroyed + new session + TTL likely expired). It is one call out of many, so it barely moves the per-turn average — yet it is the entire cross-turn cost and it sits exactly on the TTFT path.
+- But the **first call of each turn** re-pays the conversation as a cache-cold call (cross-turn miss: opencode's structured cache from the prior turn does not byte-match our flattened-text resend, the session is new, and DeepSeek's auto-cache decays with the inter-turn gap). It is one call out of many, so it barely moves the per-turn average — yet it is the entire cross-turn cost and it sits exactly on the TTFT path.
 
 **Consequence**: a high per-turn cache rate ≠ fast TTFT, because TTFT is set by the turn's first call (the cross-turn miss). Measurement must therefore target the **first model call of turn-2+**, not the per-turn aggregate, or the win will be invisible in the averaged metric. (This also corrects the older "AMR reports no token usage" assumption — vela #277/#288 fixed that ~2026-06-10.)
+
+### Production measurement (vela `link.usage_events`, the proof)
+
+vela's Link gateway persists **one row per upstream model call** to Postgres `link.usage_events` (`input_tokens`, `cache_read_tokens`, `cache_write_tokens`, `latency_ms`, `created_at`, and `metadata` carrying `openDesignSessionId` / `openDesignRunId`). `uncached = input − cache_read − cache_write` (`pricing.go:89`). Querying DeepSeek calls (the AMR lead model; note `provider='openai'`, filter on `model ILIKE '%deepseek%'`), taking the **first upstream call of each run** and bucketing by run ordinal within the session:
+
+| First call of… | n | cache hit | input | uncached | latency |
+|---|---|---|---|---|---|
+| turn-1 (conversation start, fully cold) | 456 | **9.4%** | 25.2k | 22.9k | 11.8s |
+| **turn-2+ (cross-turn entry)** | 2051 | **21.2%** | 31.1k | **24.5k** | 12.0s |
+
+For contrast, the **within-turn agentic-loop calls** hit **~79%** (this is what inflates the per-turn aggregate to ~80%). And the cross-turn hit **decays with the inter-turn gap** (classic cache eviction): first-call hit at gap >15s / >30s / >60s / >120s = **55% / 42% / 32% / 21%** — since real human follow-ups are usually minutes apart, the first call is mostly cold. The lead model **deepseek-v4-flash is the coldest** (first-call ~35% at gap>30s; v4-pro is warmer at ~77%).
+
+**Reading**: the prior turn's conversation history is **not** reused on the next turn's first call — the ~21% that does hit is the static `[system + tools]` prefix (and possibly cross-user shared static), while the history re-pays uncached. This is the data behind the headline: turn-2+ first call ≈ 21% hit, ~24.5k uncached, ~12s, and it is the TTFT-critical call.
+
+*(Method note: measured read-only against production `link.usage_events` via an ephemeral in-cluster psql pod, statement-timeout + read-only transaction guarded. Turn ordinal uses `openDesignSessionId`/`openDesignRunId` from `metadata`; sessions straddling the query window's start can mislabel a mid-conversation run as turn-1, adding minor noise that does not change the picture.)*
 
 ## Proposed design
 
@@ -101,14 +117,17 @@ ACP session reuse must mirror the daemon's existing resume keying (`server.ts:76
 
 ## Expected benefit (quantified + confidence)
 
-| Turn | Current uncached | Method | After cut | TTFT |
-|---|---|---|---|---|
-| turn-1 | ~100k | Stable prefix + hypothesized common-prefix reuse if shared cache cohort is verified (explicit models add cache_control) | Only first message remains | Estimate ~6-7s |
-| turn-2+(~90%) | ~153k | session reuse (vela) | Only new content for this turn remains | **~11s → estimate ~6-7s** |
+All figures are the **first upstream call of the turn** (the TTFT-critical, cross-turn call), production-measured from `link.usage_events`:
 
-- **Latency**: AMR follow-up turns ~11s → estimate ~6-7s (about −40%), covering ~90% of runs.
-- **Cost/stability**: Process ~100-150k fewer tokens per turn → burn less balance → **mitigate insufficient_balance (#4455 largest failure)**.
-- **Confidence**: "current 11s / uncached 100-153k" is production-measured (hard data); "after cut 6-7s" is an estimate based on "model first byte shrinks with uncached volume", **exact value must be verified after implementation**; floor ~3s (network+model, measured) cannot be moved.
+| First call of… | Current cache hit | Current uncached | Method | Target |
+|---|---|---|---|---|
+| turn-1 | 9.4% | ~22.9k | (cold start — irreducible) | n/a |
+| **turn-2+ (~90% of turns)** | **21.2%** | **~24.5k** | session reuse (preserve structure) → history hits instead of re-paying | hit → ~80% (within-turn level), uncached → just the new delta |
+
+- **Latency**: AMR turn-2+ first call ~12s (measured). Lifting its cache hit from ~21% toward ~80% shrinks the uncached first-byte work → estimate first-call ~12s → ~8-9s. (The earlier "~11s → 6-7s" was over-optimistic; resized down because the recoverable uncached is ~24.5k, not 153k.)
+- **Cost/stability**: ~20k fewer uncached tokens per follow-up turn × ~90% of turns → less balance burn → **mitigate insufficient_balance (#4455 largest failure)**. Smaller per-turn than the old "150k" claim, but real and on every follow-up.
+- **Cheaper alternative first (Step 1)**: the gap-decay data (first-call hit 55%→21% as gap grows 15s→120s) shows the cross-turn cache is being **evicted by TTL** between turns. Extending cache TTL (the Step-1 gateway lever) would hold the static prefix warm across the human think-time without the full session-reuse project — measure this before committing to Step 2.
+- **Confidence**: "turn-2+ first call 21% hit / ~24.5k uncached / ~12s" is production-measured (hard data); the post-fix targets are estimates that **must be verified after implementation**; floor ~3s (network+model, measured) cannot be moved.
 - **Scope note**: AMR volume is ~4.4k successful runs/week (< claude 73k), so absolute run reach is smaller, but AMR is the paid hosted layer, per-user experience + cost are sensitive, and it links to stability.
 
 ## Risks & mitigations
