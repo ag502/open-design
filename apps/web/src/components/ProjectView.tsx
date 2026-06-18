@@ -5069,14 +5069,12 @@ export function ProjectView({
         && messages.length > 0
           ? activeConversationId
           : null;
-      const seedMessages = seedFromConversationId ? [...messages] : undefined;
       const fresh = await createConversation(
         project.id,
         undefined,
         seedFromConversationId
           ? {
               seedFromConversationId,
-              seedMessages,
             }
           : undefined,
       );

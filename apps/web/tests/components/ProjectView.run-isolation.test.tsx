@@ -687,7 +687,7 @@ describe('ProjectView conversation run isolation', () => {
     });
   });
 
-  it('seeds a fresh conversation from the active conversation when messages are loaded', async () => {
+  it('seeds a fresh conversation from the active conversation by id when messages are loaded', async () => {
     const seededAssistant: ChatMessage = {
       ...succeededAssistant,
       id: 'assistant-seeded',
@@ -710,12 +710,11 @@ describe('ProjectView conversation run isolation', () => {
       undefined,
       {
         seedFromConversationId: 'conv-a',
-        seedMessages: conversationAMessages,
       },
     );
   });
 
-  it('seeds a fresh conversation with the latest visible messages when content changes without length changes', async () => {
+  it('keeps the new conversation payload compact when the visible messages update', async () => {
     const userMessage: ChatMessage = {
       id: 'user-a',
       role: 'user',
@@ -762,7 +761,6 @@ describe('ProjectView conversation run isolation', () => {
       undefined,
       {
         seedFromConversationId: 'conv-a',
-        seedMessages: [userMessage, updatedAssistant],
       },
     );
   });
