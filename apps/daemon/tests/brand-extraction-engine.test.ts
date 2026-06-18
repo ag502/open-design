@@ -24,6 +24,7 @@ import {
   imageSize,
   type ImagerySlot,
 } from '../src/brands/imagery-fallback.js';
+import { isChallengePage } from '../src/brands/prefetch.js';
 
 // Real repo skills root so the bundled brand-kit template resolves.
 const SKILLS_ROOT = path.resolve(
@@ -38,6 +39,20 @@ const NO_LOGO_FALLBACK = async () => ({ changed: false });
 // Injected imagery harvester that does nothing — keeps finalize offline (the
 // real fallback fetches the site's cover/hero images over the network).
 const NO_IMAGERY_FALLBACK = async () => ({ changed: false });
+
+// Injected palette/typography harvester that does nothing — keeps the engine
+// tests offline except for cases that explicitly stub a harvester behavior.
+const NO_SEED_FALLBACK = async () => ({ changed: false });
+
+function startOfflineBrandExtraction(
+  opts: Parameters<typeof startBrandExtraction>[0],
+): ReturnType<typeof startBrandExtraction> {
+  return startBrandExtraction({
+    seedFallback: NO_SEED_FALLBACK,
+    imageryFallback: NO_IMAGERY_FALLBACK,
+    ...opts,
+  });
+}
 
 /** Build a tiny but structurally-valid PNG buffer with the given dimensions so
  *  the imagery size gate decodes a real width/height (header-only). */
@@ -97,7 +112,7 @@ describe('agent-driven brand extraction engine', () => {
   it('startBrandExtraction reserves the brand and seeds a live brand.html tab', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
 
-    const result = await startBrandExtraction({
+    const result = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -138,13 +153,13 @@ describe('agent-driven brand extraction engine', () => {
   it('rejects a non-http(s) URL', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
     await expect(
-      startBrandExtraction({ url: 'ftp://nope', brandsRoot, projectsRoot, skillsRoot: SKILLS_ROOT, db }),
+      startOfflineBrandExtraction({ url: 'ftp://nope', brandsRoot, projectsRoot, skillsRoot: SKILLS_ROOT, db }),
     ).rejects.toThrow(/valid http/i);
   });
 
   it('renderBrandPreviewIntoProject re-renders brand.html from a partial brand.json', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -182,7 +197,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('finalizeBrand registers the kit, marks it ready, and lights up the assets', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -235,7 +250,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('finalizeBrand is idempotent — re-finalizing reuses the brand design system', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -287,7 +302,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('finalizeBrand fails clearly when the agent has not written brand.json yet', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -310,7 +325,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('preview renders the imagery gallery + font tiles from imagery.samples', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -358,7 +373,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('preview falls back to a logo alternate when logo.primary is empty', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -408,7 +423,7 @@ describe('agent-driven brand extraction engine', () => {
       return { changed: true };
     };
 
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -426,7 +441,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('finalizeBrand adopts on-disk logo files when the agent left logo.primary empty', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -492,7 +507,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('preview adopts on-disk project logos so the live page is never logo-less', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -535,7 +550,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('finalizeBrand mirrors imagery/ and renders the gallery on the ready page', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -654,7 +669,7 @@ describe('agent-driven brand extraction engine', () => {
 
   it('finalizeBrand runs the imagery fallback when the agent saved no samples', async () => {
     const db = openDatabase(tempDir, { dataDir: tempDir });
-    const started = await startBrandExtraction({
+    const started = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -765,7 +780,7 @@ describe('agent-driven brand extraction engine', () => {
       };
     };
 
-    const result = await startBrandExtraction({
+    const result = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -815,7 +830,7 @@ describe('agent-driven brand extraction engine', () => {
 
     // Prefetch returns null (fully blocked / unreachable origin) → no design
     // system is built and the agent takes over from the scaffold.
-    const result = await startBrandExtraction({
+    const result = await startOfflineBrandExtraction({
       url: 'acme.com',
       brandsRoot,
       projectsRoot,
@@ -833,6 +848,85 @@ describe('agent-driven brand extraction engine', () => {
 
     const html = readFileSync(path.join(projectsRoot, result.projectId, 'brand.html'), 'utf8');
     expect(html).toContain('"status":"extracting"');
+  });
+
+  it('does not finalize blocked or thin programmatic harvests as ready', async () => {
+    const db = openDatabase(tempDir, { dataDir: tempDir });
+
+    for (const [host, flags] of [
+      ['blocked.example', { blocked: true, thin: true }],
+      ['thin.example', { blocked: false, thin: true }],
+    ] as const) {
+      const result = await startOfflineBrandExtraction({
+        url: host,
+        brandsRoot,
+        projectsRoot,
+        skillsRoot: SKILLS_ROOT,
+        db,
+        userDesignSystemsRoot,
+        prefetch: async () => ({
+          url: `https://${host}/`,
+          finalUrl: `https://${host}/`,
+          siteName: 'Fallback',
+          title: '',
+          description: '',
+          colors: [
+            { hex: '#ffffff', count: 50, extreme: true },
+            { hex: '#111111', count: 30, extreme: true },
+          ],
+          fonts: [],
+          fontFaceFamilies: [],
+          googleFontsUrls: [],
+          fontFiles: [],
+          logos: [],
+          headings: [],
+          paragraphs: [],
+          navLabels: [],
+          extraPages: [],
+          screenshot: null,
+          materialMd: '',
+          ...flags,
+        }),
+        logoFallback: NO_LOGO_FALLBACK,
+        imageryFallback: NO_IMAGERY_FALLBACK,
+      });
+
+      const detail = readBrandDetail(brandsRoot, result.id);
+      expect(detail?.meta.status).toBe('extracting');
+      expect(detail?.meta.designSystemId).toBeUndefined();
+      const html = readFileSync(path.join(projectsRoot, result.projectId, 'brand.html'), 'utf8');
+      expect(html).toContain('"status":"extracting"');
+
+      const project = getProject(db, result.projectId);
+      expect(project?.pendingPrompt ?? '').toContain('DESIGN SYSTEM EXTRACTION');
+      expect(project?.pendingPrompt ?? '').toContain('ready design system is NOT guaranteed yet');
+      expect(project?.pendingPrompt ?? '').not.toContain('DESIGN SYSTEM ENRICHMENT');
+      expect(project?.pendingPrompt ?? '').not.toContain('ALREADY been extracted programmatically');
+    }
+
+    const systems = await listDesignSystems(userDesignSystemsRoot, {
+      idPrefix: 'user:',
+      source: 'user',
+      isEditable: true,
+      defaultStatus: 'draft',
+    });
+    expect(systems).toHaveLength(0);
+  });
+
+  it('classifies EO_Bot_Ssid verification pages as anti-bot challenges', () => {
+    expect(isChallengePage(`
+      <!doctype html>
+      <html>
+        <head><title>旺旺集团</title></head>
+        <body>
+          <script>
+            document.cookie = "EO_Bot_Ssid=abc123";
+            window.__tst_status = "verify";
+            location.reload();
+          </script>
+        </body>
+      </html>
+    `)).toBe(true);
   });
 
   it('returns fast without blocking on a slow programmatic harvest, then finalizes in the background', async () => {
@@ -881,7 +975,7 @@ describe('agent-driven brand extraction engine', () => {
 
     let background: Promise<unknown> | null = null;
     const startedAt = Date.now();
-    const result = await startBrandExtraction({
+    const result = await startOfflineBrandExtraction({
       url: 'slow.com',
       brandsRoot,
       projectsRoot,
