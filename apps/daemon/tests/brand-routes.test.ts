@@ -228,6 +228,55 @@ describe('brand routes', () => {
     expect(storedMeta.extractionTerminalError).toBe(providerError);
   });
 
+  it('does not regress a successful retry when the old failed run remains the latest status', async () => {
+    writeBrandFixture('brand-retry-ready', {
+      projectId: 'project-retry-ready',
+      logoPrimary: 'logos/missing.svg',
+      status: 'ready',
+    });
+    insertProject(db, {
+      id: 'project-retry-ready',
+      name: 'Retry Ready Brand Project',
+      skillId: null,
+      designSystemId: null,
+      createdAt: 1,
+      updatedAt: 1,
+      metadata: { kind: 'brand', brandId: 'brand-retry-ready' },
+    });
+    insertConversation(db, {
+      id: 'conversation-retry-ready',
+      projectId: 'project-retry-ready',
+      title: 'Extract brand',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    upsertMessage(db, 'conversation-retry-ready', {
+      id: 'message-retry-ready-failed',
+      role: 'assistant',
+      content: 'Old extraction failed.',
+      runId: 'run-retry-ready-failed',
+      runStatus: 'failed',
+      startedAt: 1,
+      endedAt: 2,
+    });
+
+    const detail = await requestJson('/api/brands/brand-retry-ready');
+    const list = await requestJson('/api/brands');
+
+    expect(detail.status).toBe(200);
+    expect(detail.body.meta.status).toBe('ready');
+    expect(detail.body.meta.error).toBeUndefined();
+    expect(list.body.brands.find((brand: any) => brand.meta.id === 'brand-retry-ready')?.meta.status).toBe(
+      'ready',
+    );
+
+    const storedMeta = JSON.parse(readFileSync(path.join(brandsRoot, 'brand-retry-ready', 'meta.json'), 'utf8'));
+    expect(storedMeta.status).toBe('ready');
+    expect(storedMeta.error).toBeUndefined();
+    expect(storedMeta.extractionTerminalRunId).toBeUndefined();
+    expect(storedMeta.extractionTerminalError).toBeUndefined();
+  });
+
   it('does not regress ready brands after a later backing project run is canceled', async () => {
     writeBrandFixture('brand-ready', {
       projectId: 'project-ready',

@@ -16,6 +16,7 @@ import {
   renderBrandPreviewIntoProject,
   startBrandExtraction,
 } from '../src/brands/index.js';
+import { patchMeta } from '../src/brands/store.js';
 import { ensureLogoFallback } from '../src/brands/logo-fallback.js';
 import { listDesignSystems } from '../src/design-systems.js';
 import {
@@ -205,6 +206,12 @@ describe('agent-driven brand extraction engine', () => {
       db,
       logoFallback: NO_LOGO_FALLBACK,
     });
+    patchMeta(brandsRoot, started.id, {
+      status: 'failed',
+      error: 'Old extraction failed.',
+      extractionTerminalRunId: 'run-old-failed',
+      extractionTerminalError: 'Old extraction failed.',
+    });
 
     // Simulate the agent writing the complete kit into the backing project.
     const projectDir = path.join(projectsRoot, started.projectId);
@@ -232,6 +239,9 @@ describe('agent-driven brand extraction engine', () => {
 
     const detail = readBrandDetail(brandsRoot, started.id);
     expect(detail?.meta.status).toBe('ready');
+    expect(detail?.meta.error).toBeUndefined();
+    expect(detail?.meta.extractionTerminalRunId).toBeUndefined();
+    expect(detail?.meta.extractionTerminalError).toBeUndefined();
     expect(detail?.meta.designSystemId).toBe(finalized.designSystemId);
 
     const project = getProject(db, started.projectId);

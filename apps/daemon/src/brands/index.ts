@@ -588,6 +588,8 @@ async function finalizeBrandCore(opts: FinalizeBrandCoreOptions): Promise<BrandF
   patchMeta(brandsRoot, id, {
     status: 'ready',
     error: undefined,
+    extractionTerminalRunId: undefined,
+    extractionTerminalError: undefined,
     designSystemId,
     systemFiles: systemBuild.files,
     projectId,
