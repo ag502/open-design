@@ -703,7 +703,10 @@ describe('ProjectView conversation run isolation', () => {
     expect(createConversation).toHaveBeenCalledWith(
       'project-1',
       undefined,
-      { seedFromConversationId: 'conv-a' },
+      {
+        seedFromConversationId: 'conv-a',
+        seedMessages: conversationAMessages,
+      },
     );
   });
 
