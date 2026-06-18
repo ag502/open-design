@@ -2523,6 +2523,33 @@ process.exit(1);
     );
   });
 
+  it('rejects Claude smoke tests when assistant end_turn is followed by exit 1 without a result frame', async () => {
+    await withFakeClaude(
+      `
+console.log(JSON.stringify({
+  type: 'assistant',
+  message: {
+    id: 'msg_1',
+    content: [{ type: 'text', text: 'ok' }],
+    stop_reason: 'end_turn',
+  },
+}));
+process.exit(1);
+`,
+      async () => {
+        const result = await testAgentConnection({ agentId: 'claude' });
+
+        expect(result).toMatchObject({
+          ok: false,
+          kind: 'agent_spawn_failed',
+          agentName: 'Claude Code',
+        });
+        expect(result.diagnostics?.phase).toBe('spawn');
+        expect(result.diagnostics?.exitCode).toBe(1);
+      },
+    );
+  });
+
   it('rejects Claude smoke tests when the result frame reports an error before a late exit 1', async () => {
     await withFakeClaude(
       `

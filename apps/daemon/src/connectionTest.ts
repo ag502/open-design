@@ -2256,11 +2256,11 @@ async function testAgentConnectionInternal(
         );
       const claudeCompletedTurn =
         input.agentId === 'claude' &&
-        !claudeResult?.isError &&
+        !!claudeResult &&
+        !claudeResult.isError &&
         (
           sink.sawTerminalCompletion() ||
           (
-            !!claudeResult &&
             isTerminalCompletionStopReason(claudeResult.stopReason)
           )
         );
