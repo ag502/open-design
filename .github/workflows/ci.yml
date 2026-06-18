@@ -296,7 +296,6 @@ jobs:
               echo "autofix_name=$(python3 .github/scripts/handoff.py artifact-name autofix "$handoff_id")"
               echo "autofix_path=$handoff_root"
             } >> "$GITHUB_OUTPUT"
-            exit 0
           fi
 
           handoff_id="nix-hash-refresh"
@@ -373,7 +372,8 @@ jobs:
           it through the shared handoff contract.
 
           - same-repo PRs: `autofix.yml` will try to push the patch back to the
-            PR branch automatically;
+            PR branch automatically, and `comment.yml` will publish patch
+            guidance as a fallback;
           - fork PRs: `comment.yml` will publish patch guidance on the PR.
           EOF
               ;;
