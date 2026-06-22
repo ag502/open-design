@@ -344,7 +344,7 @@ const jsonLd = {
 ---
 
 <Layout title={c.metaTitle} description={c.metaDescription} active="enterprise" jsonLd={jsonLd}>
-  <section class="ent-page">
+  <section class="ent-page" data-od-id="enterprise">
     <div class="ent-intro">
       <h1 class="ent-h1">{c.h1}</h1>
       <p class="ent-lead">{c.lead}</p>
@@ -516,7 +516,7 @@ const jsonLd = {
       looping video in place. Full-bleed `.lab-stage` (its centering math reads
       50% of the enclosing `.sub-main.container` content box, same as the
       homepage `.labs > .container`), so it must stay an unconstrained block. */}
-  <section class="ent-demos" id="labs">
+  <section class="ent-demos" id="labs" data-od-id="demos">
     <div class="ent-demos__head">
       <span class="ent-demos__title">{c.demosTitle}</span>
       <p class="ent-demos__lead">{c.demosLead}</p>
@@ -669,25 +669,47 @@ const jsonLd = {
         });
       });
 
+      // Lightweight analytics wrapper around the shared PostHog delegate
+      // (window.__odTrack, installed by sub-page-layout). page_name matches the
+      // server-derived pageNameFromPath('/enterprise/') = 'enterprise'.
+      const track = (name, props) => {
+        try {
+          if (typeof window.__odTrack === 'function') {
+            window.__odTrack(name, Object.assign(
+              { page_name: 'enterprise', locale: (document.documentElement.lang || 'en').toLowerCase() },
+              props || {},
+            ));
+          }
+        } catch (e) {}
+      };
+
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (errorEl) errorEl.hidden = true;
         if (useCaseError) useCaseError.hidden = true;
 
         let firstInvalid = null;
+        const invalidFields = [];
         ['name', 'email', 'company', 'team-size', 'budget'].forEach((id) => {
-          if (!validateField(id) && !firstInvalid) firstInvalid = fieldInput(id);
+          if (!validateField(id)) {
+            invalidFields.push(id);
+            if (!firstInvalid) firstInvalid = fieldInput(id);
+          }
         });
 
         const useCases = chips
           .filter((chip) => chip.getAttribute('aria-pressed') === 'true')
           .map((chip) => chip.getAttribute('data-value'));
         if (useCases.length === 0) {
+          invalidFields.push('use-case');
           if (useCaseError) useCaseError.hidden = false;
           if (!firstInvalid) firstInvalid = chips[0];
         }
 
         if (firstInvalid) {
+          // Validation blocked the submit — record which fields so we can see
+          // where the funnel leaks.
+          track('lead_submit_invalid', { missing: invalidFields.join(',') });
           // A custom-select's real <select> is hidden, so focus its trigger.
           const focusTarget = firstInvalid.classList?.contains('ent-cselect__native')
             ? firstInvalid.parentElement.querySelector('.ent-cselect__trigger')
@@ -711,6 +733,13 @@ const jsonLd = {
           pageUrl: location.href,
         };
 
+        const leadProps = {
+          team_size: payload.teamSize,
+          budget: payload.budget,
+          use_case_count: useCases.length,
+        };
+        track('lead_submit_attempt', leadProps);
+
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.textContent = submittingLabel;
@@ -723,12 +752,14 @@ const jsonLd = {
             body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error('request_failed');
+          track('lead_submit_success', leadProps);
           form.hidden = true;
           if (successEl) {
             successEl.hidden = false;
             successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
         } catch (err) {
+          track('lead_submit_failed', Object.assign({ reason: 'request_failed' }, leadProps));
           if (errorEl) errorEl.hidden = false;
           if (submitBtn) {
             submitBtn.disabled = false;
@@ -889,6 +920,18 @@ const jsonLd = {
             idx = items.indexOf(it);
             show(it);
             start();
+            // A real user pick (not the auto-cycle) — which use-case demo drew
+            // interest. Uses the shared PostHog delegate directly (this enhancer
+            // lives in its own IIFE, separate from the form's `track`).
+            try {
+              if (typeof window.__odTrack === 'function') {
+                window.__odTrack('demo_click', {
+                  page_name: 'enterprise',
+                  locale: (document.documentElement.lang || 'en').toLowerCase(),
+                  demo: it.getAttribute('data-preview-title') || '',
+                });
+              }
+            } catch (e) {}
           });
         }
 
