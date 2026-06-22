@@ -101,7 +101,7 @@ PRs.
   - Open/closed bake PRs: #4442 (open), #4261 #4408 #4415 #4433 #4437 (closed as
     superseded).
   - Release channel model and the no-squash release→main back-merge rule: root
-    [`AGENTS.md`](../../AGENTS.md) → "Release channel model" and PR expectations.
+    [`AGENTS.md`](../../../AGENTS.md) → "Release channel model" and PR expectations.
   - Auto-update / channel identity: `tools/pack/AGENTS.md`.
 - **Access prerequisites:** R2 credentials
   (`CLOUDFLARE_R2_REPOSITORY_ASSETS_*` secrets) are needed to *run* the bake
