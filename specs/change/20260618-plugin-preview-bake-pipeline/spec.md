@@ -18,9 +18,11 @@ PRs.
 - **Use case (what triggered this):** the maintainer noticed **6 open
   `chore(plugin-previews): refresh baked preview manifest` PRs** from the
   `github-actions` bot, none merged, several already `APPROVED` but stuck at
-  `BLOCKED`. The process feels broken. (5 of the 6 — #4261, #4408, #4415, #4433,
-  #4437 — have since been closed as superseded by the newest, #4442, which is
-  still open and is the immediate cleanup item; see Open questions.)
+  `BLOCKED`. The process feels broken. (That initial batch has since drained —
+  #4261, #4408, #4415, #4433, #4437 were closed as superseded and #4442 merged —
+  but the structural defects below keep regenerating the queue: fresh
+  bake-manifest PRs such as #4559 and #4571 are open as of this writing. The
+  point is the *pipeline*, not any single PR.)
 - **Pain being addressed (three distinct defects, not one):**
   1. **No merge automation.** The bake workflow only opens a PR and pings the
      maintainer. `main` merges through a merge queue, so even an `APPROVED`
@@ -98,8 +100,10 @@ PRs.
   git show origin/main:scripts/bake-plugin-previews.mjs
   ```
 - **Related material:**
-  - Open/closed bake PRs: #4442 (open), #4261 #4408 #4415 #4433 #4437 (closed as
-    superseded).
+  - Bake PRs illustrating the churn: #4442, #4490 (merged); #4261, #4408, #4415,
+    #4433, #4437, #4537 (closed as superseded); #4559, #4571 (open as of writing).
+    These rotate — read "the current open bake PR(s)" rather than any fixed
+    number.
   - Release channel model and the no-squash release→main back-merge rule: root
     [`AGENTS.md`](../../../AGENTS.md) → "Release channel model" and PR expectations.
   - Auto-update / channel identity: `tools/pack/AGENTS.md`.
@@ -192,6 +196,14 @@ A new standalone workflow, triggered on `push` to `release/**` plus
   independently re-runnable if it flakes.
 - This produces the manifest that, once tagged, **protects** its clips from GC
   forever (see below).
+- **Loop guard (required — this path commits back to the same branch it triggers
+  on).** Unlike the pre-merge path, a `release/**` trigger + a manifest writeback
+  to that release branch is a self-retrigger risk (the same shape as
+  `notify-release-feishu.yml`, which fires on every `release/**` push). Break the
+  loop with **both** belts: (a) a `paths-ignore: ['data/plugin-previews/**']`
+  trigger filter so the bot's own manifest commit does not re-fire the workflow,
+  and (b) an early `if` guard that skips when the head commit author is the bake
+  bot. This is an acceptance criterion, not a footnote (see Validation).
 
 ### 4. Single bucket + tag-union GC (the storage-bound fix)
 
@@ -199,11 +211,26 @@ One R2 prefix `plugin-previews/`. A weekly GC workflow computes a **protected
 set** and deletes only outside it:
 
 ```
-protected = ⋃ over every release/prerelease tag of (that tag's
-            data/plugin-previews/manifest.json referenced filenames)
+protected = ⋃ over every release/prerelease tag of (that tag's manifest)
+          ∪ ⋃ over every live release/** branch HEAD of (that branch's manifest)
           ∪ (current main manifest referenced filenames)
 delete R2 objects NOT in protected AND older than a grace window (e.g. 90d)
 ```
+
+The middle term is load-bearing: tags alone do **not** cover the long-lived
+channels that publish from non-tagged refs. Per root AGENTS.md, `nightly` is
+built on **every** `release/**` push (see `notify-release-feishu.yml`) and
+`preview` is an independent channel published under `preview/latest` — both ship
+clients carrying manifests that no git tag protects. So the GC job must discover
+manifests not only from tags but from:
+
+- every live `release/**` branch HEAD (`git for-each-ref refs/remotes/origin/release/*`),
+  which feeds the current nightly and preview builds, and
+- the manifests recorded in the published channel metadata (`nightly/latest`,
+  `preview/latest`) if those can diverge from the branch HEAD.
+
+A clip stays protected until **no** tag, live release branch, or published
+channel references it (plus the grace window).
 
 Two safety nets make this low-risk:
 
@@ -298,10 +325,18 @@ comfortably).
 - **At most one:** after two consecutive content-changing runs on the
   fork/nightly path, there is exactly one open bake PR (the rolling branch was
   reused).
-- **GC safety:** given a fixture with a release tag whose manifest references
-  clip `X` and a `main` manifest that no longer references `X`, GC's computed
-  delete set **excludes** `X`. (Falsifiable test against the GC set-computation
-  function with a fixture tag + manifest.)
+- **Release-cut does not self-retrigger:** simulate the bot's manifest commit
+  on a `release/**` branch → the release-bake workflow does **not** fire again
+  (the `paths-ignore` filter and the bot-author `if` guard both hold). Encode as
+  a workflow-trigger test: a commit touching only `data/plugin-previews/**` by
+  the bake bot produces zero new runs.
+- **GC safety (tags + live release branches):** given a fixture where clip `X` is
+  referenced by (a) a release tag, or (b) a live `release/**` branch HEAD feeding
+  nightly/preview, but **not** by the current `main` manifest, GC's computed
+  delete set **excludes** `X`. Conversely a clip referenced by none of {tag, live
+  release branch, main} and older than the grace window **is** in the delete set.
+  (Falsifiable test against the GC set-computation function with fixture
+  tags/branches + manifests.)
 
 ## Implementation slices
 
@@ -316,10 +351,13 @@ comfortably).
 
 ## Open questions
 
-1. **Immediate cleanup:** PR #4442 is still open and carries the current 24-slug
-   manifest refresh. Land it (approve + enqueue) before the new pipeline's first
-   run, or close it and let the fixed pipeline regenerate? Recommendation: land
-   #4442 so `main`'s manifest is current, then ship slice 1.
+1. **Sequencing against the live queue:** there is always a rotating set of open
+   bake-manifest PRs (e.g. #4559, #4571 right now). Before slice 1 lands, do we
+   drain whatever is open at that moment, or close them and let the fixed
+   pipeline regenerate one clean rolling PR? Recommendation: land the newest open
+   bake PR so `main`'s manifest is current, close the rest, then ship slice 1 —
+   stated in terms of "the current open bake PR at merge time" so this guidance
+   does not rot.
 2. **Optional R2-existence self-heal:** add a HEAD check so nightly can re-upload
    a clip whose hash matches but whose object is missing on R2 (script lines
    478–484)? Worth it, or rely on deterministic re-bake recoverability?
