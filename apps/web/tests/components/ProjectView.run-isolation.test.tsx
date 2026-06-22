@@ -1115,7 +1115,7 @@ describe('ProjectView conversation run isolation', () => {
     deferredSaves.forEach(({ resolve }) => resolve(true));
   });
 
-  it('falls back to exact seed messages when a persisted gap would reorder the overlay', () => {
+  it('skips seeding when a persisted gap would reorder the overlay', () => {
     const persistedUser: ChatMessage = {
       id: 'user-persisted',
       role: 'user',
@@ -1137,16 +1137,16 @@ describe('ProjectView conversation run isolation', () => {
       endedAt: 4,
     };
 
-    expect(
-      buildSeedOverlayForNewConversation(
-        [persistedUser, missingUser, persistedAssistant],
-        [persistedUser, persistedAssistant],
-      ),
-    ).toEqual({
-      seedMessages: [persistedUser, missingUser, persistedAssistant],
+    expect(buildSeedOverlayForNewConversation(
+      [persistedUser, missingUser, persistedAssistant],
+      [persistedUser, persistedAssistant],
+    )).toEqual({
+      canSeedFromConversation: false,
+      seedMessages: null,
       seedMessageOverrides: [],
       seedTrimAfterMessageId: null,
     });
+
   });
 
   it('keeps the new conversation payload compact when the visible messages update', async () => {

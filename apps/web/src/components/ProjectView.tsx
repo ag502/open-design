@@ -5199,7 +5199,8 @@ export function ProjectView({
         && messagesConversationIdRef.current === activeConversationId
         && !currentConversationStreaming
         && !currentConversationHasActiveRun
-        && (seedMessages.length > 0 || Boolean(seedOverlay.seedMessages))
+        && seedOverlay.canSeedFromConversation
+        && seedMessages.length > 0
           ? activeConversationId
           : null;
       const fresh = await createConversation(
@@ -7151,12 +7152,14 @@ export function buildSeedOverlayForNewConversation(
   visibleMessages: ChatMessage[],
   persistedMessages: ChatMessage[],
 ): {
+  canSeedFromConversation: boolean;
   seedMessages: ChatMessage[] | null;
   seedMessageOverrides: SeedConversationMessageOverride[];
   seedTrimAfterMessageId: string | null;
 } {
   if (visibleMessages.length === 0) {
     return {
+      canSeedFromConversation: true,
       seedMessages: null,
       seedMessageOverrides: [],
       seedTrimAfterMessageId: null,
@@ -7190,7 +7193,8 @@ export function buildSeedOverlayForNewConversation(
     );
   if (requiresFullReseed) {
     return {
-      seedMessages: visibleMessages,
+      canSeedFromConversation: false,
+      seedMessages: null,
       seedMessageOverrides: [],
       seedTrimAfterMessageId: null,
     };
@@ -7207,6 +7211,7 @@ export function buildSeedOverlayForNewConversation(
     return persisted && seedMessageOverrideEquals(compact, persisted) ? [] : [compact];
   });
   return {
+    canSeedFromConversation: true,
     seedMessages: null,
     seedMessageOverrides,
     seedTrimAfterMessageId,
