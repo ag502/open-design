@@ -7574,10 +7574,6 @@ function HtmlViewer({
     rendererId === 'html';
   const canShare = source !== null && isShareableArtifact;
   const canDownload = source !== null && (isShareableArtifact || isMarkdownArtifact);
-  // Treat anything we render as a deck (incl. content-detected `.slide` decks
-  // that drive the slide pager) as PPTX-eligible — not just the narrower
-  // artifact-kind/renderer signal — so the option matches when the pager shows.
-  const isDeckForExport = isDeckArtifact || effectiveDeck;
   // PPTX export is slide-based, so gate it on the EXPLICIT deck signal
   // (`isDeckArtifact`: deck renderer/kind/presentation) — NOT the `.slide` regex
   // (`effectiveDeck`/`looksLikeDeck`), which false-positives on ordinary pages
@@ -7697,16 +7693,19 @@ function HtmlViewer({
       // just because od:slide-state hasn't arrived yet (fresh open, or a deck
       // detected only from `.slide` markup that never emits slide-state). Default
       // to the first slide.
-      // Drive deck-vs-page off the EXPLICIT deck signal, not the `.slide` regex:
-      // an ordinary page with carousel/testimonial `.slide` markup must export
-      // as a full page, not as "the current card". (Same reasoning as PPTX.)
-      const deckIndex = isDeckArtifact
+      // Drive deck-vs-page off the SAME signal the viewer renders with
+      // (`effectiveDeck`): a deck-shaped artifact (incl. metadata-free `.slide`
+      // decks where prev/next/Present work) exports as a deck, and the result is
+      // consistent regardless of host (the vector-PDF fallback also uses
+      // `effectiveDeck`). PPTX stays on the narrower `isDeckArtifact` — it is
+      // deck-only and has no vector fallback to diverge from.
+      const deckIndex = effectiveDeck
         ? slideState?.active ?? htmlPreviewSlideState.get(previewStateKey)?.active ?? 0
         : undefined;
       const rendered = await exportProjectImageDataUrl({
         projectId,
         fileName: file.name,
-        deck: isDeckArtifact,
+        deck: effectiveDeck,
         ...(deckIndex != null ? { index: deckIndex } : {}),
       });
       if (rendered.ok) return rendered.snapshot;
@@ -7765,7 +7764,7 @@ function HtmlViewer({
     srcDocShellReady,
     useLazySrcDocTransport,
     useUrlLoadPreview,
-    isDeckArtifact,
+    effectiveDeck,
     slideState?.active,
     previewStateKey,
     projectId,
@@ -8911,9 +8910,11 @@ function HtmlViewer({
                             projectId,
                             fileName: file.name,
                             title: exportTitle,
-                            // Explicit deck signal — a page with carousel `.slide`
-                            // markup must export as a full page, not per-slide.
-                            deck: isDeckArtifact,
+                            // Same deck decision the viewer renders with, and the
+                            // SAME signal the vector fallback below uses — so a
+                            // given artifact exports identically with or without
+                            // a desktop host (no per-host divergence).
+                            deck: effectiveDeck,
                           });
                           if (res.ok) return;
                         }
