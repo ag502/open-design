@@ -1,0 +1,100 @@
+import type http from 'node:http';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { startServer } from '../src/server.js';
+
+// ---------------------------------------------------------------------------
+// GET /api/projects/:id/raw/* — cache revalidation behaviour.
+//
+// Covers, live preview, and screenshot export all load project HTML + its
+// fonts/CSS/images through /raw/, and (in the packaged app) the export window
+// shares the same Chromium session/cache as the web UI. These validators let
+// a second load reuse already-downloaded bytes via a 304 instead of re-fetching
+// every asset. The ETag/Last-Modified are derived from size+mtime, so any agent
+// rewrite busts the cache immediately.
+// ---------------------------------------------------------------------------
+
+describe('GET /api/projects/:id/raw/* cache revalidation', () => {
+  let server: http.Server;
+  let baseUrl: string;
+  let projectsRoot: string;
+  const projectId = 'proj-raw-cache-test';
+
+  beforeAll(async () => {
+    const started = (await startServer({ port: 0, returnServer: true })) as {
+      url: string;
+      server: http.Server;
+    };
+    baseUrl = started.url;
+    server = started.server;
+
+    projectsRoot = path.join(process.env.OD_DATA_DIR!, 'projects');
+    const dir = path.join(projectsRoot, projectId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, 'styles.css'), Buffer.from('body{color:#123456}'));
+    await writeFile(path.join(dir, 'logo.png'), Buffer.alloc(256, 0x7f));
+    await writeFile(path.join(dir, 'clip.mp4'), Buffer.alloc(512, 0x42));
+  });
+
+  afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
+
+  const rawUrl = (name: string) => `${baseUrl}/api/projects/${projectId}/raw/${name}`;
+
+  it('emits ETag, Last-Modified and Cache-Control: no-cache for a CSS asset', async () => {
+    const res = await fetch(rawUrl('styles.css'));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('etag')).toBeTruthy();
+    expect(res.headers.get('last-modified')).toBeTruthy();
+    // no-cache = always revalidate, never serve stale silently (safe for mutable files).
+    expect(res.headers.get('cache-control')).toBe('no-cache');
+  });
+
+  it('returns 304 with an empty body when If-None-Match matches', async () => {
+    const first = await fetch(rawUrl('styles.css'));
+    const etag = first.headers.get('etag')!;
+    expect(etag).toBeTruthy();
+
+    const second = await fetch(rawUrl('styles.css'), { headers: { 'If-None-Match': etag } });
+    expect(second.status).toBe(304);
+    const body = await second.text();
+    expect(body).toBe('');
+  });
+
+  it('returns 304 when If-Modified-Since is at/after the file mtime', async () => {
+    const first = await fetch(rawUrl('logo.png'));
+    const lastModified = first.headers.get('last-modified')!;
+    expect(lastModified).toBeTruthy();
+
+    const second = await fetch(rawUrl('logo.png'), { headers: { 'If-Modified-Since': lastModified } });
+    expect(second.status).toBe(304);
+  });
+
+  it('busts the cache (new ETag, full 200) after the file is rewritten', async () => {
+    const before = await fetch(rawUrl('styles.css'));
+    const oldEtag = before.headers.get('etag')!;
+
+    // Rewrite with different content+size so size/mtime — and thus the ETag — change.
+    await writeFile(
+      path.join(projectsRoot, projectId, 'styles.css'),
+      Buffer.from('body{color:#abcdef;background:#000}'),
+    );
+
+    const after = await fetch(rawUrl('styles.css'), { headers: { 'If-None-Match': oldEtag } });
+    expect(after.status).toBe(200);
+    expect(after.headers.get('etag')).not.toBe(oldEtag);
+    expect(await after.text()).toContain('#abcdef');
+  });
+
+  it('revalidates the streamed media path too (304 on matching ETag)', async () => {
+    const first = await fetch(rawUrl('clip.mp4'));
+    expect(first.status).toBe(200);
+    const etag = first.headers.get('etag')!;
+    expect(etag).toBeTruthy();
+    expect(first.headers.get('cache-control')).toBe('no-cache');
+
+    const second = await fetch(rawUrl('clip.mp4'), { headers: { 'If-None-Match': etag } });
+    expect(second.status).toBe(304);
+  });
+});

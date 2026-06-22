@@ -1990,6 +1990,36 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     res.setHeader('Content-Security-Policy', projectPreviewCsp);
   }
 
+  // Lets a browser (or the desktop export window, which shares the same Chromium
+  // session/cache as the web UI) reuse already-downloaded fonts/CSS/images
+  // across loads instead of re-fetching them every time — covers, live preview,
+  // and screenshot export all hit /raw/. The ETag/Last-Modified are derived from
+  // the file's size+mtime, so any agent rewrite changes them and busts the cache
+  // immediately; `no-cache` means "always revalidate" (never serve stale without
+  // asking), so a 304 only happens when the bytes are genuinely unchanged.
+  function setRawRevalidationHeaders(res: Response, meta: { size: number; mtime: number }): string {
+    const mtime = Math.floor(meta.mtime);
+    const etag = `W/"${meta.size.toString(16)}-${mtime.toString(16)}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Last-Modified', new Date(mtime).toUTCString());
+    res.setHeader('Cache-Control', 'no-cache');
+    return etag;
+  }
+
+  function rawRequestIsFresh(req: any, etag: string, mtimeMs: number): boolean {
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (typeof ifNoneMatch === 'string' && ifNoneMatch.split(',').some((tag) => tag.trim() === etag)) {
+      return true;
+    }
+    const ifModifiedSince = req.headers['if-modified-since'];
+    if (typeof ifModifiedSince === 'string') {
+      const since = Date.parse(ifModifiedSince);
+      // Last-Modified is second-resolution, so compare at second granularity.
+      if (Number.isFinite(since) && Math.floor(mtimeMs / 1000) * 1000 <= since) return true;
+    }
+    return false;
+  }
+
   async function sendProjectFile(
     req: any,
     res: Response,
@@ -1998,6 +2028,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     metadata?: unknown,
     beforeSend?: (mime: string) => void,
     transformFile?: (file: { mime: string; buffer: Buffer }) => Buffer | string | Promise<Buffer | string>,
+    revalidate = false,
   ) {
     const meta = await resolveProjectFilePath(
       PROJECTS_DIR,
@@ -2006,6 +2037,13 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       metadata,
     );
     beforeSend?.(meta.mime);
+
+    if (revalidate) {
+      const etag = setRawRevalidationHeaders(res, meta);
+      if (rawRequestIsFresh(req, etag, meta.mtime)) {
+        return res.status(304).end();
+      }
+    }
 
     if (meta.mime.startsWith('video/') || meta.mime.startsWith('audio/')) {
       res.setHeader('Accept-Ranges', 'bytes');
@@ -2377,6 +2415,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
           }
           return transformed;
         },
+        true, // revalidate: emit ETag/Last-Modified so covers/preview/export reuse cached assets
       );
     } catch (err: any) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;

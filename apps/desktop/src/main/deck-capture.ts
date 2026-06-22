@@ -113,14 +113,14 @@ export async function renderDeckSlides(
   }
 }
 
-// Shows exactly slide `i` and lets the style change settle for two frames.
+// Shows exactly slide `i` and lets the style change settle for two frames. The
+// style toggle AND the two-frame settle happen in ONE executeJavaScript round
+// trip (showSlide returns the settle Promise, which executeJavaScript awaits) —
+// halving the main<->renderer hops per slide vs. a separate settle call, which
+// matters for long decks where the loop dominates.
 async function showDeckSlide(window: BrowserWindow, i: number): Promise<void> {
   await window.webContents.executeJavaScript(
     `(${showSlide.toString()})(${JSON.stringify(SLIDE_SELECTOR)}, ${i})`,
-    true,
-  );
-  await window.webContents.executeJavaScript(
-    "new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(function(){r(true)})})})",
     true,
   );
 }
@@ -501,7 +501,9 @@ function pinDeckStage(): void {
   document.head.appendChild(style);
 }
 
-function showSlide(slideSelector: string, index: number): void {
+// Returns a Promise that resolves after the style change has settled for two
+// animation frames, so the caller can show + wait in a single round trip.
+function showSlide(slideSelector: string, index: number): Promise<boolean> {
   const slides = Array.prototype.slice
     .call(document.querySelectorAll(slideSelector))
     .filter((el) => !(el as HTMLElement).closest(".mini-slide, .overview, .notes-overlay, .thumb"));
@@ -520,5 +522,8 @@ function showSlide(slideSelector: string, index: number): void {
     el.style.pointerEvents = on ? "auto" : "none";
     el.style.zIndex = on ? "999" : "0";
     activeClasses.forEach((c) => el.classList.toggle(c, on));
+  });
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
   });
 }
