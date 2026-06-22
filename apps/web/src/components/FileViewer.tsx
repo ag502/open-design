@@ -5018,6 +5018,7 @@ function HtmlViewer({
   // cancelled, whether it ends in a save or a modal dismiss.
   const templateExportResolvedRef = useRef(false);
   const screenshotInFlightRef = useRef(false);
+  const imageExportInFlightRef = useRef(false);
   const [exportToast, setExportToast] = useState<
     { message: string; tone: 'default' | 'success' | 'error' | 'loading' } | null
   >(null);
@@ -7869,6 +7870,12 @@ function HtmlViewer({
   };
 
   async function handleImageExportSave() {
+    // Single-shot guard: closing the modal is async, so a fast double-click /
+    // Enter-repeat on Save could otherwise enqueue two concurrent exports
+    // (duplicate captures, downloads, and result bookkeeping) before the first
+    // re-render removes the button.
+    if (imageExportInFlightRef.current) return;
+    imageExportInFlightRef.current = true;
     // Unify with the PPTX/PDF flow: close the modal and surface progress through
     // the same portaled, viewport-centered export toast instead of an in-modal
     // spinner + a separate (non-portaled, off-center) saved toast.
@@ -7923,6 +7930,8 @@ function HtmlViewer({
       const message = err instanceof Error && err.message ? err.message : t('fileViewer.exportImageFailed');
       setExportToast({ message, tone: 'error' });
       fireImageExportResult('failed', err instanceof Error ? err.name : 'UNKNOWN');
+    } finally {
+      imageExportInFlightRef.current = false;
     }
   }
   const creationSortedSideComments = useMemo(
