@@ -16,6 +16,7 @@ export interface BuildDeckRenderInputOptions {
   daemonUrl: string;
   fileName: string;
   index?: number;
+  pageImageFormat?: 'png' | 'jpeg';
   projectId: string;
   projectsRoot: string;
   scale?: number;
@@ -46,46 +47,52 @@ export async function buildDeckRenderInput(
       baseHref: rawBaseHref(options.daemonUrl, options.projectId, options.fileName),
       html: file.buffer.toString('utf8'),
       ...(options.index == null ? {} : { index: options.index }),
+      ...(options.pageImageFormat == null ? {} : { pageImageFormat: options.pageImageFormat }),
       ...(options.scale == null ? {} : { scale: options.scale }),
     },
   };
 }
 
+export interface SlideImage {
+  buffer: Buffer;
+  jpeg: boolean;
+}
+
 /**
- * Decodes the `data:image/png;base64,...` URLs the desktop renderer returns
- * into raw PNG buffers. Rejects anything that is not a base64 PNG data URL so
- * a malformed renderer response surfaces as an export failure rather than a
- * corrupt file.
+ * Decodes the `data:image/(png|jpeg);base64,...` URLs the desktop renderer
+ * returns into raw image buffers tagged with their format. Rejects anything that
+ * is not a base64 PNG/JPEG data URL so a malformed renderer response surfaces as
+ * an export failure rather than a corrupt file.
  */
-export function decodeSlideDataUrls(urls: string[]): Buffer[] {
+export function decodeSlideDataUrls(urls: string[]): SlideImage[] {
   return urls.map((url, index) => {
-    const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(url ?? '');
+    const match = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(url ?? '');
     if (!match) {
-      throw new Error(`slide ${index + 1} is not a base64 PNG data URL`);
+      throw new Error(`slide ${index + 1} is not a base64 PNG/JPEG data URL`);
     }
-    return Buffer.from(match[1] ?? '', 'base64');
+    return { buffer: Buffer.from(match[2] ?? '', 'base64'), jpeg: match[1] === 'jpeg' };
   });
 }
 
 /**
- * Assembles per-slide PNGs into a screenshot-based .pptx — one full-bleed image
- * per 16:9 slide. The slides are pixel-perfect images (not editable text), the
- * "exactly what you see" export mode. Returns the .pptx bytes.
+ * Assembles per-slide images into a screenshot-based .pptx — one full-bleed
+ * image per 16:9 slide. The slides are pixel-perfect images (not editable text),
+ * the "exactly what you see" export mode. Returns the .pptx bytes.
  */
 export async function buildScreenshotPptx(
-  pngs: Buffer[],
+  images: SlideImage[],
   opts: { title?: string } = {},
 ): Promise<Buffer> {
-  if (pngs.length === 0) throw new Error('no slides to export');
+  if (images.length === 0) throw new Error('no slides to export');
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_16x9';
   pptx.author = 'Open Design';
   if (opts.title) pptx.title = opts.title;
   pptx.subject = 'Screenshot-based PPTX';
-  for (const png of pngs) {
+  for (const img of images) {
     const slide = pptx.addSlide();
     slide.addImage({
-      data: `data:image/png;base64,${png.toString('base64')}`,
+      data: `data:image/${img.jpeg ? 'jpeg' : 'png'};base64,${img.buffer.toString('base64')}`,
       x: 0,
       y: 0,
       w: '100%',
@@ -97,14 +104,15 @@ export async function buildScreenshotPptx(
 }
 
 /**
- * Assembles per-slide PNGs into a screenshot-based .pdf — one page per slide,
+ * Assembles per-slide images into a screenshot-based .pdf — one page per slide,
  * each page sized to its image. Pixel-perfect, raster (not selectable text).
+ * Full pages render as JPEG (small); deck slides as PNG (crisp).
  */
-export async function buildScreenshotPdf(pngs: Buffer[]): Promise<Buffer> {
-  if (pngs.length === 0) throw new Error('no slides to export');
+export async function buildScreenshotPdf(images: SlideImage[]): Promise<Buffer> {
+  if (images.length === 0) throw new Error('no slides to export');
   const pdf = await PDFDocument.create();
-  for (const png of pngs) {
-    const image = await pdf.embedPng(png);
+  for (const img of images) {
+    const image = img.jpeg ? await pdf.embedJpg(img.buffer) : await pdf.embedPng(img.buffer);
     const page = pdf.addPage([image.width, image.height]);
     page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
   }

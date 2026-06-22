@@ -11,15 +11,27 @@ const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const PNG_DATA_URL = `data:image/png;base64,${PNG_BASE64}`;
 
+// 1x1 JPEG.
+const JPEG_DATA_URL =
+  'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAAv/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AfwD/2Q==';
+
 describe('decodeSlideDataUrls', () => {
-  it('decodes base64 PNG data URLs into buffers', () => {
-    const buf = decodeSlideDataUrls([PNG_DATA_URL])[0]!;
-    expect(Buffer.isBuffer(buf)).toBe(true);
+  it('decodes base64 PNG data URLs into tagged buffers', () => {
+    const img = decodeSlideDataUrls([PNG_DATA_URL])[0]!;
+    expect(Buffer.isBuffer(img.buffer)).toBe(true);
+    expect(img.jpeg).toBe(false);
     // PNG magic number.
-    expect(buf.subarray(0, 4).toString('hex')).toBe('89504e47');
+    expect(img.buffer.subarray(0, 4).toString('hex')).toBe('89504e47');
   });
 
-  it('rejects a non-PNG data URL', () => {
+  it('decodes base64 JPEG data URLs and tags them as jpeg', () => {
+    const img = decodeSlideDataUrls([JPEG_DATA_URL])[0]!;
+    expect(img.jpeg).toBe(true);
+    // JPEG SOI marker.
+    expect(img.buffer.subarray(0, 2).toString('hex')).toBe('ffd8');
+  });
+
+  it('rejects a non-image data URL', () => {
     expect(() => decodeSlideDataUrls(['data:text/plain;base64,aGk='])).toThrow();
   });
 

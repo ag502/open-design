@@ -451,6 +451,9 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       if (format === 'image' && typeof index === 'number' && Number.isInteger(index) && index >= 0) {
         renderOptions.index = index;
       }
+      // Full pages render as JPEG for PDF (small files); image export keeps PNG
+      // (lossless source the client re-encodes to the user's chosen format).
+      if (format === 'pdf') renderOptions.pageImageFormat = 'jpeg';
       const { input, title: resolvedTitle, defaultFilename } =
         await buildDeckRenderInput(renderOptions);
       const rendered = await desktopSlideRenderer(input);
@@ -472,23 +475,24 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
           'this artifact is not a slide deck — export it as PDF or an image instead',
         );
       }
-      const pngs = decodeSlideDataUrls(rendered.slides);
+      const images = decodeSlideDataUrls(rendered.slides);
       let buffer: Buffer;
       let contentType: string;
       let ext: string;
       if (format === 'pptx') {
-        buffer = await buildScreenshotPptx(pngs, { title: resolvedTitle });
+        buffer = await buildScreenshotPptx(images, { title: resolvedTitle });
         contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
         ext = 'pptx';
       } else if (format === 'pdf') {
-        buffer = await buildScreenshotPdf(pngs);
+        buffer = await buildScreenshotPdf(images);
         contentType = 'application/pdf';
         ext = 'pdf';
       } else {
-        // image: a single PNG (the requested slide, or the whole page).
-        buffer = pngs[0]!;
-        contentType = 'image/png';
-        ext = 'png';
+        // image: a single image (the requested slide, or the whole page).
+        const first = images[0]!;
+        buffer = first.buffer;
+        contentType = first.jpeg ? 'image/jpeg' : 'image/png';
+        ext = first.jpeg ? 'jpg' : 'png';
       }
       const filename = `${defaultFilename}.${ext}`;
       const asciiFallback =

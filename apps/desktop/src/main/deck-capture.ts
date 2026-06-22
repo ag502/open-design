@@ -72,7 +72,7 @@ export async function renderDeckSlides(
     // deck. Capture the whole document at its natural size instead of forcing a
     // 1920x1080 slide. This is what image export of a non-deck artifact wants.
     if (!Number.isInteger(count) || count < 1) {
-      return await capturePage(window);
+      return await capturePage(window, input.pageImageFormat === "jpeg");
     }
 
     // Deck: pin the 1920x1080 stage, then render every slide (or just the one
@@ -131,7 +131,7 @@ const FALLBACK_MAX_TEXTURE = 8192;
  *     or comes back blank below the fold (scroll-driven pages). RAM-bound, so it
  *     handles arbitrarily long pages; capped by a memory budget.
  */
-async function capturePage(window: BrowserWindow): Promise<DesktopRenderSlidesResult> {
+async function capturePage(window: BrowserWindow, jpeg: boolean): Promise<DesktopRenderSlidesResult> {
   // Lay the document out at a desktop width first so width-dependent content
   // (responsive layouts) renders the way a desktop visitor sees it.
   window.setContentSize(PAGE_W, PAGE_VIEW_H);
@@ -177,13 +177,14 @@ async function capturePage(window: BrowserWindow): Promise<DesktopRenderSlidesRe
         // scale:1 — the window DPR already provides the pixel scale, so this
         // avoids double-scaling (DPR x clip.scale).
         const shot = (await dbg.sendCommand("Page.captureScreenshot", {
-          format: "png",
           captureBeyondViewport: true,
           clip: { x: 0, y: 0, width: docW, height: docH, scale: 1 },
+          ...(jpeg ? { format: "jpeg", quality: 82 } : { format: "png" }),
         })) as { data: string };
+        const mime = jpeg ? "image/jpeg" : "image/png";
         return {
           ok: true,
-          slides: [`data:image/png;base64,${shot.data}`],
+          slides: [`data:${mime};base64,${shot.data}`],
           width: outWpx,
           height: outHpx,
           mode: "page",
@@ -191,7 +192,7 @@ async function capturePage(window: BrowserWindow): Promise<DesktopRenderSlidesRe
       }
       // Otherwise fall through to scroll-segment (too tall, or blank below fold).
       const cappedLogicalH = Math.min(docH, Math.floor(ramMaxOutH / dpr));
-      return await scrollSegmentStitch(window, cappedLogicalH);
+      return await scrollSegmentStitch(window, cappedLogicalH, jpeg);
     }
   } catch {
     // CDP path failed — fall through to scroll-segment.
@@ -214,7 +215,7 @@ async function capturePage(window: BrowserWindow): Promise<DesktopRenderSlidesRe
     PAGE_VIEW_H,
     Math.min(Number.isFinite(measured) ? measured : PAGE_VIEW_H, Math.floor(ramMaxOutH / dpr)),
   );
-  return await scrollSegmentStitch(window, totalLogical);
+  return await scrollSegmentStitch(window, totalLogical, jpeg);
 }
 
 // Window device-pixel-ratio (2 on retina). capturePage / captureScreenshot both
@@ -296,6 +297,7 @@ async function isBelowFoldBlank(
 async function scrollSegmentStitch(
   window: BrowserWindow,
   totalLogical: number,
+  jpeg: boolean,
 ): Promise<DesktopRenderSlidesResult> {
   window.setContentSize(PAGE_W, PAGE_VIEW_H);
   await nextFrames(window);
@@ -339,12 +341,12 @@ async function scrollSegmentStitch(
     if (target >= maxScroll) break;
   }
 
-  const png = nativeImage
-    .createFromBitmap(bgra ?? Buffer.alloc(4), { width: W || 1, height: H || 1 })
-    .toPNG();
+  const img = nativeImage.createFromBitmap(bgra ?? Buffer.alloc(4), { width: W || 1, height: H || 1 });
+  const bytes = jpeg ? img.toJPEG(82) : img.toPNG();
+  const mime = jpeg ? "image/jpeg" : "image/png";
   return {
     ok: true,
-    slides: [`data:image/png;base64,${png.toString("base64")}`],
+    slides: [`data:${mime};base64,${bytes.toString("base64")}`],
     width: W,
     height: H,
     mode: "page",
