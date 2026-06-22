@@ -233,7 +233,7 @@ async function capturePage(window: BrowserWindow, jpeg: boolean): Promise<Deskto
       // the machine's real limit on BOTH axes and within the RAM budget.
       const fitsSinglePass =
         outWpx <= maxTexture && outHpx <= maxTexture && outHpx <= ramMaxOutH;
-      if (fitsSinglePass && !(await isBelowFoldBlank(dbg, docW, docH))) {
+      if (fitsSinglePass && !(await isScrollBound(window, dbg, docW, docH))) {
         // scale:1 — the window DPR already provides the pixel scale, so this
         // avoids double-scaling (DPR x clip.scale).
         const shot = (await dbg.sendCommand("Page.captureScreenshot", {
@@ -326,45 +326,50 @@ async function queryMaxTextureSize(window: BrowserWindow): Promise<number> {
   }
 }
 
-// Probes whether everything below the first viewport came back as one flat
-// (near-)uniform color — the signature of a scroll-driven page that renders
-// blank below the fold under captureBeyondViewport. Uses a tiny low-res capture
-// so we never decode the full image.
-async function isBelowFoldBlank(
+// Detects whether the page is scroll-driven (content only paints when scrolled
+// into view) — the case where captureBeyondViewport comes back blank in the
+// middle. Compares the document's MIDDLE band rendered two ways:
+//   A = scrolled into view (live viewport) — the real content
+//   B = captureBeyondViewport at scroll 0 — what the one-shot would produce
+// If they differ a lot, the one-shot would be wrong for this page -> stitch.
+// This does NOT rely on color, so a legitimately dark design (where A == B,
+// both dark) is correctly NOT flagged, unlike a flat-color heuristic.
+async function isScrollBound(
+  window: BrowserWindow,
   dbg: Electron.Debugger,
   docW: number,
   docH: number,
 ): Promise<boolean> {
-  const fold = PAGE_VIEW_H;
-  if (docH <= fold * 2) return false; // too short for below-fold blanking to matter
+  const vh = PAGE_VIEW_H;
+  if (docH <= vh * 2) return false; // too short to have a hidden middle
+  const mid = Math.max(0, Math.floor(docH / 2 - vh / 2));
   try {
-    const probeScale = 0.05;
+    // A: scroll the middle into view and capture the live viewport.
+    await window.webContents.executeJavaScript(
+      `(function(){window.scrollTo(0, ${mid});return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(function(){r(true)},150)})})})})()`,
+      true,
+    );
+    const a = (await window.webContents.capturePage({ x: 0, y: 0, width: PAGE_W, height: vh })).toBitmap();
+    // B: the same document band as the one-shot renders it (scroll-independent).
+    await window.webContents.executeJavaScript("window.scrollTo(0,0); true", true);
     const shot = (await dbg.sendCommand("Page.captureScreenshot", {
       format: "png",
       captureBeyondViewport: true,
-      clip: { x: 0, y: fold, width: docW, height: docH - fold, scale: probeScale },
+      clip: { x: 0, y: mid, width: docW, height: vh, scale: 1 },
     })) as { data: string };
-    // Decode the tiny probe with Electron's native decoder (well within Skia
-    // limits at this size); toBitmap() returns BGRA — channel order is irrelevant
-    // for a uniformity check.
-    const data = nativeImage.createFromBuffer(Buffer.from(shot.data, "base64")).toBitmap();
-    if (data.length < 16) return false;
-    const c0 = data[0]!;
-    const c1 = data[1]!;
-    const c2 = data[2]!;
-    let uniform = 0;
-    const total = data.length / 4;
-    for (let i = 0; i < data.length; i += 4) {
-      if (
-        Math.abs(data[i]! - c0) <= 6 &&
-        Math.abs(data[i + 1]! - c1) <= 6 &&
-        Math.abs(data[i + 2]! - c2) <= 6
-      ) {
-        uniform++;
-      }
+    const b = nativeImage.createFromBuffer(Buffer.from(shot.data, "base64")).toBitmap();
+    const n = Math.min(a.length, b.length);
+    if (n < 16) return false;
+    let diff = 0;
+    let cnt = 0;
+    for (let i = 0; i + 2 < n; i += 4 * 97) {
+      diff += Math.abs(a[i]! - b[i]!) + Math.abs(a[i + 1]! - b[i + 1]!) + Math.abs(a[i + 2]! - b[i + 2]!);
+      cnt++;
     }
-    // >92% of the below-fold area is one flat color => it did not render.
-    return uniform / total > 0.92;
+    const meanDiff = cnt ? diff / (cnt * 3) : 0;
+    // ~9% mean per-channel difference => the middle renders differently when
+    // scrolled vs one-shot => scroll-driven => use stitch.
+    return meanDiff > 24;
   } catch {
     return false;
   }
