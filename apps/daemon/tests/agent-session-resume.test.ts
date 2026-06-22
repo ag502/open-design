@@ -14,7 +14,9 @@ import {
 import {
   computeIncludeStable,
   hashStableInstructions,
+  isAgentResumeFailure,
   isClaudeResumeFailure,
+  isCodexResumeFailure,
   persistCapturedAgentSession,
   resolveAgentResumeContext,
 } from '../src/agent-session-resume.js';
@@ -240,5 +242,52 @@ describe('isClaudeResumeFailure', () => {
       session_id: 'live-session',
     });
     expect(isClaudeResumeFailure(success)).toBe(false);
+  });
+});
+
+describe('isCodexResumeFailure', () => {
+  it('matches the codex "no rollout found" resume error', () => {
+    expect(
+      isCodexResumeFailure(
+        'Error: thread/resume: thread/resume failed: no rollout found for thread id 019eef4f-7409-7c82-bebe-30504eed3959',
+      ),
+    ).toBe(true);
+  });
+
+  it('matches the generic thread/resume-failed signature', () => {
+    expect(isCodexResumeFailure('thread/resume failed: something else')).toBe(true);
+  });
+
+  it('ignores unrelated codex errors and empty input', () => {
+    expect(isCodexResumeFailure('stream disconnected before first event')).toBe(false);
+    expect(isCodexResumeFailure('rate limit exceeded')).toBe(false);
+    expect(isCodexResumeFailure('')).toBe(false);
+  });
+});
+
+describe('isAgentResumeFailure dispatch', () => {
+  it('routes codex to the rollout-not-found detector', () => {
+    expect(
+      isAgentResumeFailure('codex', 'no rollout found for thread id abc'),
+    ).toBe(true);
+    // A Claude-style signature must NOT count as a codex resume failure.
+    expect(
+      isAgentResumeFailure('codex', 'No conversation found with session ID: abc'),
+    ).toBe(false);
+  });
+
+  it('routes claude (and unknown resume-capable agents) to the Claude detector', () => {
+    expect(
+      isAgentResumeFailure('claude', 'No conversation found with session ID: abc'),
+    ).toBe(true);
+    // codex prose is not a Claude resume failure.
+    expect(
+      isAgentResumeFailure('claude', 'no rollout found for thread id abc'),
+    ).toBe(false);
+  });
+
+  it('never reports a failure for empty output', () => {
+    expect(isAgentResumeFailure('codex', '')).toBe(false);
+    expect(isAgentResumeFailure('claude', '')).toBe(false);
   });
 });

@@ -153,3 +153,33 @@ export function isClaudeResumeFailure(text: string): boolean {
   if (CLAUDE_RESUME_FAILURE_PATTERNS.some((re) => re.test(text))) return true;
   return hasClaudeResumeFailureResultEvent(text);
 }
+
+// Signature codex prints when `exec resume <thread_id>` targets a thread whose
+// rollout file is gone (pruned, ~/.codex/sessions cleared, machine moved):
+//   Error: thread/resume: thread/resume failed: no rollout found for thread id <id>
+// Verified against the installed Codex CLI. Like the Claude case this fails
+// locally before any model call, so clearing the stale handle and re-seeding
+// the transcript next turn is the correct, lossless recovery.
+const CODEX_RESUME_FAILURE_PATTERNS: RegExp[] = [
+  /no rollout found for thread id/i,
+  /thread\/resume failed/i,
+];
+
+/** True when codex CLI output indicates a resume target thread is missing. */
+export function isCodexResumeFailure(text: string): boolean {
+  if (!text) return false;
+  return CODEX_RESUME_FAILURE_PATTERNS.some((re) => re.test(text));
+}
+
+/**
+ * Per-agent dispatch for "the session/thread I asked to resume is gone".
+ * Generalizes the resume-fallback so every `resumesSessionViaCli` adapter
+ * routes through one decision point in server.ts. Unknown agents return false
+ * (no fallback) — a new resume-capable adapter must opt in here explicitly.
+ */
+export function isAgentResumeFailure(agentId: string, text: string): boolean {
+  if (!text) return false;
+  if (agentId === 'codex') return isCodexResumeFailure(text);
+  // claude + codebuddy share Claude Code's stream-json result shape.
+  return isClaudeResumeFailure(text);
+}

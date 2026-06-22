@@ -675,7 +675,16 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
   }
 
   if (obj.type === 'thread.started') {
-    onEvent({ type: 'status', label: 'initializing' });
+    // `thread_id` is Codex's own session handle (capture-style resume). Surface
+    // it on the status event so the daemon can persist it to `agent_sessions`
+    // and replay it as `exec resume <thread_id>` on the next turn. Codex emits
+    // this both for a fresh `exec` and for `exec resume` (echoing the resumed
+    // id), so it is a stable capture point either way.
+    const threadId =
+      typeof obj.thread_id === 'string' && obj.thread_id.length > 0
+        ? obj.thread_id
+        : null;
+    onEvent({ type: 'status', label: 'initializing', sessionId: threadId });
     return true;
   }
 
