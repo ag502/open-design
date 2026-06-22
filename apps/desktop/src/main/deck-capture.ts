@@ -17,10 +17,15 @@ const SLIDE_H = 1080;
 const HIDE_CHROME_SELECTOR =
   ".progress-bar, .notes-overlay, .overview, .notes, aside.notes, .speaker-notes, .deck-nav, .deck-hint, .deck-counter";
 
-// Real deck slides only. runtime.js clones zero-size `.slide` nodes into
-// `.mini-slide` for presenter mode; capturing those would emit blank pages, so
-// we scope to direct children of the deck root.
-const SLIDE_SELECTOR = ".deck > .slide, body > .slide";
+// All `.slide` elements anywhere in the document — decks nest them differently
+// (`.deck > .slide`, `.deck-viewport > .deck-stage > .slide`, etc.). Presenter-
+// mode clones (`.mini-slide .slide`, `.overview .slide`) are filtered out in the
+// page (see realSlidesExpr) rather than via a rigid direct-child selector, which
+// missed nested decks.
+const SLIDE_SELECTOR = ".slide";
+// JS expression (used inside executeJavaScript) returning the real slides.
+const REAL_SLIDES_JS =
+  "Array.prototype.slice.call(document.querySelectorAll('.slide')).filter(function(el){return !el.closest('.mini-slide, .overview, .notes-overlay, .thumb')})";
 
 /**
  * Renders an HTML deck to one PNG per slide using a hidden Electron window.
@@ -474,7 +479,15 @@ function prepareDeck(slideSelector: string, hideSelector: string): number {
   document.querySelectorAll(hideSelector).forEach((el) => {
     (el as HTMLElement).style.setProperty("display", "none", "important");
   });
-  return document.querySelectorAll(slideSelector).length;
+  // Freeze animations/transitions so each slide (and its reveal-on-show inner
+  // elements, e.g. `.slide.visible .reveal`) reaches its final state instantly.
+  const s = document.createElement("style");
+  s.textContent =
+    "*,*::before,*::after{animation-duration:0s!important;animation-delay:0s!important;transition-duration:0s!important;transition-delay:0s!important}";
+  (document.head || document.documentElement).appendChild(s);
+  return Array.prototype.slice
+    .call(document.querySelectorAll(slideSelector))
+    .filter((el) => !(el as HTMLElement).closest(".mini-slide, .overview, .notes-overlay, .thumb")).length;
 }
 
 // Deck-only: pin to an exact 1920x1080 stage so each slide captures
@@ -489,14 +502,23 @@ function pinDeckStage(): void {
 }
 
 function showSlide(slideSelector: string, index: number): void {
-  const slides = Array.from(document.querySelectorAll(slideSelector));
+  const slides = Array.prototype.slice
+    .call(document.querySelectorAll(slideSelector))
+    .filter((el) => !(el as HTMLElement).closest(".mini-slide, .overview, .notes-overlay, .thumb"));
+  // Cover the common deck "active slide" conventions so the deck's own CSS shows
+  // the slide (incl. visibility:hidden->visible and reveal animations), plus
+  // inline overrides as a backstop for decks that hide via opacity/visibility.
+  const activeClasses = ["active", "visible", "is-active", "current"];
   slides.forEach((node, k) => {
     const el = node as HTMLElement;
+    const on = k === index;
     el.style.transition = "none";
     el.style.animation = "none";
-    el.style.opacity = k === index ? "1" : "0";
+    el.style.opacity = on ? "1" : "0";
+    el.style.visibility = on ? "visible" : "hidden";
     el.style.transform = "none";
-    el.style.pointerEvents = k === index ? "auto" : "none";
-    el.style.zIndex = k === index ? "999" : "0";
+    el.style.pointerEvents = on ? "auto" : "none";
+    el.style.zIndex = on ? "999" : "0";
+    activeClasses.forEach((c) => el.classList.toggle(c, on));
   });
 }

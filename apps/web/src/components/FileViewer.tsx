@@ -7450,8 +7450,12 @@ function HtmlViewer({
     rendererId === 'html';
   const canShare = source !== null && isShareableArtifact;
   const canDownload = source !== null && (isShareableArtifact || isMarkdownArtifact);
-  const canPptx = canShare && isDeckArtifact && Boolean(onExportAsPptx) && !streaming;
-  const showPptxExport = canShare && isDeckArtifact;
+  // Treat anything we render as a deck (incl. content-detected `.slide` decks
+  // that drive the slide pager) as PPTX-eligible — not just the narrower
+  // artifact-kind/renderer signal — so the option matches when the pager shows.
+  const isDeckForExport = isDeckArtifact || effectiveDeck;
+  const canPptx = canShare && isDeckForExport && Boolean(onExportAsPptx) && !streaming;
+  const showPptxExport = canShare && isDeckForExport;
   const showMarkdownExport = source !== null && isMarkdownArtifact;
   const showImageExport = canShare;
 
