@@ -5190,7 +5190,6 @@ export function ProjectView({
         ? serverMessagesByConversationRef.current.get(activeConversationId) ?? []
         : [];
       const seedOverlay = buildSeedOverlayForNewConversation(
-        messages,
         seedMessages,
         persistedSeedMessages,
       );
@@ -5200,7 +5199,7 @@ export function ProjectView({
         && messagesConversationIdRef.current === activeConversationId
         && !currentConversationStreaming
         && !currentConversationHasActiveRun
-        && seedMessages.length > 0
+        && (seedMessages.length > 0 || Boolean(seedOverlay.seedMessages))
           ? activeConversationId
           : null;
       const fresh = await createConversation(
@@ -5209,6 +5208,9 @@ export function ProjectView({
         seedFromConversationId
           ? {
               seedFromConversationId,
+              ...(seedOverlay.seedMessages
+                ? { seedMessages: seedOverlay.seedMessages }
+                : {}),
               ...(seedOverlay.seedTrimAfterMessageId
                 ? { seedTrimAfterMessageId: seedOverlay.seedTrimAfterMessageId }
                 : {}),
@@ -7096,20 +7098,23 @@ export function finalizeActiveAssistantMessagesOnStop(
   return { messages: next, finalized };
 }
 
-function getSeedableMessagesForNewConversation(messages: ChatMessage[]): ChatMessage[] {
+export function getSeedableMessagesForNewConversation(messages: ChatMessage[]): ChatMessage[] {
   if (messages.length < 2) return messages;
   let failedIndex = messages.length - 1;
   const lastMessage = messages[failedIndex];
   if (
     lastMessage?.role !== 'assistant'
-    || lastMessage.runStatus !== 'failed'
+    || (lastMessage.runStatus !== 'failed' && lastMessage.runStatus !== 'canceled')
   ) {
     return messages;
   }
   while (
     failedIndex > 0
     && messages[failedIndex - 1]?.role === 'assistant'
-    && messages[failedIndex - 1]?.runStatus === 'failed'
+    && (
+      messages[failedIndex - 1]?.runStatus === 'failed'
+      || messages[failedIndex - 1]?.runStatus === 'canceled'
+    )
   ) {
     failedIndex -= 1;
   }
@@ -7142,16 +7147,17 @@ function seedMessageOverrideEquals(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function buildSeedOverlayForNewConversation(
-  sourceMessages: ChatMessage[],
+export function buildSeedOverlayForNewConversation(
   visibleMessages: ChatMessage[],
   persistedMessages: ChatMessage[],
 ): {
+  seedMessages: ChatMessage[] | null;
   seedMessageOverrides: SeedConversationMessageOverride[];
   seedTrimAfterMessageId: string | null;
 } {
   if (visibleMessages.length === 0) {
     return {
+      seedMessages: null,
       seedMessageOverrides: [],
       seedTrimAfterMessageId: null,
     };
@@ -7159,21 +7165,38 @@ function buildSeedOverlayForNewConversation(
   const persistedById = new Map(
     persistedMessages.map((message) => [message.id, compactSeedMessageOverride(message)]),
   );
-  const isTrimmedVisiblePrefix =
-    visibleMessages.length < sourceMessages.length
-    && visibleMessages.every((message, index) => sourceMessages[index]?.id === message.id);
-  const isTrimmedPersistedPrefix =
-    visibleMessages.length < persistedMessages.length
-    && visibleMessages.every((message, index) => persistedMessages[index]?.id === message.id);
   let persistedRetainedPrefixLength = 0;
-  for (let index = visibleMessages.length - 1; index >= 0; index -= 1) {
-    if (persistedMessages[index]?.id === visibleMessages[index]?.id) {
-      persistedRetainedPrefixLength = index + 1;
-      break;
-    }
+  while (
+    persistedRetainedPrefixLength < visibleMessages.length
+    && persistedRetainedPrefixLength < persistedMessages.length
+    && visibleMessages[persistedRetainedPrefixLength]?.id === persistedMessages[persistedRetainedPrefixLength]?.id
+  ) {
+    persistedRetainedPrefixLength += 1;
+  }
+  const persistedIdsAfterPrefix = new Set(
+    persistedMessages
+      .slice(persistedRetainedPrefixLength)
+      .map((message) => message.id),
+  );
+  const hasPersistedGapInVisibleTail = visibleMessages
+    .slice(persistedRetainedPrefixLength)
+    .some((message) => persistedIdsAfterPrefix.has(message.id));
+  const requiresFullReseed =
+    hasPersistedGapInVisibleTail
+    || (
+      persistedMessages.length > 0
+      && persistedRetainedPrefixLength === 0
+      && visibleMessages.length > 0
+    );
+  if (requiresFullReseed) {
+    return {
+      seedMessages: visibleMessages,
+      seedMessageOverrides: [],
+      seedTrimAfterMessageId: null,
+    };
   }
   const seedTrimAfterMessageId =
-    isTrimmedVisiblePrefix || isTrimmedPersistedPrefix
+    persistedRetainedPrefixLength < persistedMessages.length
       ? (persistedRetainedPrefixLength > 0
           ? persistedMessages[persistedRetainedPrefixLength - 1]?.id ?? null
           : null)
@@ -7184,6 +7207,7 @@ function buildSeedOverlayForNewConversation(
     return persisted && seedMessageOverrideEquals(compact, persisted) ? [] : [compact];
   });
   return {
+    seedMessages: null,
     seedMessageOverrides,
     seedTrimAfterMessageId,
   };

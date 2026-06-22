@@ -4,7 +4,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectView, mergeSavedPreviewComment } from '../../src/components/ProjectView';
+import {
+  buildSeedOverlayForNewConversation,
+  getSeedableMessagesForNewConversation,
+  ProjectView,
+  mergeSavedPreviewComment,
+} from '../../src/components/ProjectView';
 import type {
   AgentInfo,
   AppConfig,
@@ -883,6 +888,37 @@ describe('ProjectView conversation run isolation', () => {
     );
   });
 
+  it('trims a trailing canceled turn from new-conversation seeds', () => {
+    const successfulUser: ChatMessage = {
+      id: 'user-success',
+      role: 'user',
+      content: 'Keep the editorial grid and muted palette.',
+      createdAt: 1,
+    };
+    const canceledUser: ChatMessage = {
+      id: 'user-canceled',
+      role: 'user',
+      content: 'Add a pricing section beneath the hero.',
+      createdAt: 3,
+    };
+    const canceledAssistant: ChatMessage = {
+      id: 'assistant-canceled',
+      role: 'assistant',
+      content: 'Partial pricing section draft',
+      createdAt: 4,
+      runStatus: 'canceled',
+    };
+
+    expect(
+      getSeedableMessagesForNewConversation([
+        successfulUser,
+        succeededAssistant,
+        canceledUser,
+        canceledAssistant,
+      ]),
+    ).toEqual([successfulUser, succeededAssistant]);
+  });
+
   it('keeps failed-tail trimming when the visible conversation outruns the cached server snapshot', async () => {
     const successfulUser: ChatMessage = {
       id: 'user-success',
@@ -1063,7 +1099,6 @@ describe('ProjectView conversation run isolation', () => {
       undefined,
       {
         seedFromConversationId: 'conv-a',
-        seedTrimAfterMessageId: persistedAssistant.id,
         seedMessageOverrides: expect.arrayContaining([
           expect.objectContaining({
             role: 'user',
@@ -1078,6 +1113,40 @@ describe('ProjectView conversation run isolation', () => {
     );
 
     deferredSaves.forEach(({ resolve }) => resolve(true));
+  });
+
+  it('falls back to exact seed messages when a persisted gap would reorder the overlay', () => {
+    const persistedUser: ChatMessage = {
+      id: 'user-persisted',
+      role: 'user',
+      content: 'Keep the editorial grid and muted palette.',
+      createdAt: 1,
+    };
+    const missingUser: ChatMessage = {
+      id: 'user-missing',
+      role: 'user',
+      content: 'Insert the unreconciled middle turn.',
+      createdAt: 2,
+    };
+    const persistedAssistant: ChatMessage = {
+      id: 'assistant-persisted',
+      role: 'assistant',
+      content: 'Persisted baseline draft',
+      createdAt: 3,
+      runStatus: 'succeeded',
+      endedAt: 4,
+    };
+
+    expect(
+      buildSeedOverlayForNewConversation(
+        [persistedUser, missingUser, persistedAssistant],
+        [persistedUser, persistedAssistant],
+      ),
+    ).toEqual({
+      seedMessages: [persistedUser, missingUser, persistedAssistant],
+      seedMessageOverrides: [],
+      seedTrimAfterMessageId: null,
+    });
   });
 
   it('keeps the new conversation payload compact when the visible messages update', async () => {
