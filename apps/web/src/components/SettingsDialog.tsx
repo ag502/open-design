@@ -136,6 +136,7 @@ import { ByokKeyField } from './byok/ByokKeyField';
 import { ByokModelField } from './byok/ByokModelField';
 import { ByokProviderBaseUrl } from './byok/ByokProviderBaseUrl';
 import { ByokProviderPicker } from './byok/ByokProviderPicker';
+import { renderConnectionTestFailureMessage } from './connectionTestMessages';
 import {
   blockingByokDraftFields,
   blockingByokDraftIssues,
@@ -2170,37 +2171,11 @@ export function SettingsDialog({
       }
       return result.detail ? `${baseMessage} ${result.detail}` : baseMessage;
     }
-    switch (result.kind) {
-      case 'auth_failed':
-        return t('settings.testAuthFailed');
-      case 'forbidden':
-        return t('settings.testForbidden');
-      case 'not_found_model':
-        return t('settings.testNotFoundModel', { model: testedModel });
-      case 'invalid_model_id':
-        return t('settings.testInvalidModelId', { model: testedModel });
-      case 'invalid_base_url':
-        return t('settings.testInvalidBaseUrl');
-      case 'rate_limited':
-        return result.detail?.trim()
-          ? `${t('settings.testRateLimited')} ${result.detail.trim()}`
-          : t('settings.testRateLimited');
-      case 'upstream_unavailable':
-        return t('settings.testUpstream', { status: result.status ?? 0 });
-      case 'timeout':
-        return t('settings.testTimeout', { ms });
-      case 'agent_not_installed':
-        return t('settings.testAgentMissing', { agentName });
-      case 'agent_auth_required':
-        return result.detail || 'Agent authentication is required.';
-      case 'agent_spawn_failed':
-        return t('settings.testAgentSpawn', {
-          agentName,
-          detail: result.detail ?? '',
-        });
-      default:
-        return t('settings.testUnknown', { detail: result.detail ?? '' });
-    }
+    return renderConnectionTestFailureMessage(t, result, {
+      testedModel,
+      agentName,
+      ms,
+    });
   };
 
   const applyCodexDetectedPath = (detectedPath: string) => {

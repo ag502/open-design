@@ -85,6 +85,7 @@ import type {
   SkillSummary,
 } from '../types';
 import { CenteredLoader } from './Loading';
+import { renderConnectionTestFailureMessage } from './connectionTestMessages';
 import { DesignsTab } from './DesignsTab';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { DesignSystemsTab } from './DesignSystemsTab';
@@ -3023,28 +3024,11 @@ function renderOnboardingProviderTestMessage(
     const baseMessage = t('settings.testSuccessApi', { ms, sample });
     return result.detail ? `${baseMessage} ${result.detail}` : baseMessage;
   }
-  switch (result.kind) {
-    case 'auth_failed':
-      return t('settings.testAuthFailed');
-    case 'forbidden':
-      return t('settings.testForbidden');
-    case 'not_found_model':
-      return t('settings.testNotFoundModel', { model: testedModel });
-    case 'invalid_model_id':
-      return t('settings.testInvalidModelId', { model: testedModel });
-    case 'invalid_base_url':
-      return t('settings.testInvalidBaseUrl');
-    case 'rate_limited':
-      return result.detail?.trim()
-        ? `${t('settings.testRateLimited')} ${result.detail.trim()}`
-        : t('settings.testRateLimited');
-    case 'upstream_unavailable':
-      return t('settings.testUpstream', { status: result.status ?? 0 });
-    case 'timeout':
-      return t('settings.testTimeout', { ms });
-    default:
-      return t('settings.testUnknown', { detail: result.detail ?? '' });
-  }
+  return renderConnectionTestFailureMessage(t, result, {
+    testedModel,
+    agentName: result.agentName ?? '',
+    ms,
+  });
 }
 
 function renderOnboardingProviderModelsMessage(

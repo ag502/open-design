@@ -18,6 +18,8 @@ import {
   updateAgentCliEnvValue,
   updateCurrentApiProtocolConfig,
 } from '../../src/components/SettingsDialog';
+import { renderConnectionTestFailureMessage } from '../../src/components/connectionTestMessages';
+import type { Dict } from '../../src/i18n/types';
 import type { AppConfig, ConnectionTestResponse } from '../../src/types';
 
 const originalFetch = globalThis.fetch;
@@ -194,6 +196,53 @@ describe('SettingsDialog test status variant', () => {
     ] as const) {
       expect(testStatusVariant({ ...baseResult, kind })).toBe('error');
     }
+  });
+});
+
+describe('connection test messages', () => {
+  const t = (
+    key: keyof Dict,
+    vars?: Record<string, string | number>,
+  ): string => {
+    if (key === 'settings.testUpstream') {
+      return `Provider returned ${vars?.status}. Try again in a moment.`;
+    }
+    if (key === 'settings.testRateLimited') {
+      return 'Provider rate limit reached. Try again in a moment.';
+    }
+    return key;
+  };
+
+  it('surfaces upstream detail instead of a synthetic status for agent failures', () => {
+    const message = renderConnectionTestFailureMessage(
+      t,
+      {
+        ok: false,
+        kind: 'upstream_unavailable',
+        latencyMs: 12,
+        agentName: 'Antigravity',
+        detail: 'Antigravity service is overloaded. Try again shortly.',
+      },
+      { testedModel: '', agentName: 'Antigravity', ms: 12 },
+    );
+
+    expect(message).toBe('Antigravity service is overloaded. Try again shortly.');
+    expect(message).not.toContain('Provider returned 0');
+  });
+
+  it('keeps status-based upstream copy when no detail is available', () => {
+    expect(
+      renderConnectionTestFailureMessage(
+        t,
+        {
+          ok: false,
+          kind: 'upstream_unavailable',
+          latencyMs: 12,
+          status: 503,
+        },
+        { testedModel: '', agentName: '', ms: 12 },
+      ),
+    ).toBe('Provider returned 503. Try again in a moment.');
   });
 });
 
