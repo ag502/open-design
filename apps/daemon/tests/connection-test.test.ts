@@ -3279,6 +3279,61 @@ process.stdin.on('end', () => process.exit(0));
     }
   });
 
+  it('reports Antigravity stdout auth prompts as auth required', async () => {
+    const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-agy-conn-stdout-'));
+    const argvFile = path.join(markerDir, 'argv.json');
+    try {
+      await withFakeAntigravity(
+        `
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(args));
+const logIndex = args.indexOf('--log-file');
+if (logIndex === -1 || !args[logIndex + 1]) {
+  console.error('missing --log-file');
+  process.exit(1);
+}
+if (!args.includes('-p') || args[args.length - 1] !== '-') {
+  console.error('missing print-mode stdin args');
+  process.exit(1);
+}
+console.log('Authentication required. Please visit the URL to log in:');
+process.stdin.resume();
+process.stdin.on('end', () => process.exit(0));
+`,
+        async () => {
+          const res = await realFetch(`${baseUrl}/api/test/connection`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ mode: 'agent', agentId: 'antigravity' }),
+          });
+          expect(res.status).toBe(200);
+          const body = await res.json() as {
+            detail?: string;
+            sample?: string;
+            [key: string]: unknown;
+          };
+          expect(body).toMatchObject({
+            ok: false,
+            kind: 'agent_auth_required',
+            agentName: 'Antigravity',
+            diagnostics: {
+              phase: 'connection_smoke_test',
+              exitCode: 0,
+            },
+          });
+          expect(body.detail).toContain('open a terminal and run `agy` once');
+          expect(body.sample).toBeUndefined();
+          const args = JSON.parse(await fsp.readFile(argvFile, 'utf8')) as string[];
+          expect(args.slice(0, 1)).toEqual(['--log-file']);
+          expect(args.slice(-2)).toEqual(['-p', '-']);
+        },
+      );
+    } finally {
+      await fsp.rm(markerDir, { recursive: true, force: true });
+    }
+  });
+
   it('reports Antigravity quota failures from the connection-test log file', async () => {
     await withFakeAntigravity(
       `

@@ -2288,6 +2288,27 @@ async function testAgentConnectionInternal(
       if (visibleText) {
         const rawSample = truncateSample(visibleText);
         const exitInfo = { code: winner.code, signal: winner.signal };
+        if (input.agentId === 'antigravity' && exitedCleanly) {
+          const auth = classifyAgentAuthFailure(input.agentId, visibleText);
+          if (auth?.status === 'missing') {
+            console.warn(
+              `[test:agent] ${def.name} → auth_required: ${redactSecrets(rawSample)}`,
+            );
+            return {
+              ok: false,
+              kind: 'agent_auth_required',
+              latencyMs,
+              model,
+              agentName: def.name,
+              detail: auth.message ?? antigravityAuthGuidance(),
+              diagnostics: buildDiagnostics({
+                phase: 'connection_smoke_test',
+                exitCode: winner.code,
+                signal: winner.signal,
+              }),
+            };
+          }
+        }
         if (rawSample && isLikelyModelErrorText(rawSample)) {
           return resultFromAgentText(visibleText, exitInfo);
         }
