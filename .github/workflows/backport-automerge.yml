@@ -63,9 +63,15 @@ jobs:
           # strength of its first page; one non-bot committer anywhere fails it. Count the lines
           # that do NOT equal the literal bot login (-F/-x; the [..] is not a regex class) with
           # grep -c, whose count semantics are portable (unlike `grep -qv`, whose early-exit status
-          # is unreliable across BSD/GNU). Fail closed: empty list / lookup miss -> not pristine.
-          logins="$(gh api "repos/$REPO/pulls/$num/commits?per_page=100" --paginate \
-                      --jq '.[].committer.login // "none"' 2>/dev/null || true)"
+          # is unreliable across BSD/GNU).
+          # Fail closed on a partial/failed lookup: --paginate may emit several pages and THEN fail
+          # on a later one; `|| true` would keep that partial output and could read all-bot. Capture
+          # gh's exit status via `if !` and blank the list on any failure, so pristine needs a
+          # complete, successful enumeration of every commit.
+          if ! logins="$(gh api "repos/$REPO/pulls/$num/commits?per_page=100" --paginate \
+                          --jq '.[].committer.login // "none"' 2>/dev/null)"; then
+            logins=""
+          fi
           nonbot="$(printf '%s\n' "$logins" | grep -Fvxc 'github-actions[bot]' || true)"
           if [ -n "$logins" ] && [ "${nonbot:-1}" = "0" ]; then
             pristine=true
