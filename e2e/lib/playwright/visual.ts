@@ -97,7 +97,7 @@ export const VISUAL_CLI_AGENTS = [
 
 export const VISUAL_AMR_AGENT = {
   id: 'amr',
-  name: 'Open Design AMR',
+  name: 'Open Design',
   bin: 'vela',
   available: true,
   version: '0.1.0',

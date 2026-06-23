@@ -16,12 +16,19 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  applyVelaLiveAccount,
+  clearAllVelaLiveAccounts,
   forgetVelaLogin,
+  peekVelaLiveAccount,
   readVelaCredentialRevision,
   readVelaLoginStatus,
   resolveAmrProfile,
+  setVelaLiveAccount,
   spawnVelaLogin,
+  velaLiveAccountCacheKey,
   amrConfigPath,
+  type VelaCredentialRevision,
+  type VelaLoginStatus,
 } from '../../src/integrations/vela.js';
 
 let originalHome: string | undefined;
@@ -438,5 +445,95 @@ describe('spawnVelaLogin', () => {
     const next = JSON.parse(readFileSync(file, 'utf8'));
     expect(next.profiles.local.user.email).toBe('settings-profile@example.com');
     expect(next.profiles.prod).toBeUndefined();
+  });
+});
+
+describe('applyVelaLiveAccount', () => {
+  const signedIn = (user: VelaLoginStatus['user']): VelaLoginStatus => ({
+    loggedIn: true,
+    loginInFlight: false,
+    profile: 'prod',
+    user,
+    configPath: '/tmp/x',
+  });
+
+  it('populates plan + balance on env-backed sessions where user is null', () => {
+    // VELA_RUNTIME_KEY / VELA_LINK_URL auth → readVelaLoginStatus returns
+    // loggedIn:true, user:null; the live billing data must still surface.
+    const status = signedIn(null);
+    applyVelaLiveAccount(status, { plan: 'max', balanceUsd: '204.35' });
+    expect(status.user).toEqual({
+      id: '',
+      email: '',
+      plan: 'max',
+      balanceUsd: '204.35',
+    });
+  });
+
+  it('merges onto an existing config-backed user', () => {
+    const status = signedIn({ id: 'u1', email: 'a@b.c', plan: 'free' });
+    applyVelaLiveAccount(status, { plan: 'plus', balanceUsd: '10.00' });
+    expect(status.user).toMatchObject({
+      id: 'u1',
+      email: 'a@b.c',
+      plan: 'plus',
+      balanceUsd: '10.00',
+    });
+  });
+
+  it('is a no-op when signed out or when there is no account', () => {
+    const out: VelaLoginStatus = { ...signedIn(null), loggedIn: false };
+    applyVelaLiveAccount(out, { plan: 'max', balanceUsd: '1' });
+    expect(out.user).toBeNull();
+
+    const noAccount = signedIn(null);
+    applyVelaLiveAccount(noAccount, null);
+    expect(noAccount.user).toBeNull();
+  });
+});
+
+describe('velaLiveAccountCacheKey + clearAllVelaLiveAccounts', () => {
+  const rev = (
+    over: Partial<VelaCredentialRevision> = {},
+  ): VelaCredentialRevision => ({
+    authSource: 'file',
+    profile: 'prod',
+    loggedIn: true,
+    userId: 'u1',
+    userEmail: 'a@b.c',
+    configMtimeMs: 100,
+    ...over,
+  });
+
+  it('changes key after logout / account switch on the same profile', () => {
+    const signedInKey = velaLiveAccountCacheKey(rev());
+    const loggedOutKey = velaLiveAccountCacheKey(
+      rev({ loggedIn: false, userId: '', configMtimeMs: 200 }),
+    );
+    const otherUserKey = velaLiveAccountCacheKey(
+      rev({ userId: 'u2', configMtimeMs: 300 }),
+    );
+    expect(signedInKey).not.toBe(loggedOutKey);
+    expect(signedInKey).not.toBe(otherUserKey);
+  });
+
+  it('never serves the previous account billing data after a switch', () => {
+    clearAllVelaLiveAccounts();
+    const oldKey = velaLiveAccountCacheKey(rev({ userId: 'u1' }));
+    setVelaLiveAccount(oldKey, { plan: 'max', balanceUsd: '999.00' });
+
+    // A different account logging in (rewritten config) gets a fresh key.
+    const newKey = velaLiveAccountCacheKey(
+      rev({ userId: 'u2', configMtimeMs: 999 }),
+    );
+    expect(peekVelaLiveAccount(newKey)).toBeNull();
+    expect(peekVelaLiveAccount(oldKey)).toEqual({
+      plan: 'max',
+      balanceUsd: '999.00',
+    });
+
+    // Logout wipes everything.
+    clearAllVelaLiveAccounts();
+    expect(peekVelaLiveAccount(oldKey)).toBeNull();
   });
 });

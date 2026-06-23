@@ -18,6 +18,8 @@ import {
   mirrorAmrOnboardingProfileAnalytics,
   parseAmrEntryAnalyticsPayload,
   parseAmrOnboardingProfileAnalyticsPayload,
+  applyVelaLiveAccount,
+  clearAllVelaLiveAccounts,
   clearVelaLiveAccountRefreshThrottle,
   parseVelaLoginAttribution,
   peekVelaLiveAccount,
@@ -25,6 +27,7 @@ import {
   readVelaLoginStatus,
   setVelaLiveAccount,
   shouldRefreshVelaLiveAccount,
+  velaLiveAccountCacheKey,
   spawnVelaLogin,
 } from '../integrations/vela.js';
 import { amrModelLoadingCache } from '../runtimes/amr-model-cache.js';
@@ -196,16 +199,16 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
       const status = readVelaLoginStatus(mergeVelaEnv(env, configuredEnv));
       if (status.loggedIn) {
-        // Merge the cached live account (real plan tier + wallet balance) read
-        // synchronously, so the response never blocks. The background refresh
-        // below updates the cache for the next poll via the vela CLI.
-        const account = peekVelaLiveAccount(status.profile);
-        if (account && status.user) {
-          if (account.plan) status.user.plan = account.plan;
-          status.user.balanceUsd = account.balanceUsd ?? null;
-        }
-        const refreshAccount = shouldRefreshVelaLiveAccount(status.profile);
-        const accountProfile = status.profile;
+        // Key the live-account cache by the full credential revision (not just
+        // profile) so a logout / account switch can never surface the previous
+        // account's plan or balance. Merge the cached projection synchronously
+        // (works for env-backed sessions where status.user is null too); the
+        // background refresh below updates the cache for the next poll.
+        const accountCacheKey = velaLiveAccountCacheKey(
+          readVelaCredentialRevision(env, configuredEnv),
+        );
+        applyVelaLiveAccount(status, peekVelaLiveAccount(accountCacheKey));
+        const refreshAccount = shouldRefreshVelaLiveAccount(accountCacheKey);
         void resolveAmrModelProbe()
           .then(async (probe) => {
             amrModelLoadingCache.warm(probe.cacheKey, () =>
@@ -214,18 +217,18 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
             if (refreshAccount) {
               try {
                 setVelaLiveAccount(
-                  accountProfile,
+                  accountCacheKey,
                   await fetchVelaBillingSummary(probe.launchPath, probe.env),
                 );
               } catch {
                 // Best-effort: keep the prior cache; retry on the next poll.
-                clearVelaLiveAccountRefreshThrottle(accountProfile);
+                clearVelaLiveAccountRefreshThrottle(accountCacheKey);
               }
             }
           })
           .catch((err) => {
             if (refreshAccount) {
-              clearVelaLiveAccountRefreshThrottle(accountProfile);
+              clearVelaLiveAccountRefreshThrottle(accountCacheKey);
             }
             console.warn('[amr] account/model refresh failed', err);
           });
@@ -354,6 +357,9 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
       forgetVelaLogin(mergeVelaEnv(env, configuredEnv));
+      // Drop any cached plan/balance so the next login can't surface this
+      // (now signed-out) account's billing data.
+      clearAllVelaLiveAccounts();
       delete env.VELA_RUNTIME_KEY;
       delete env.VELA_LINK_URL;
       const agentCliEnv = { ...(appConfig.agentCliEnv ?? {}) };
