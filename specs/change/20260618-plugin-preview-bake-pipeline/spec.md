@@ -160,11 +160,25 @@ contract everything else (coupling, GC safety, rollback) rests on.
   (renderer/font/CSS/design-system) do **not** implicitly invalidate it — that
   needs an explicit `BAKE_VERSION` bump or a touch of the plugin source.
 - **Directory-layered, immutable keys** (replacing today's flat
-  `<id>.<hash>.mp4`):
+  `<id>.<hash>.mp4`). **One base, one authority — the manifest key is relative to
+  the prefix the base URL already includes**, so it must NOT repeat
+  `plugin-previews/`:
   ```
-  plugin-previews/<pluginKey>/<fingerprint>/preview.mp4
-  plugin-previews/<pluginKey>/<fingerprint>/poster.jpg
+  base URL (daemon default, unchanged):
+    OD_PLUGIN_PREVIEWS_BASE_URL = https://repo-assets.open-design.ai/plugin-previews
+  manifest stores (prefix-relative key):
+    <pluginKey>/<fingerprint>/preview.mp4
+    <pluginKey>/<fingerprint>/poster.jpg
+  resolved URL = base + "/" + key:
+    https://repo-assets.open-design.ai/plugin-previews/<pluginKey>/<fingerprint>/preview.mp4
+  bucket object path (what aws s3 cp writes):
+    plugin-previews/<pluginKey>/<fingerprint>/preview.mp4
   ```
+  The `plugin-previews/` segment belongs to the **bucket layout / base URL**, not
+  the manifest key. Writing it into the manifest too would produce
+  `.../plugin-previews/plugin-previews/...` and 404 every shipped preview (caught
+  in review — thanks @PerishCode). GC compares against the same prefix-relative
+  keys the manifest stores.
   - `<pluginKey>` = stable plugin id / manifest key.
   - `<fingerprint>` = deterministic over preview source inputs + bake recipe
     version.
@@ -195,10 +209,23 @@ github.repository`** (same-repo branches have secrets; forks do not):
   **commit the manifest update into the author's branch** (push back to the PR
   head). The manifest change now rides with the code change in the same PR and
   merges/ reverts atomically.
-- **Loop guard (free):** the job triggers on `plugins/_official/**` /
-  `scripts/bake-plugin-previews.mjs`, but its own commit only touches
-  `data/plugin-previews/manifest.json`, which is **not** in the trigger paths →
-  no self-retrigger.
+- **Loop guard (an explicit guard is REQUIRED — the path filter does not break
+  the loop).** On `pull_request`, the workflow's `paths` filter is evaluated
+  against the **PR's cumulative changed files**, not just the latest commit. The
+  PR still contains the original `plugins/_official/**` / script change, so the
+  CI manifest commit fires a `pull_request.synchronize` event that is **still
+  path-eligible** → another bake run, and a loop if any non-semantic manifest
+  field changes again (caught in review — thanks @PerishCode; an earlier draft
+  wrongly called this "free"). Require a real guard, at least one of:
+  - **skip when the triggering (head) commit is authored by the bake bot**
+    (`if: github.event.pull_request.head.user.login != '<bot>'` / check head
+    commit author), and
+  - **compute the manifest diff and only commit when a `previews` entry actually
+    changed** (no-op-diff guard — same helper as the `generatedAt` fix), so a
+    re-run that produces an identical manifest is a no-op and commits nothing.
+
+  Both together make the job idempotent: at most one extra no-op `synchronize`
+  that commits nothing and then stops.
 
 ### 2. Post-merge / nightly demoted to "uploader + fork path + backstop"
 
@@ -361,8 +388,10 @@ comfortably).
 
 1. Land the **diff-guard + single-rolling-branch** fix first (smallest, stops
    the bleeding on the existing pile-up).
-2. Add the **pre-merge same-repo job**; verify on an internal test PR that the
-   manifest is committed to the branch and no self-retrigger loop occurs.
+2. Add the **pre-merge same-repo job** with its explicit loop guard (bot-author
+   skip + no-op `previews`-diff guard); verify on an internal test PR that the
+   manifest is committed to the branch and the follow-up `synchronize` run
+   commits nothing (no loop).
 3. Add the **release-cut full bake** workflow; dry-run via `workflow_dispatch`.
 4. Add **GC** last, dry-run-only for the first 1–2 weeks; inspect the proposed
    deletion list before enabling real deletes.
@@ -376,6 +405,12 @@ comfortably).
   → the PR's own diff gains the matching `data/plugin-previews/manifest.json`
   entry change (committed by CI), and no separate bot PR is opened. Revert that
   PR → the manifest entry reverts in the same revert.
+- **Pre-merge does not loop:** after CI commits the manifest to the PR head, the
+  resulting `pull_request.synchronize` run **commits nothing further** — the
+  bot-author skip and the no-op `previews`-diff guard both hold, so the run is a
+  single no-op and stops (no second manifest commit, no run storm). Encode by
+  simulating a synchronize event whose head commit is the bake bot and whose
+  manifest diff is empty → `shouldCommit === false`.
 - **No noise:** a nightly run where no plugin content changed opens **no** PR
   (red test today: #4261 was a timestamp-only PR). Encode as a unit test over
   the diff-guard helper: timestamp-only delta → `shouldOpenPr === false`;
