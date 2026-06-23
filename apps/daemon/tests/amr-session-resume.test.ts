@@ -157,6 +157,38 @@ describe('AMR (vela) ACP session resume — full server cycle', () => {
     expect(await readInvocations(logPath)).toEqual(['new', 'new']);
   });
 
+  it('persists the concrete resolved model for a default turn (equivalent explicit follow-up resumes)', async () => {
+    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-amr-defaultmodel-bin-'));
+    const logPath = path.join(binDir, 'invocations.jsonl');
+    const bin = await writeVelaWrapper(binDir, 'vela-defaultmodel', { logPath });
+
+    clearTelemetryEnv();
+    started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
+    await putConfig(started.url, {
+      agentId: 'amr',
+      agentCliEnv: { amr: { VELA_BIN: bin } },
+      telemetry: { metrics: true, content: false, artifactManifest: false },
+      privacyDecisionAt: Date.now(),
+    });
+
+    const conversationId = await createConversation(started.url);
+
+    // Turn 1 runs with the implicit default model, which resolves to the live
+    // catalog's first entry (deepseek-v4-flash, the fake preset's head on a cold
+    // cache). The guard must persist that CONCRETE id, not the raw `default`/null
+    // request token.
+    expect((await sendRunAndWait(started.url, conversationId, 'first request')).status)
+      .toBe('succeeded');
+    // Turn 2 names the SAME concrete model explicitly. Because turn 1 stored the
+    // concrete id, the identity still matches and the session resumes. (Pre-fix
+    // turn 1 stored null/`default`, so this read as model_changed and forced a
+    // needless cold reseed.)
+    expect((await sendRunAndWait(started.url, conversationId, 'second request', 'deepseek-v4-flash')).status)
+      .toBe('succeeded');
+
+    expect(await readInvocations(logPath)).toEqual(['new', 'load']);
+  });
+
   it('reseeds a fresh session (no resume) when the model changes between turns', async () => {
     binDir = await mkdtemp(path.join(os.tmpdir(), 'od-amr-modelchange-bin-'));
     const logPath = path.join(binDir, 'invocations.jsonl');

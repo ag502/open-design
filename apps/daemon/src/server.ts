@@ -5530,12 +5530,80 @@ export async function startServer({
     // Set from the `status` event's `sessionId` in `sendAgentEvent` below.
     const agentCapturesSessionId = def.capturesSessionIdFromStream === true;
     let capturedSessionId: string | null = null;
+    // --- Model resolution hoisted above the resume-identity guard ---
+    // The guard (and the persisted `agent_sessions.model`) must key off the
+    // CONCRETE model actually launched, not the raw request token: a user who
+    // picked `default` would otherwise store `default`/null, so changing the
+    // effective default between turns would still pass the guard and resume the
+    // old upstream session under the wrong model (#4704, reported by @nettee).
+    // resolveModelForAgent is hoisted here; the AMR `default`->live-catalog
+    // rewrite is mirrored below so `safeModel` is final before the guard. The
+    // preflight further down stays authoritative for auth/availability and
+    // re-runs the (cached, idempotent) resolution.
+    let configuredAgentEnv = {};
+    try {
+      const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
+      configuredAgentEnv = agentCliEnvForAgent(appConfig.agentCliEnv, def.id);
+    } catch {
+      configuredAgentEnv = {};
+    }
+    const requestedLiveModelScope = def.id === 'amr'
+      ? resolveAmrProfile({
+          ...process.env,
+          ...(def.env || {}),
+          ...configuredAgentEnv,
+        })
+      : null;
+    let safeModel = resolveModelForAgent(
+      def,
+      typeof model === 'string'
+        ? isKnownModel(def, model, requestedLiveModelScope)
+          ? model
+          : sanitizeCustomModel(model)
+        : null,
+      process.env,
+      requestedLiveModelScope,
+    );
+    const safeReasoning =
+      typeof reasoning === 'string' && Array.isArray(def.reasoningOptions)
+        ? (def.reasoningOptions.find((r) => r.id === reasoning)?.id ?? null)
+        : null;
+    const agentOptions = { model: safeModel, reasoning: safeReasoning };
+    const agentLaunch = resolveAgentLaunch(def, configuredAgentEnv);
+    const resolvedBin = agentLaunch.selectedPath;
+    if (def.id === 'amr' && resolvedBin && agentLaunch.launchPath) {
+      // Concretize a default/empty model to the live catalog's first entry, the
+      // same rewrite the AMR preflight applies — done here only so the resume
+      // guard sees the launched model. Read-only + cached (hot on follow-up
+      // turns); the preflight below remains the authoritative gate.
+      try {
+        const resumeProbe = await resolveAmrModelProbe({ dataDir: RUNTIME_DATA_DIR, env: process.env, readAppConfig });
+        const resumeCatalog = await amrModelLoadingCache.get(resumeProbe.cacheKey, {
+          fetchPreset: () => fetchVelaPresetModels(resumeProbe.launchPath, resumeProbe.env),
+          fetchRemote: () => fetchVelaRemoteModelsWithRetry(resumeProbe.launchPath, resumeProbe.env),
+        });
+        const resumeLiveModels = preferFreshLiveModels(
+          resumeCatalog.models ?? [],
+          getRememberedLiveModels(def.id, requestedLiveModelScope),
+        );
+        const resumeModelIds = new Set(resumeLiveModels.map((c) => c?.id).filter(Boolean));
+        const askedForDefault =
+          typeof model !== 'string' || !model.trim() || model.trim().toLowerCase() === 'default';
+        if (!safeModel || safeModel === 'default' || (askedForDefault && !resumeModelIds.has(safeModel))) {
+          safeModel = resumeLiveModels[0]?.id ?? safeModel ?? null;
+          agentOptions.model = safeModel;
+        }
+      } catch {
+        // Degrade silently: keep the requested value. The preflight below records
+        // the probe failure and applies the identical fallback.
+      }
+    }
     const agentResumeCtx =
       agentSupportsSessionResume && run.conversationId
         ? resolveAgentResumeContext(db, {
             conversationId: run.conversationId,
             agentId: def.id,
-            currentModel: run.model ?? null,
+            currentModel: safeModel ?? null,
             currentCwd: effectiveCwd,
             currentAssistantMessageId: run.assistantMessageId ?? null,
           })
@@ -5694,40 +5762,7 @@ export async function startServer({
       ...(run.analyticsTelemetry ?? {}),
       promptBuildEndAt: Date.now(),
     };
-    let configuredAgentEnv = {};
-    try {
-      const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-      configuredAgentEnv = agentCliEnvForAgent(appConfig.agentCliEnv, def.id);
-    } catch {
-      configuredAgentEnv = {};
-    }
-    // Per-agent model + reasoning the user picked in the model menu.
-    // Trust the value when it matches the most recent /api/agents listing
-    // (live or fallback). Otherwise allow it through if it passes a
-    // permissive sanitizer — that's the path for user-typed custom model
-    // ids the CLI's listing didn't surface yet.
-    const requestedLiveModelScope = def.id === 'amr'
-      ? resolveAmrProfile({
-          ...process.env,
-          ...(def.env || {}),
-          ...configuredAgentEnv,
-        })
-      : null;
-    let safeModel = resolveModelForAgent(
-      def,
-      typeof model === 'string'
-        ? isKnownModel(def, model, requestedLiveModelScope)
-          ? model
-          : sanitizeCustomModel(model)
-        : null,
-      process.env,
-      requestedLiveModelScope,
-    );
-    const safeReasoning =
-      typeof reasoning === 'string' && Array.isArray(def.reasoningOptions)
-        ? (def.reasoningOptions.find((r) => r.id === reasoning)?.id ?? null)
-        : null;
-    const agentOptions = { model: safeModel, reasoning: safeReasoning };
+    // (model resolution + AMR concretization hoisted above the resume guard)
     // Accumulates the agent's visible text this run so the close handler can
     // tell whether the turn ended on a clarifying question form. The
     // `od-plugin-authoring` plugin's turn-1 flow is to emit a
@@ -6018,7 +6053,7 @@ export async function startServer({
           agentId: def.id,
           sessionId: liveSessionId,
           stablePromptHash: currentStableHash,
-          model: run.model ?? null,
+          model: safeModel ?? null,
           cwd: effectiveCwd,
           lastMessageId: run.assistantMessageId ?? null,
         });
@@ -6187,9 +6222,7 @@ export async function startServer({
       ).catch(() => null);
     }
 
-    const agentLaunch = resolveAgentLaunch(def, configuredAgentEnv);
-    const resolvedBin = agentLaunch.selectedPath;
-
+    // agentLaunch / resolvedBin are resolved above the resume guard (hoisted).
     // Hoisted above the AMR catalog preflight: the empty-catalog branch
     // below calls `sendAmrAccountFailure(...)` to surface AMR_AUTH_REQUIRED
     // for signed-out users, and a `const` declared later in the same outer
@@ -6505,7 +6538,7 @@ export async function startServer({
             agentId: def.id,
             sessionId: createTurnSessionId,
             stablePromptHash: currentStableHash,
-            model: run.model ?? null,
+            model: safeModel ?? null,
             cwd: effectiveCwd,
             lastMessageId: run.assistantMessageId ?? null,
           });
@@ -6522,7 +6555,7 @@ export async function startServer({
             agentId: def.id,
             sessionId: agentResumeCtx.resumeSessionId,
             stablePromptHash: currentStableHash,
-            model: run.model ?? null,
+            model: safeModel ?? null,
             cwd: effectiveCwd,
             lastMessageId: run.assistantMessageId ?? null,
           });
@@ -8176,7 +8209,7 @@ export async function startServer({
             agentId: def.id,
             sessionId: sessionPath,
             stablePromptHash: currentStableHash,
-            model: run.model ?? null,
+            model: safeModel ?? null,
             cwd: effectiveCwd,
             lastMessageId: run.assistantMessageId ?? null,
           });
@@ -8198,7 +8231,7 @@ export async function startServer({
           agentId: def.id,
           sessionId: acpSession.getDurableSessionId(),
           stablePromptHash: currentStableHash,
-          model: run.model ?? null,
+          model: safeModel ?? null,
           cwd: effectiveCwd,
           lastMessageId: run.assistantMessageId ?? null,
         });
