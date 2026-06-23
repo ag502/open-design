@@ -92,6 +92,7 @@ import {
   resolveChatRunShutdownGraceMs,
 } from './runtimes/chat-run-lifecycle.js';
 import {
+  normalizeRunContextSelection,
   renderRunContextPrompt,
 } from './runtimes/chat-run-context.js';
 import {
