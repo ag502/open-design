@@ -89,6 +89,12 @@ interface AttachAcpSessionOptions {
   clientVersion?: string;
   stageTimeoutMs?: number;
   modelUnavailableErrorCode?: 'AMR_MODEL_UNAVAILABLE';
+  // When set, resume an existing upstream session instead of creating a new
+  // one: the handshake sends `session/load { sessionId }` (the durable handle
+  // captured from a prior run via `getDurableSessionId()`) rather than
+  // `session/new`. The agent verifies the session and, if it is gone, returns a
+  // structured `resume_failed` error the caller maps to its reseed path.
+  resumeSessionId?: string | null;
   // Subsegment timing markers for spawn->first-token attribution (#3408 §4).
   // `onCliReady` fires once on the first well-formed ACP JSON-RPC message
   // (the CLI is up and speaking the protocol); `onSessionInit` fires once when
@@ -828,6 +834,7 @@ export function attachAcpSession({
   clientVersion = 'runtime-adapter',
   stageTimeoutMs = DEFAULT_STAGE_TIMEOUT_MS,
   modelUnavailableErrorCode,
+  resumeSessionId,
   onCliReady,
   onSessionInit,
 }: AttachAcpSessionOptions) {
@@ -843,6 +850,11 @@ export function attachAcpSession({
   let promptRequestId: JsonRpcId | null = null;
   let setModelRequestId: JsonRpcId | null = null;
   let sessionId: string | null = null;
+  // The durable upstream session handle reported by the agent on session/new or
+  // session/load (vela's `openCodeSessionId`). The caller stores it per
+  // conversation to resume next turn. Distinct from `sessionId`, which is the
+  // ACP wrapper id ("vela-opencode-1").
+  let durableSessionId: string | null = null;
   let activeModel: string | null = null;
   let modelConfigId: string | null = null;
   let emittedThinkingStart = false;
@@ -1242,20 +1254,33 @@ export function attachAcpSession({
     }
     if (expectedId === 1) {
       expectedId = nextId;
-      writeRpc(
-        nextId,
-        'session/new',
-        buildAcpSessionNewParams(
-          effectiveCwd,
-          mcpServers ? { mcpServers, envFormat } : { envFormat },
-        ),
-        'session/new',
-      );
+      if (resumeSessionId) {
+        // Resume the prior upstream session instead of creating a fresh one.
+        writeRpc(
+          nextId,
+          'session/load',
+          { sessionId: resumeSessionId, cwd: effectiveCwd },
+          'session/load',
+        );
+      } else {
+        writeRpc(
+          nextId,
+          'session/new',
+          buildAcpSessionNewParams(
+            effectiveCwd,
+            mcpServers ? { mcpServers, envFormat } : { envFormat },
+          ),
+          'session/new',
+        );
+      }
       nextId += 1;
       return;
     }
     if (expectedId === 2) {
       sessionId = typeof result.sessionId === 'string' ? result.sessionId : null;
+      // The durable handle for resuming this session on the next turn.
+      durableSessionId =
+        typeof result.openCodeSessionId === 'string' ? result.openCodeSessionId : null;
       // session/new acknowledged with a session id = handshake done (#3408 §4).
       if (sessionId) onSessionInit?.();
       const modelConfig = findModelConfigOption(result.configOptions);
@@ -1325,6 +1350,12 @@ export function attachAcpSession({
   return {
     hasFatalError() {
       return fatal;
+    },
+    // The durable upstream session handle to persist for resume, or null when
+    // none was reported (older agents, or a handshake that never established a
+    // session). Mirrors pi-rpc's getLastSessionPath().
+    getDurableSessionId() {
+      return durableSessionId;
     },
     completedSuccessfully() {
       // Returns true when the prompt request resolved without a fatal error

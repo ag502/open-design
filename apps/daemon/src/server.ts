@@ -5521,7 +5521,9 @@ export async function startServer({
     // prompt-composition skipTranscript choice, the buildArgs flags, and the
     // create-turn persistence below.
     const agentSupportsSessionResume =
-      def.resumesSessionViaCli === true || def.streamFormat === 'pi-rpc';
+      def.resumesSessionViaCli === true ||
+      def.streamFormat === 'pi-rpc' ||
+      def.resumesSessionViaAcpLoad === true;
     // Capture-style adapters (codex) mint their OWN session id and report it on
     // the stream; the daemon captures it here and persists THAT as the resume
     // handle instead of `agentResumeCtx.newSessionId` (which such CLIs ignore).
@@ -7699,6 +7701,11 @@ export async function startServer({
         mcpServers,
         envFormat: def.acpMcpEnvFormat ?? 'array',
         ...(def.id === 'amr' ? { modelUnavailableErrorCode: 'AMR_MODEL_UNAVAILABLE' } : {}),
+        // Resume the prior upstream session (drives `session/load`) when the
+        // resume-identity guard says it is safe; otherwise a fresh session/new.
+        ...(def.resumesSessionViaAcpLoad === true && agentResumeCtx.isResuming && agentResumeCtx.resumeSessionId
+          ? { resumeSessionId: agentResumeCtx.resumeSessionId }
+          : {}),
         onCliReady: () => noteCliReadyAt(),
         onSessionInit: () => noteSessionInitDoneAt(),
         send: (event, data) => {
@@ -7841,7 +7848,7 @@ export async function startServer({
       // broken conversation.
       if (
         !run.cancelRequested &&
-        def.resumesSessionViaCli === true &&
+        (def.resumesSessionViaCli === true || def.resumesSessionViaAcpLoad === true) &&
         agentResumeCtx.isResuming &&
         run.conversationId &&
         isAgentResumeFailure(def.id, agentStderrTail, agentStdoutTail)
@@ -8173,6 +8180,27 @@ export async function startServer({
             lastMessageId: run.assistantMessageId ?? null,
           });
         }
+      }
+      // ACP session/load adapters (AMR/vela) report a durable upstream handle
+      // from the ACP session; persist it (under the resume-identity guard) so
+      // the next turn resumes via session/load. A missing handle clears the row
+      // (so a fresh session is opened next turn), mirroring the capture-style
+      // adapters.
+      if (
+        def.resumesSessionViaAcpLoad === true &&
+        status === 'succeeded' &&
+        acpSession &&
+        typeof acpSession.getDurableSessionId === 'function'
+      ) {
+        persistCapturedAgentSession(db, {
+          conversationId: run.conversationId,
+          agentId: def.id,
+          sessionId: acpSession.getDurableSessionId(),
+          stablePromptHash: currentStableHash,
+          model: run.model ?? null,
+          cwd: effectiveCwd,
+          lastMessageId: run.assistantMessageId ?? null,
+        });
       }
       if (status === 'succeeded') {
         persistDeliveredAgentSessionState();

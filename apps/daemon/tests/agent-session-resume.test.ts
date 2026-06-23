@@ -16,6 +16,7 @@ import {
   computeIncludeStable,
   hashStableInstructions,
   isAgentResumeFailure,
+  isAmrResumeFailure,
   isClaudeResumeFailure,
   isCodexResumeFailure,
   isOpencodeResumeFailure,
@@ -451,7 +452,30 @@ describe('isOpencodeResumeFailure', () => {
   });
 });
 
+describe('isAmrResumeFailure', () => {
+  it('matches vela\'s structured resume_failed ACP error on stdout', () => {
+    expect(
+      isAmrResumeFailure('{"jsonrpc":"2.0","id":4,"error":{"code":-32600,"message":"the resumed session could not be loaded","data":{"kind":"resume_failed","phase":"session_load","retryable":true}}}'),
+    ).toBe(true);
+  });
+
+  it('does not match a bare mention of resume_failed in assistant prose', () => {
+    expect(isAmrResumeFailure('The build step logged resume_failed as a warning.')).toBe(false);
+    expect(isAmrResumeFailure('')).toBe(false);
+  });
+});
+
 describe('isAgentResumeFailure dispatch', () => {
+  it('routes amr to the resume_failed structured detector on stdout', () => {
+    // AMR's signal arrives on stdout (the ACP JSON-RPC channel), not stderr.
+    expect(
+      isAgentResumeFailure('amr', '', '{"error":{"data":{"kind":"resume_failed"}}}'),
+    ).toBe(true);
+    expect(
+      isAgentResumeFailure('amr', '{"error":{"data":{"kind":"resume_failed"}}}', ''),
+    ).toBe(false);
+  });
+
   it('routes codex to the rollout-not-found detector', () => {
     expect(
       isAgentResumeFailure('codex', 'no rollout found for thread id abc'),

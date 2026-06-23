@@ -301,6 +301,19 @@ export function isAgentResumeFailure(
 ): boolean {
   if (agentId === 'codex') return isCodexResumeFailure(stderr);
   if (agentId === 'opencode') return isOpencodeResumeFailure(stderr);
+  if (agentId === 'amr') return isAmrResumeFailure(stdout);
   // claude + codebuddy share Claude Code's stream-json result shape.
   return isClaudeResumeFailure(stderr, stdout);
+}
+
+// vela (AMR) reports a missing resumed session as a structured ACP JSON-RPC
+// error `{"error":{"data":{"kind":"resume_failed",...}}}` on stdout (the
+// protocol channel). Match the structured marker — not a bare word — so a
+// model reply that merely mentions "resume_failed" cannot trip it.
+const AMR_RESUME_FAILURE_PATTERN = /"kind"\s*:\s*"resume_failed"/;
+
+/** True when vela's ACP output carries a resume_failed signal. */
+export function isAmrResumeFailure(stdout: string): boolean {
+  if (!stdout) return false;
+  return AMR_RESUME_FAILURE_PATTERN.test(stdout);
 }
