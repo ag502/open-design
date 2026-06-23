@@ -1096,9 +1096,10 @@ function DesignSystemDetail({
       {isUser ? (
         <Button
           size="icon"
-          className={styles.downloadBtn}
+          className={`${styles.downloadBtn} od-tooltip`}
           aria-label="Reset design-system edits"
-          title="Reset this session's DESIGN.md and brand.json edits"
+          data-tooltip="Reset this session's DESIGN.md and brand.json edits"
+          data-tooltip-placement="top"
           onClick={() => void resetKitEdits()}
           disabled={busy}
         >
@@ -1132,8 +1133,10 @@ function DesignSystemDetail({
       {isUser ? (
         <Button
           size="icon"
-          className={styles.dangerBtn}
+          className={`${styles.dangerBtn} od-tooltip`}
           aria-label={t('dsManager.deleteSystemAria', { title: system.title })}
+          data-tooltip={t('dsManager.deleteSystemAria', { title: system.title })}
+          data-tooltip-placement="top"
           onClick={() => void onDelete(system)}
           disabled={busy}
         >

@@ -574,18 +574,6 @@ export function EntryShell({
     setNewProjectOpen(true);
   }
 
-  function createBlankProjectFromRail() {
-    return onCreateProject({
-      name: t('common.untitled'),
-      skillId: null,
-      designSystemId: null,
-      metadata: {
-        kind: 'prototype',
-        nameSource: 'generated',
-      },
-    });
-  }
-
   const previewSystem = useMemo(
     () => (previewSystemId ? designSystems.find((d) => d.id === previewSystemId) ?? null : null),
     [designSystems, previewSystemId],
@@ -777,7 +765,7 @@ export function EntryShell({
         <EntryNavRail
           view={view}
           onViewChange={changeView}
-          onNewProject={() => void createBlankProjectFromRail()}
+          onNewProject={() => openNewProject()}
           open={railOpen}
           onClose={() => setRailOpen(false)}
         />

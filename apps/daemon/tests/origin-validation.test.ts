@@ -30,6 +30,14 @@ function getListeningPort(server: http.Server): number {
   return (address as AddressInfo).port;
 }
 
+function nearbyValidPort(basePort: number): number {
+  return basePort < 64000 ? basePort + 1000 : basePort - 1000;
+}
+
+function differentValidPort(basePort: number): number {
+  return basePort < 63000 ? basePort + 2000 : basePort - 2000;
+}
+
 function closeServer(server: http.Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.close((error) => {
@@ -410,23 +418,30 @@ describe('daemon origin validation middleware', () => {
   // --- OD_WEB_PORT (split-port proxy) ---
 
   it('allows requests from OD_WEB_PORT (web proxy port)', async () => {
-    const webPort = port + 1000;
+    const webPort = nearbyValidPort(port);
     process.env.OD_WEB_PORT = String(webPort);
-    const res = await request(port, 'GET', '/api/projects', {
-      origin: `http://127.0.0.1:${webPort}`,
-    });
-    delete process.env.OD_WEB_PORT;
-    expect(res.status).toBe(200);
+    try {
+      const res = await request(port, 'GET', '/api/projects', {
+        origin: `http://127.0.0.1:${webPort}`,
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      delete process.env.OD_WEB_PORT;
+    }
   });
 
   it('blocks requests from unknown ports even with OD_WEB_PORT set', async () => {
-    const webPort = port + 1000;
+    const webPort = nearbyValidPort(port);
     process.env.OD_WEB_PORT = String(webPort);
-    const res = await request(port, 'GET', '/api/projects', {
-      origin: `http://127.0.0.1:${port + 2000}`,
-    });
-    delete process.env.OD_WEB_PORT;
-    expect(res.status).toBe(403);
+    try {
+      const unknownPort = differentValidPort(port);
+      const res = await request(port, 'GET', '/api/projects', {
+        origin: `http://127.0.0.1:${unknownPort}`,
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      delete process.env.OD_WEB_PORT;
+    }
   });
 
   // --- Zero-config OD Clipper bypass for the OD Clipper probe + ingest routes ---

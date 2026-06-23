@@ -306,7 +306,7 @@ describe('DesignSystemCreationFlow', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('https://github.com/org/repo'), {
       target: { value: 'https://acme.com' },
     });
     continueToGeneration();
@@ -427,15 +427,14 @@ describe('DesignSystemCreationFlow', () => {
   });
 
   it('restores the current DESIGN.md draft when clearing a copied reference system', async () => {
-    const designSystems: DesignSystemSummary[] = [
-      {
-        id: 'clay',
-        title: 'Clay',
-        summary: 'Friendly tactile product UI.',
-        category: 'Product',
-        swatches: ['#f4efe7', '#25211d'],
-      },
-    ];
+    const clay: DesignSystemSummary = {
+      id: 'clay',
+      title: 'Clay',
+      summary: 'Friendly tactile product UI.',
+      category: 'Product',
+      swatches: ['#f4efe7', '#25211d'],
+    };
+    const designSystems: DesignSystemSummary[] = [clay];
     const draft = [
       '---',
       'name: Manual Draft',
@@ -448,7 +447,7 @@ describe('DesignSystemCreationFlow', () => {
     ].join('\n');
 
     mocks.fetchDesignSystem.mockResolvedValue({
-      ...designSystems[0],
+      ...clay,
       body: '# Clay reference\n',
       source: 'user',
       status: 'published',
@@ -545,7 +544,7 @@ describe('DesignSystemCreationFlow', () => {
     } as unknown as Response));
     vi.stubGlobal('fetch', fetchMock);
 
-    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('https://github.com/org/repo'), {
       target: { value: 'https://acme.com' },
     });
     expect(

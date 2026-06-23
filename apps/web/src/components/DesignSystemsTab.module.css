@@ -585,8 +585,32 @@
   font-weight: 560;
 }
 
+/* De-emphasized "Default for new chats" - a calm, low-priority text action
+   beside the louder agent-edit button, not a primary CTA. */
 .defaultButton {
-  box-shadow: var(--shadow-xs);
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 520;
+  color: var(--text-muted);
+}
+
+.defaultButton:hover:not(:disabled) {
+  color: var(--text);
+}
+
+/* Neutral icon button (download / reset) - same footprint as the danger
+   button but a quiet muted glyph that warms on hover. */
+.downloadBtn {
+  width: 34px;
+  min-height: 34px;
+  color: var(--text-muted);
+}
+
+.downloadBtn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .statusToggle {
