@@ -99,6 +99,9 @@ const residualAllowedExactPaths = new Set([
   // actually changed, ignoring the per-run `generatedAt` timestamp.
   "scripts/plugin-previews-diff.mjs",
   "scripts/plugin-previews-diff.test.mjs",
+  // CI-only R2 garbage collector for orphaned preview clips + its node:test.
+  "scripts/plugin-previews-gc.mjs",
+  "scripts/plugin-previews-gc.test.mjs",
   "scripts/scaffold-html-ppt-skills.mjs",
   "scripts/sync-hyperframes-skill.mjs",
   "scripts/verify-media-models.mjs",
