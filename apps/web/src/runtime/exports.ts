@@ -904,11 +904,33 @@ export async function exportProjectAsPptx(opts: {
   }
 }
 
+// Whether an HTML artifact is a slide deck for EXPORT purposes — broader than
+// the viewer's `.slide`-class navigation heuristic. Runtime-managed decks render
+// every slide through a custom element (e.g. `<deck-stage>` with slotted
+// `<section data-screen-label="…">` children toggled via `data-deck-active`) and
+// carry NO literal `class="slide"`, so a `.slide`-only check misses them. When it
+// does, the host has no deck signal and captures a single page-mode screenshot of
+// whatever slide happens to be visible (slide 1) instead of every slide — the
+// QA-reported "horizontal deck only exports the first slide" for both image and
+// PDF. This mirrors the desktop capture's slide-surface family
+// (`.slide` / `[data-screen-label]` / `.deck-slide` / `.ppt-slide`) plus the
+// `<deck-stage>` element, so the viewer's export decision and the host's
+// offscreen capture agree on what counts as a deck. Deliberately NOT used for the
+// host's prev/next nav (`effectiveDeck`), which is incompatible with the
+// deck-stage runtime and would surface a dead "— / —" control.
+export function sourceLooksLikeExportableDeck(source: string | null | undefined): boolean {
+  if (!source) return false;
+  return /<deck-stage[\s/>]|\bdata-screen-label\s*=|class\s*=\s*['"](?:[^'"]*\s)?(?:slide|deck-slide|ppt-slide)(?:\s|['"])/i.test(
+    source,
+  );
+}
+
 // Programmatic image export: render a single pixel-perfect PNG via the daemon
 // (off-screen Electron Chromium), independent of the preview pane size. For a
-// deck pass the current slide `index`; for an ordinary page omit it (the whole
-// document is captured at natural size). Returns a {dataUrl,w,h} snapshot
-// compatible with the existing image-export pipeline, or null if unavailable.
+// deck pass the current slide `index` (Copy screenshot); omit it to stitch the
+// WHOLE deck top-to-bottom into one long image (Export as image) or to capture an
+// ordinary page at natural size. Returns a {dataUrl,w,h} snapshot compatible with
+// the existing image-export pipeline, or null if unavailable.
 // Discriminates a genuinely-unavailable off-screen renderer (no desktop host /
 // 501 / network) — where the caller may fall back to a visible-preview capture —
 // from a SEMANTIC export failure (e.g. "page is too tall — export as PDF"), which

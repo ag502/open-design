@@ -82,6 +82,7 @@ import {
   openSandboxedPreviewInNewTab,
   prepareImageExportTarget,
   requestPreviewSnapshot,
+  sourceLooksLikeExportableDeck,
   type ImageExportFormat,
 } from '../runtime/exports';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
@@ -5253,6 +5254,15 @@ function HtmlViewer({
   }, [source]);
   const effectiveDeck = isDeck || looksLikeDeck;
   const showDeckNavigation = effectiveDeck && (slideState === null || slideState.count > 0);
+  // Deck signal for EXPORT only — broader than `effectiveDeck`. Runtime-managed
+  // decks (`<deck-stage>` + slotted `<section data-screen-label>`) render every
+  // slide but carry no literal `class="slide"`, so `effectiveDeck` misses them
+  // and export would force a single page-mode capture (slide 1 only) for both
+  // image and PDF. Detecting their deck markup here makes Export as image/PDF
+  // capture every slide. Kept OUT of `effectiveDeck` on purpose: the host's
+  // prev/next nav drives slides through a bridge that these decks don't speak, so
+  // surfacing it would only add a dead "— / —" control over the deck's own UI.
+  const deckExportSignal = isDeck || sourceLooksLikeExportableDeck(source);
   const livePreviewSource = inlinedSource ?? source;
   // Annotation modes that should hold the preview still while open. Manual
   // Edit is handled by its own freeze just below; these are the non-edit
@@ -7672,7 +7682,9 @@ function HtmlViewer({
     setDownloadMenuOpen(false);
     setDeployMenuOpen((v) => !v);
   };
-  const captureExportImageSnapshot = useCallback(async () => {
+  const captureExportImageSnapshot = useCallback(async (
+    options?: { wholeDeck?: boolean },
+  ) => {
     // The host compositor grabs on-screen pixels, so any transient hover chrome
     // over the preview leaks into the capture. The screenshot control's own
     // tooltip is already dismissed by TooltipLayer's pointerdown/click listener,
@@ -7683,29 +7695,28 @@ function HtmlViewer({
     await waitForAnimationFrame();
     // Prefer the daemon's off-screen render (desktop only): viewport-independent
     // and, rendering the artifact alone in a hidden window, it can never capture
-    // Open Design's own UI. For a deck this captures the CURRENT slide (matching
-    // "the current preview" — both Copy screenshot and Export as image); an
-    // ordinary page becomes its full-page capture. Stitching the whole deck into
-    // one long image is reserved for an explicit action.
+    // Open Design's own UI. `wholeDeck` (Export as image) stitches every slide
+    // top-to-bottom into one long image — matching the slide count the viewer
+    // reports; otherwise (Copy screenshot, Mark/Draw capture) it grabs the
+    // CURRENT slide, mirroring what's on screen. An ordinary page is its
+    // full-page capture either way.
     if (isOpenDesignHostAvailable() && projectId && file.name) {
-      // For a deck, ALWAYS send a concrete slide index so /export/image captures
-      // the current slide — never fall through to the stitch-whole-deck branch
-      // just because od:slide-state hasn't arrived yet (fresh open, or a deck
-      // detected only from `.slide` markup that never emits slide-state). Default
-      // to the first slide.
-      // Drive deck-vs-page off the SAME signal the viewer renders with
-      // (`effectiveDeck`): a deck-shaped artifact (incl. metadata-free `.slide`
-      // decks where prev/next/Present work) exports as a deck, and the result is
-      // consistent regardless of host (the vector-PDF fallback also uses
-      // `effectiveDeck`). PPTX stays on the narrower `isDeckArtifact` — it is
-      // deck-only and has no vector fallback to diverge from.
-      const deckIndex = effectiveDeck
+      // Deck-vs-page uses `deckExportSignal` — broader than the viewer's nav
+      // signal — so runtime-managed decks (`<deck-stage>` / `data-screen-label`,
+      // no literal `.slide`) export as a deck instead of a single page-mode shot
+      // of slide 1. The vector-PDF fallback below uses the SAME signal, so an
+      // artifact exports identically with or without a desktop host.
+      const wholeDeck = options?.wholeDeck === true;
+      // Current-slide capture sends a concrete index (defaulting to the first
+      // slide if slide-state hasn't arrived). Whole-deck capture omits the index
+      // so /export/image stitches every slide.
+      const deckIndex = deckExportSignal && !wholeDeck
         ? slideState?.active ?? htmlPreviewSlideState.get(previewStateKey)?.active ?? 0
         : undefined;
       const rendered = await exportProjectImageDataUrl({
         projectId,
         fileName: file.name,
-        deck: effectiveDeck,
+        deck: deckExportSignal,
         ...(deckIndex != null ? { index: deckIndex } : {}),
       });
       if (rendered.ok) return rendered.snapshot;
@@ -7764,7 +7775,7 @@ function HtmlViewer({
     srcDocShellReady,
     useLazySrcDocTransport,
     useUrlLoadPreview,
-    effectiveDeck,
+    deckExportSignal,
     slideState?.active,
     previewStateKey,
     projectId,
@@ -7893,7 +7904,10 @@ function HtmlViewer({
     try {
       let dataUrl = imageExportSnapshotDataUrlRef.current;
       if (!dataUrl) {
-        const snap = await captureExportImageSnapshot();
+        // Export as image of a deck = the whole deck stitched into one long
+        // image (every slide), matching the count the viewer reports. Copy
+        // screenshot keeps the current slide.
+        const snap = await captureExportImageSnapshot({ wholeDeck: true });
         if (!snap) {
           setExportToast({ message: t('fileViewer.exportImageFailed'), tone: 'error' });
           fireImageExportResult('failed', 'CAPTURE_FAILED');
@@ -8910,17 +8924,18 @@ function HtmlViewer({
                             projectId,
                             fileName: file.name,
                             title: exportTitle,
-                            // Same deck decision the viewer renders with, and the
-                            // SAME signal the vector fallback below uses — so a
-                            // given artifact exports identically with or without
-                            // a desktop host (no per-host divergence).
-                            deck: effectiveDeck,
+                            // Broader deck signal than the viewer's nav so
+                            // runtime-managed decks (<deck-stage>) paginate per
+                            // slide; the vector fallback below uses the SAME
+                            // signal, so an artifact exports identically with or
+                            // without a desktop host (no per-host divergence).
+                            deck: deckExportSignal,
                           });
                           if (res.ok) return;
                         }
                         await exportProjectAsPdf({
-                          deck: effectiveDeck,
-                          fallbackPdf: () => exportAsPdf(source ?? '', exportTitle, { deck: effectiveDeck }),
+                          deck: deckExportSignal,
+                          fallbackPdf: () => exportAsPdf(source ?? '', exportTitle, { deck: deckExportSignal }),
                           filePath: file.name,
                           projectId,
                           title: exportTitle,

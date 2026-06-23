@@ -18,11 +18,54 @@ import {
   openSandboxedPreviewInNewTab,
   prepareImageExportTarget,
   requestPreviewSnapshot,
+  sourceLooksLikeExportableDeck,
 } from '../../src/runtime/exports';
 
 function mockResponse(headers: Record<string, string>): Response {
   return { headers: new Headers(headers) } as Response;
 }
+
+describe('sourceLooksLikeExportableDeck (#4604 horizontal deck export)', () => {
+  // Runtime-managed decks (`<deck-stage>` web component with slotted
+  // `<section data-screen-label>` children) carry NO literal class="slide", so
+  // the viewer's `.slide`-only nav heuristic misses them and export would force a
+  // single page-mode capture of slide 1. This broader signal recognizes them so
+  // image/PDF capture every slide.
+  it('detects a <deck-stage> runtime deck (no class="slide")', () => {
+    const src =
+      '<deck-stage width="1920" height="1080">' +
+      '<section class="s-cover" data-screen-label="01 Cover">A</section>' +
+      '<section class="s-grid" data-screen-label="02 Grid">B</section>' +
+      '</deck-stage>';
+    expect(sourceLooksLikeExportableDeck(src)).toBe(true);
+  });
+
+  it('detects data-screen-label slide surfaces on their own', () => {
+    expect(
+      sourceLooksLikeExportableDeck('<section data-screen-label="01 Intro">x</section>'),
+    ).toBe(true);
+  });
+
+  it('detects the .slide / .deck-slide / .ppt-slide class family', () => {
+    expect(sourceLooksLikeExportableDeck('<div class="slide">x</div>')).toBe(true);
+    expect(sourceLooksLikeExportableDeck('<div class="s-cover deck-slide">x</div>')).toBe(true);
+    expect(sourceLooksLikeExportableDeck('<div class="ppt-slide">x</div>')).toBe(true);
+  });
+
+  it('does NOT treat an ordinary page as a deck', () => {
+    expect(
+      sourceLooksLikeExportableDeck('<main><h1>Landing</h1><p>Hello</p></main>'),
+    ).toBe(false);
+    // `slideshow` is not a `slide` class token.
+    expect(sourceLooksLikeExportableDeck('<div class="slideshow">x</div>')).toBe(false);
+  });
+
+  it('returns false for empty / nullish source', () => {
+    expect(sourceLooksLikeExportableDeck('')).toBe(false);
+    expect(sourceLooksLikeExportableDeck(null)).toBe(false);
+    expect(sourceLooksLikeExportableDeck(undefined)).toBe(false);
+  });
+});
 
 describe('isUsablePrintSize (#4458)', () => {
   // The print-ready handshake reports the artifact's own content size so the

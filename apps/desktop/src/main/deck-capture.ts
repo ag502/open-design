@@ -471,6 +471,13 @@ async function capturePage(
 // scroll-segment via the blank-below-fold check.
 async function preparePageForCapture(window: BrowserWindow): Promise<void> {
   try {
+    // Drop scroll-independent positioning to document flow BEFORE measuring /
+    // prewarming, so a fixed/sticky hero is captured exactly once instead of
+    // being repeated in every scroll segment (see the helper's docblock).
+    await window.webContents.executeJavaScript(
+      `(${neutralizeFixedAndStickyPositioning.toString()})()`,
+      true,
+    );
     await window.webContents.executeJavaScript(
       `(function(){try{var s=document.createElement('style');s.setAttribute('data-od-capture','1');s.textContent='*,*::before,*::after{animation-duration:0s!important;animation-delay:0s!important;transition-duration:0s!important;transition-delay:0s!important;scroll-behavior:auto!important}';(document.head||document.documentElement).appendChild(s);}catch(e){}})()`,
       true,
@@ -675,6 +682,35 @@ function escapeHtmlAttribute(value: string): string {
 }
 
 // --- Functions serialized into the page (kept dependency-free) ---
+
+// Serialized into the page: neutralizes scroll-independent positioning so a
+// full-page capture renders each fixed/sticky element exactly once. The
+// scroll-segment stitch fallback captures the viewport at successive scroll
+// offsets; a `position:fixed` (or a stuck `position:sticky`) hero stays pinned to
+// the viewport and would otherwise be copied into EVERY segment, duplicating it
+// down the stitched output — the QA-reported "hero/section appears twice" in a
+// long-page export. Converting fixed -> absolute and sticky -> static drops them
+// into document flow so they appear once. Chromium's `captureBeyondViewport`
+// already de-dupes fixed elements, so this strictly matters for the stitch path,
+// but applying it before path selection keeps both capture paths consistent.
+// Exported for tests.
+export function neutralizeFixedAndStickyPositioning(): void {
+  const all = document.querySelectorAll("body *");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i] as HTMLElement;
+    let position = "";
+    try {
+      position = window.getComputedStyle(el).position;
+    } catch {
+      continue;
+    }
+    if (position === "fixed") {
+      el.style.setProperty("position", "absolute", "important");
+    } else if (position === "sticky") {
+      el.style.setProperty("position", "static", "important");
+    }
+  }
+}
 
 // Page-vs-deck decision (exported for tests). Deck capture requires real slide
 // surfaces AND the caller not having explicitly said `deck: false`. So an
