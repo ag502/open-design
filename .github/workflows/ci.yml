@@ -203,7 +203,7 @@ jobs:
     name: Persistent runner POC
     needs: [scopes]
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_poc == true }}
-    runs-on: [self-hosted, Linux, X64, od-persistent-ci, od-ci-hot-poc]
+    runs-on: [self-hosted, Linux, X64, od-persistent-ci, od-zxiyun-poc]
     timeout-minutes: 45
 
     steps:
