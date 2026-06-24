@@ -40,6 +40,20 @@ import styles from './BrandPreviewCard.module.css';
 const IMAGE_CAP = 8;
 const DESIGN_KIT_PREVIEW_SANDBOX = 'allow-scripts allow-popups';
 
+type DesignMdModuleId = 'identity' | 'typography' | 'palette' | 'voice' | 'imageryLayout' | 'designSystem';
+
+interface DesignMdModuleSpec {
+  id: DesignMdModuleId;
+  label: string;
+  heading: string;
+  keywords: string[];
+  includePreamble?: boolean;
+}
+
+type DesignMdEditTarget =
+  | { kind: 'all' }
+  | { kind: 'module'; module: DesignMdModuleSpec };
+
 // ── Logo with fallback chain ────────────────────────────────────────
 // Brand stage (`/api/brands/:id/logo`) when a brandId is known, else an explicit
 // logoSrc, then Google's favicon for the domain, then a monogram letter.
@@ -212,6 +226,8 @@ export interface DesignKitViewProps {
   noticeSlot?: ReactNode;
   /** Rendered above the modules (e.g. publish / default card). */
   topSlot?: ReactNode;
+  /** Keep the identity and action row reachable while the panel scrolls. */
+  stickyHeader?: boolean;
   /**
    * Opens a full, scrollable preview when the user clicks the hover button
    * over the showcase cover. When omitted, the cover falls back to a built-in
@@ -221,7 +237,8 @@ export interface DesignKitViewProps {
   onPreviewCover?: () => void;
   designMd?: KitDesignMdActions;
   onUploadModule?: (module: KitUploadModule, file: File) => void;
-  onColorChange?: (index: number, hex: string) => void;
+  onColorChange?: (index: number, hex: string) => void | Promise<void>;
+  onColorReset?: (index: number) => void | Promise<void>;
   onDeleteLogo?: (index: number) => void;
   onDeleteImage?: (index: number) => void;
   onRefresh?: () => void;
@@ -239,10 +256,12 @@ export function DesignKitView({
   actionsSlot,
   noticeSlot,
   topSlot,
+  stickyHeader = false,
   onPreviewCover,
   designMd,
   onUploadModule,
   onColorChange,
+  onColorReset,
   onDeleteLogo,
   onDeleteImage,
   onRefresh,
@@ -263,10 +282,18 @@ export function DesignKitView({
   const [assetPreview, setAssetPreview] = useState<{ url: string; label: string } | null>(null);
   const [designMdOpen, setDesignMdOpen] = useState(false);
   const [designMdDraft, setDesignMdDraft] = useState('');
+  const [designMdTarget, setDesignMdTarget] = useState<DesignMdEditTarget>({ kind: 'all' });
+  const [stickyHeaderStuck, setStickyHeaderStuck] = useState(false);
+  const [colorEditor, setColorEditor] = useState<{ index: number; label: string } | null>(null);
+  const [colorDraft, setColorDraft] = useState('#000000');
+  const [colorError, setColorError] = useState<string | null>(null);
+  const [colorSaving, setColorSaving] = useState(false);
+  const [colorOverrides, setColorOverrides] = useState<Record<number, string>>({});
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const designMdInputRef = useRef<HTMLInputElement | null>(null);
+  const stickyHeaderRef = useRef<HTMLElement | null>(null);
 
   useBrandFonts(kit.projectId, kit.fonts);
 
@@ -282,10 +309,16 @@ export function DesignKitView({
     setLightbox(null);
     setAssetPreview(null);
     setCoverPreviewOpen(false);
+    setColorEditor(null);
+    setColorError(null);
   }, [kit.designSystemId, kit.brandId]);
 
   useEffect(() => {
-    if (!lightbox && !assetPreview && !coverPreviewOpen && !designMdOpen) return undefined;
+    setColorOverrides({});
+  }, [kit.designSystemId, kit.brandId, kit.projectId]);
+
+  useEffect(() => {
+    if (!lightbox && !assetPreview && !coverPreviewOpen && !designMdOpen && !colorEditor) return undefined;
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -293,10 +326,48 @@ export function DesignKitView({
       setAssetPreview(null);
       setCoverPreviewOpen(false);
       setDesignMdOpen(false);
+      setColorEditor(null);
+      setColorError(null);
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [assetPreview, coverPreviewOpen, designMdOpen, lightbox]);
+  }, [assetPreview, colorEditor, coverPreviewOpen, designMdOpen, lightbox]);
+
+  useEffect(() => {
+    if (!stickyHeader) {
+      setStickyHeaderStuck(false);
+      return undefined;
+    }
+    const header = stickyHeaderRef.current;
+    if (!header) return undefined;
+    const scrollParent = header.closest<HTMLElement>('.ds-project-panel');
+    const scrollTarget: HTMLElement | Window = scrollParent ?? window;
+    const update = () => {
+      const headerTop = header.getBoundingClientRect().top;
+      // The header pins at the scroll container's content-box top — below any
+      // top border/padding — not at its border-box top. Measure that resting
+      // offset so the stuck state engages even when the panel carries top
+      // padding; otherwise the stuck background never turns on and content
+      // scrolls through the still-transparent header.
+      let stickyTop = 0;
+      let scrollTop = window.scrollY;
+      if (scrollParent) {
+        const rect = scrollParent.getBoundingClientRect();
+        const cs = getComputedStyle(scrollParent);
+        stickyTop = rect.top + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
+        scrollTop = scrollParent.scrollTop;
+      }
+      const nextStuck = scrollTop > 0 && headerTop <= stickyTop + 1;
+      setStickyHeaderStuck((current) => (current === nextStuck ? current : nextStuck));
+    };
+    update();
+    scrollTarget.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      scrollTarget.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [stickyHeader]);
 
   // Engine token chips, when the system dir exists.
   useEffect(() => {
@@ -329,7 +400,13 @@ export function DesignKitView({
     };
   }, [kit.system?.tokensUrl]);
 
-  const colors = kit.colors;
+  const colors = useMemo(
+    () => kit.colors.map((color, index) => ({
+      ...color,
+      hex: colorOverrides[index] ?? color.hex,
+    })),
+    [colorOverrides, kit.colors],
+  );
   const fonts = useMemo<{ font: KitFont; label: string }[]>(() => {
     const out: { font: KitFont; label: string }[] = [];
     if (kit.typography.display) out.push({ font: kit.typography.display, label: 'Display' });
@@ -343,8 +420,51 @@ export function DesignKitView({
   const layout = kit.layout;
   const samples = imagery?.samples ?? [];
   const dsKitUrl = dsTheme === 'dark' ? kit.system?.kitDarkUrl ?? kit.system?.kitUrl : kit.system?.kitUrl;
+  const fullSystemUrl = kit.system?.indexUrl ?? null;
   const canUpload = Boolean(kit.canUpload && onUploadModule);
   const canEditDesignMd = Boolean(designMd?.canEdit !== false && designMd?.onSave);
+  const designMdModules = useMemo<Record<DesignMdModuleId, DesignMdModuleSpec>>(
+    () => ({
+      identity: {
+        id: 'identity',
+        label: t('brandDetail.identity'),
+        heading: 'Identity',
+        keywords: ['identity', 'overview', 'brand'],
+        includePreamble: true,
+      },
+      typography: {
+        id: 'typography',
+        label: t('brandDetail.typography'),
+        heading: 'Typography',
+        keywords: ['typograph', 'type', 'font'],
+      },
+      palette: {
+        id: 'palette',
+        label: t('brandDetail.palette'),
+        heading: 'Color Palette',
+        keywords: ['color', 'palette'],
+      },
+      voice: {
+        id: 'voice',
+        label: t('brandDetail.voiceTone'),
+        heading: 'Voice & Tone',
+        keywords: ['voice', 'tone', 'messaging'],
+      },
+      imageryLayout: {
+        id: 'imageryLayout',
+        label: t('brandDetail.imageryLayout'),
+        heading: 'Imagery & Layout',
+        keywords: ['imagery', 'image', 'photograph', 'illustration', 'layout', 'spacing', 'grid', 'composition'],
+      },
+      designSystem: {
+        id: 'designSystem',
+        label: t('brandDetail.designSystem'),
+        heading: 'Design System',
+        keywords: ['design system', 'component', 'token', 'motion', 'interaction'],
+      },
+    }),
+    [t],
+  );
 
   function handleFile(module: KitUploadModule, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -355,6 +475,15 @@ export function DesignKitView({
   function openInBrowser(event: MouseEvent<HTMLAnchorElement>, url: string) {
     event.preventDefault();
     void openExternalUrl(url);
+  }
+
+  function openFullSystemPreview() {
+    if (!fullSystemUrl) return;
+    setAssetPreview({ url: fullSystemUrl, label: `${kit.name} full system` });
+  }
+
+  function openUrlInNewTab(url: string) {
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function handleModuleDragOver(event: DragEvent<HTMLElement>) {
@@ -393,23 +522,100 @@ export function DesignKitView({
 
   function openDesignMdEditor() {
     if (!designMd) return;
+    setDesignMdTarget({ kind: 'all' });
     setDesignMdDraft(designMd.body);
     setDesignMdOpen(true);
   }
 
-  async function copyDesignMd() {
-    if (!designMd?.body || !navigator.clipboard?.writeText) return;
+  function openDesignMdModuleEditor(module: DesignMdModuleSpec) {
+    if (!designMd) return;
+    const slice = designMdModuleSlice(designMd.body, module);
+    setDesignMdTarget({ kind: 'module', module });
+    setDesignMdDraft(slice.text);
+    setDesignMdOpen(true);
+  }
+
+  async function copyDesignMdText(value: string) {
+    if (!value.trim() || !navigator.clipboard?.writeText) return;
     try {
-      await navigator.clipboard.writeText(designMd.body);
+      await navigator.clipboard.writeText(value);
     } catch {
       // Clipboard write failures are non-fatal.
     }
   }
 
+  async function copyDesignMd() {
+    if (!designMd?.body) return;
+    await copyDesignMdText(designMd.body);
+  }
+
+  async function copyDesignMdModule(module: DesignMdModuleSpec) {
+    if (!designMd?.body) return;
+    const slice = designMdModuleSlice(designMd.body, module);
+    await copyDesignMdText(slice.text);
+  }
+
   async function saveDesignMdDraft() {
     if (!designMd?.onSave) return;
-    await designMd.onSave(designMdDraft);
+    const nextBody = designMdTarget.kind === 'module'
+      ? replaceDesignMdModule(designMd.body, designMdTarget.module, designMdDraft)
+      : designMdDraft;
+    await designMd.onSave(nextBody);
     setDesignMdOpen(false);
+  }
+
+  function openColorEditor(index: number) {
+    const color = colors[index];
+    if (!color) return;
+    setColorEditor({
+      index,
+      label: color.name || color.role || `Color ${index + 1}`,
+    });
+    setColorDraft(normalizeColorInput(color.hex).toUpperCase());
+    setColorError(null);
+  }
+
+  async function saveColorDraft() {
+    if (!colorEditor || !onColorChange) return;
+    const nextHex = normalizeEditableHex(colorDraft);
+    if (!nextHex) {
+      setColorError('Enter a valid hex color, such as #FF6A3D.');
+      return;
+    }
+    const previousHex = colors[colorEditor.index]?.hex;
+    setColorSaving(true);
+    setColorError(null);
+    setColorOverrides((current) => ({ ...current, [colorEditor.index]: nextHex }));
+    try {
+      await onColorChange(colorEditor.index, nextHex);
+      setColorEditor(null);
+    } catch (err) {
+      setColorError(err instanceof Error ? err.message : 'Could not save this color.');
+      if (previousHex) {
+        setColorOverrides((current) => ({ ...current, [colorEditor.index]: previousHex }));
+      }
+    } finally {
+      setColorSaving(false);
+    }
+  }
+
+  async function resetColorDraft() {
+    if (!colorEditor || !onColorReset) return;
+    setColorSaving(true);
+    setColorError(null);
+    try {
+      await onColorReset(colorEditor.index);
+      setColorOverrides((current) => {
+        const next = { ...current };
+        delete next[colorEditor.index];
+        return next;
+      });
+      setColorEditor(null);
+    } catch (err) {
+      setColorError(err instanceof Error ? err.message : 'Could not reset this color.');
+    } finally {
+      setColorSaving(false);
+    }
   }
 
   async function handleDesignMdUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -417,6 +623,7 @@ export function DesignKitView({
     event.target.value = '';
     if (!file) return;
     const text = await file.text();
+    setDesignMdTarget({ kind: 'all' });
     setDesignMdDraft(text);
     setDesignMdOpen(true);
   }
@@ -459,6 +666,21 @@ export function DesignKitView({
         {canEditDesignMd
           ? moduleActionButton(t('ds.uploadMd'), 'upload', () => designMdInputRef.current?.click(), Boolean(designMd.saving))
           : null}
+      </>
+    );
+  }
+
+  function designMdModuleActionButtons(module: DesignMdModuleSpec) {
+    if (!designMd) return null;
+    const slice = designMdModuleSlice(designMd.body, module);
+    return (
+      <>
+        {moduleActionButton(`Copy ${module.label}`, 'copy', () => void copyDesignMdModule(module), !slice.text.trim())}
+        {canEditDesignMd
+          ? moduleActionButton(`Edit ${module.label}`, 'edit', () => openDesignMdModuleEditor(module), Boolean(designMd.saving))
+          : designMd.onOpenFile
+            ? moduleActionButton(`Open ${module.label}`, 'file-text', designMd.onOpenFile)
+            : null}
       </>
     );
   }
@@ -507,7 +729,11 @@ export function DesignKitView({
 
   return (
     <div
-      className={`${styles.previewInner} ${compact ? styles.compact : ''}`}
+      className={[
+        styles.previewInner,
+        compact ? styles.compact : '',
+        stickyHeader ? styles.previewInnerSticky : '',
+      ].filter(Boolean).join(' ')}
       data-testid={dataTestId}
       data-variant={variant}
     >
@@ -599,27 +825,66 @@ export function DesignKitView({
         )}
       </div>
 
-      <header className={styles.previewHead}>
-        <div className={styles.previewHeadText}>
-          <div className={styles.previewTitleRow}>
-            <h2 className={styles.previewName}>{kit.name}</h2>
-            {badgeSlot}
-          </div>
-          {kit.tagline ? <p className={styles.previewTagline}>{kit.tagline}</p> : null}
-          {kit.host && kit.sourceUrl ? (
-            <a
-              className={styles.previewDomain}
-              href={kit.sourceUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              onClick={(event) => openInBrowser(event, kit.sourceUrl!)}
-            >
-              {kit.host}
-              <ExternalGlyph />
-            </a>
+      <header
+        ref={stickyHeader ? stickyHeaderRef : undefined}
+        className={[
+          styles.previewHead,
+          stickyHeader ? styles.previewHeadSticky : '',
+          stickyHeaderStuck ? styles.previewHeadStuck : '',
+        ].filter(Boolean).join(' ')}
+      >
+        <div className={styles.previewHeadIdentity}>
+          {stickyHeader ? (
+            <span className={styles.previewHeadLogo} aria-hidden="true">
+              <BrandLogo
+                brandId={kit.brandId}
+                logoSrc={activeLogoSrc ?? kit.logoSrc}
+                host={kit.host}
+                name={kit.name}
+                faviconSize={40}
+                className={styles.previewHeadLogoImage}
+                fallbackClassName={styles.previewHeadLogoFallback}
+              />
+            </span>
           ) : null}
+          <div className={styles.previewHeadText}>
+            <div className={styles.previewTitleRow}>
+              <h2 className={styles.previewName}>{kit.name}</h2>
+              {badgeSlot}
+            </div>
+            {!stickyHeader && kit.tagline ? <p className={styles.previewTagline}>{kit.tagline}</p> : null}
+            {!stickyHeader && kit.host && kit.sourceUrl ? (
+              <a
+                className={styles.previewDomain}
+                href={kit.sourceUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                onClick={(event) => openInBrowser(event, kit.sourceUrl!)}
+              >
+                {kit.host}
+                <ExternalGlyph />
+              </a>
+            ) : null}
+          </div>
         </div>
-        {actionsSlot ? <div className={styles.previewActions}>{actionsSlot}</div> : null}
+        {actionsSlot || (!compact && designMd) || (stickyHeader && fullSystemUrl) ? (
+          <div className={styles.previewActions}>
+            {!compact ? designMdActionButtons() : null}
+            {actionsSlot}
+            {stickyHeader && fullSystemUrl ? (
+              <button
+                type="button"
+                className={`${styles.dsOpen} ${styles.dsOpenButton}`}
+                onClick={openFullSystemPreview}
+                title={t('brandDetail.openFullSystem')}
+                aria-label={t('brandDetail.openFullSystem')}
+              >
+                {t('brandDetail.openFullSystem')}
+                <ExternalGlyph />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       {noticeSlot}
@@ -630,7 +895,7 @@ export function DesignKitView({
             <section className={styles.section} aria-label={t('brandDetail.identity')}>
               <div className={styles.dsHead}>
                 <h3 className={styles.sectionTitle}>{t('brandDetail.identity')}</h3>
-                {moduleActions(designMdActionButtons())}
+                {moduleActions(designMdModuleActionButtons(designMdModules.identity))}
               </div>
               <p className={styles.description}>{kit.description}</p>
             </section>
@@ -700,7 +965,7 @@ export function DesignKitView({
                 {moduleActions(
                   <>
                     {uploadAction('font')}
-                    {designMdActionButtons()}
+                    {designMdModuleActionButtons(designMdModules.typography)}
                   </>,
                 )}
               </div>
@@ -757,20 +1022,22 @@ export function DesignKitView({
             <section className={styles.section} aria-label={t('brandDetail.palette')}>
               <div className={styles.dsHead}>
                 <h3 className={styles.sectionTitle}>{t('brandDetail.palette')}</h3>
-                {moduleActions(designMdActionButtons())}
+                {moduleActions(designMdModuleActionButtons(designMdModules.palette))}
               </div>
               <div className={styles.paletteGrid}>
                 {colors.map((c, i) => (
                   <div key={`${c.role}-${c.hex}-${i}`} className={styles.swatch}>
                     <span className={styles.swatchChip} style={{ background: c.hex }}>
                       {onColorChange ? (
-                        <input
+                        <button
                           className={styles.swatchPicker}
-                          type="color"
-                          value={normalizeColorInput(c.hex)}
+                          type="button"
                           aria-label={`Edit ${c.name || c.role || 'color'}`}
-                          onChange={(event) => onColorChange(i, event.target.value)}
-                        />
+                          title={`Edit ${c.name || c.role || 'color'}`}
+                          onClick={() => openColorEditor(i)}
+                        >
+                          <Icon name="edit" size={13} />
+                        </button>
                       ) : null}
                       <span
                         className={styles.swatchHex}
@@ -794,7 +1061,7 @@ export function DesignKitView({
             <section className={styles.section} aria-label={t('brandDetail.voiceTone')}>
               <div className={styles.dsHead}>
                 <h3 className={styles.sectionTitle}>{t('brandDetail.voiceTone')}</h3>
-                {moduleActions(designMdActionButtons())}
+                {moduleActions(designMdModuleActionButtons(designMdModules.voice))}
               </div>
               {voice.adjectives.length > 0 ? (
                 <div className={styles.pills}>
@@ -836,7 +1103,7 @@ export function DesignKitView({
             <section className={styles.section} aria-label={t('brandDetail.imageryLayout')}>
               <div className={styles.dsHead}>
                 <h3 className={styles.sectionTitle}>{t('brandDetail.imageryLayout')}</h3>
-                {moduleActions(designMdActionButtons())}
+                {moduleActions(designMdModuleActionButtons(designMdModules.imageryLayout))}
               </div>
               {imagery?.style ? <p className={styles.description}>{imagery.style}</p> : null}
               {(imagery?.subjects.length ?? 0) > 0 ? (
@@ -945,22 +1212,20 @@ export function DesignKitView({
                 <h3 className={styles.sectionTitle}>{t('brandDetail.designSystem')}</h3>
                 {moduleActions(
                   <>
-                    {designMdActionButtons()}
-                    {onRefresh ? moduleActionButton(t('ds.refresh'), 'refresh', onRefresh) : null}
-                    {onDownload ? moduleActionButton(t('ds.download'), 'download', onDownload) : null}
-                    {onImport ? moduleActionButton(t('ds.importFolder'), 'import', onImport) : null}
-                    {onReset ? moduleActionButton(t('ds.reset'), 'reload', onReset) : null}
-                    {kit.system.indexUrl ? (
-                      <a
-                        className={styles.dsOpen}
-                        href={kit.system.indexUrl}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        onClick={(event) => openInBrowser(event, kit.system!.indexUrl!)}
+                    {designMdModuleActionButtons(designMdModules.designSystem)}
+                    {!stickyHeader && onRefresh ? moduleActionButton(t('ds.refresh'), 'refresh', onRefresh) : null}
+                    {!stickyHeader && onDownload ? moduleActionButton(t('ds.download'), 'download', onDownload) : null}
+                    {!stickyHeader && onImport ? moduleActionButton(t('ds.importFolder'), 'import', onImport) : null}
+                    {!stickyHeader && onReset ? moduleActionButton(t('ds.reset'), 'reload', onReset) : null}
+                    {!stickyHeader && fullSystemUrl ? (
+                      <button
+                        type="button"
+                        className={`${styles.dsOpen} ${styles.dsOpenButton}`}
+                        onClick={openFullSystemPreview}
                       >
                         {t('brandDetail.openFullSystem')}
                         <ExternalGlyph />
-                      </a>
+                      </button>
                     ) : null}
                   </>,
                 )}
@@ -1098,14 +1363,24 @@ export function DesignKitView({
                   <div className={styles.assetModalPanel} onClick={(event) => event.stopPropagation()}>
                     <div className={styles.assetModalHeader}>
                       <h3>{assetPreview.label}</h3>
-                      <button
-                        type="button"
-                        className={styles.assetModalClose}
-                        onClick={() => setAssetPreview(null)}
-                        aria-label={t('newBrand.close')}
-                      >
-                        <CloseGlyph />
-                      </button>
+                      <div className={styles.assetModalHeaderActions}>
+                        <button
+                          type="button"
+                          className={styles.moduleAction}
+                          onClick={() => openUrlInNewTab(assetPreview.url)}
+                        >
+                          <Icon name="external-link" size={13} />
+                          <span>{t('preview.openInNewTab')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.assetModalClose}
+                          onClick={() => setAssetPreview(null)}
+                          aria-label={t('newBrand.close')}
+                        >
+                          <CloseGlyph />
+                        </button>
+                      </div>
                     </div>
                     <iframe
                       className={styles.assetModalFrame}
@@ -1152,12 +1427,12 @@ export function DesignKitView({
                   className={styles.assetModal}
                   role="dialog"
                   aria-modal="true"
-                  aria-label="DESIGN.md"
+                  aria-label={designMdTarget.kind === 'module' ? `${designMdTarget.module.label} DESIGN.md section` : 'DESIGN.md'}
                   onClick={() => setDesignMdOpen(false)}
                 >
                   <div className={`${styles.assetModalPanel} ${styles.designMdModalPanel}`} onClick={(event) => event.stopPropagation()}>
                     <div className={styles.assetModalHeader}>
-                      <h3>DESIGN.md</h3>
+                      <h3>{designMdTarget.kind === 'module' ? designMdTarget.module.label : 'DESIGN.md'}</h3>
                       <button
                         type="button"
                         className={styles.assetModalClose}
@@ -1173,12 +1448,106 @@ export function DesignKitView({
                       onChange={(event) => setDesignMdDraft(event.target.value)}
                       rows={20}
                       spellCheck={false}
-                      aria-label="DESIGN.md"
+                      aria-label={designMdTarget.kind === 'module' ? `${designMdTarget.module.label} DESIGN.md section` : 'DESIGN.md'}
                     />
                     <div className={styles.designMdModalBar}>
-                      <span>{t('ds.editingDesignMdHint')}</span>
+                      <span>
+                        {designMdTarget.kind === 'module'
+                          ? `Editing only the ${designMdTarget.module.label} module.`
+                          : t('ds.editingDesignMdHint')}
+                      </span>
                       <Button variant="primary" disabled={Boolean(designMd.saving)} onClick={() => void saveDesignMdDraft()}>
-                        {designMd.saving ? t('ds.saving') : t('ds.saveDesignMd')}
+                        {designMd.saving ? t('ds.saving') : designMdTarget.kind === 'module' ? 'Save module' : t('ds.saveDesignMd')}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {colorEditor ? (
+                <div
+                  className={styles.assetModal}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={`Edit ${colorEditor.label}`}
+                  data-testid="design-kit-color-editor"
+                  onClick={() => {
+                    if (colorSaving) return;
+                    setColorEditor(null);
+                    setColorError(null);
+                  }}
+                >
+                  <div
+                    className={`${styles.assetModalPanel} ${styles.colorModalPanel}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className={styles.assetModalHeader}>
+                      <h3>Edit {colorEditor.label}</h3>
+                      <button
+                        type="button"
+                        className={styles.assetModalClose}
+                        onClick={() => {
+                          if (colorSaving) return;
+                          setColorEditor(null);
+                          setColorError(null);
+                        }}
+                        aria-label={t('newBrand.close')}
+                      >
+                        <CloseGlyph />
+                      </button>
+                    </div>
+                    <div className={styles.colorModalBody}>
+                      <div className={styles.colorModalPreview} style={{ background: normalizeColorInput(colorDraft) }}>
+                        <span
+                          style={{
+                            color: isLightHex(normalizeColorInput(colorDraft))
+                              ? 'rgba(0,0,0,.72)'
+                              : 'rgba(255,255,255,.9)',
+                          }}
+                        >
+                          {normalizeColorInput(colorDraft).toUpperCase()}
+                        </span>
+                      </div>
+                      <label className={styles.colorModalField}>
+                        <span>Color</span>
+                        <input
+                          type="color"
+                          value={normalizeColorInput(colorDraft)}
+                          onChange={(event) => {
+                            setColorDraft(event.target.value.toUpperCase());
+                            setColorError(null);
+                          }}
+                        />
+                      </label>
+                      <label className={styles.colorModalField}>
+                        <span>Hex</span>
+                        <input
+                          type="text"
+                          value={colorDraft}
+                          inputMode="text"
+                          autoCapitalize="characters"
+                          spellCheck={false}
+                          aria-label="Hex value"
+                          onChange={(event) => {
+                            setColorDraft(event.target.value.toUpperCase());
+                            setColorError(null);
+                          }}
+                        />
+                      </label>
+                      {colorError ? <p className={styles.colorModalError}>{colorError}</p> : null}
+                    </div>
+                    <div className={styles.designMdModalBar}>
+                      <button
+                        type="button"
+                        className={styles.moduleAction}
+                        disabled={colorSaving || !onColorReset}
+                        onClick={() => void resetColorDraft()}
+                      >
+                        <Icon name="reload" size={13} />
+                        <span>Reset</span>
+                      </button>
+                      <Button variant="primary" disabled={colorSaving} onClick={() => void saveColorDraft()}>
+                        {colorSaving ? t('ds.saving') : 'Save color'}
                       </Button>
                     </div>
                   </div>
@@ -1198,6 +1567,118 @@ function normalizeColorInput(hex: string): string {
     return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
   }
   return '#000000';
+}
+
+function normalizeEditableHex(value: string): string | null {
+  const trimmed = value.trim();
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(withHash)) return withHash.toUpperCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(withHash)) {
+    return `#${withHash[1]}${withHash[1]}${withHash[2]}${withHash[2]}${withHash[3]}${withHash[3]}`.toUpperCase();
+  }
+  return null;
+}
+
+interface DesignMdHeadingMatch {
+  start: number;
+  title: string;
+}
+
+interface DesignMdSlice {
+  text: string;
+  start: number;
+  end: number;
+  exists: boolean;
+}
+
+function designMdModuleSlice(body: string, module: DesignMdModuleSpec): DesignMdSlice {
+  const safe = body ?? '';
+  const frontmatter = safe.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  const contentStart = frontmatter ? frontmatter[0].length : 0;
+  const headings = designMdHeadings(safe, contentStart);
+  const preambleEnd = headings[0]?.start ?? safe.length;
+  const preamble = safe.slice(contentStart, preambleEnd).trim();
+  const matchedIndexes = headings
+    .map((heading, index) => (designMdHeadingMatches(heading.title, module) ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (module.includePreamble && preamble.length > 0) {
+    return {
+      text: preamble,
+      start: contentStart,
+      end: preambleEnd,
+      exists: true,
+    };
+  }
+
+  if (matchedIndexes.length > 0) {
+    const first = matchedIndexes[0]!;
+    const last = matchedIndexes[matchedIndexes.length - 1]!;
+    const start = headings[first]!.start;
+    const end = headings[last + 1]?.start ?? safe.length;
+    return {
+      text: safe.slice(start, end).trim(),
+      start,
+      end,
+      exists: true,
+    };
+  }
+
+  if (module.includePreamble) {
+    return {
+      text: designMdDefaultModuleText(module, preamble),
+      start: contentStart,
+      end: preambleEnd,
+      exists: false,
+    };
+  }
+
+  return {
+    text: designMdDefaultModuleText(module),
+    start: safe.length,
+    end: safe.length,
+    exists: false,
+  };
+}
+
+function replaceDesignMdModule(body: string, module: DesignMdModuleSpec, draft: string): string {
+  const safe = body ?? '';
+  const slice = designMdModuleSlice(safe, module);
+  const nextText = normalizeDesignMdModuleDraft(module, draft);
+  const before = safe.slice(0, slice.start).trimEnd();
+  const after = safe.slice(slice.end).trimStart();
+  return [before, nextText, after]
+    .filter((part) => part.trim().length > 0)
+    .join('\n\n')
+    .trimEnd()
+    .concat('\n');
+}
+
+function designMdHeadings(body: string, startOffset: number): DesignMdHeadingMatch[] {
+  return [...body.slice(startOffset).matchAll(/^##\s+(.+?)\s*$/gm)].map((match) => {
+    const start = startOffset + (match.index ?? 0);
+    return {
+      start,
+      title: match[1] ?? '',
+    };
+  });
+}
+
+function designMdHeadingMatches(title: string, module: DesignMdModuleSpec): boolean {
+  const normalized = title.replace(/^\d+[.)]\s*/, '').trim().toLowerCase();
+  return module.keywords.some((keyword) => normalized.includes(keyword));
+}
+
+function designMdDefaultModuleText(module: DesignMdModuleSpec, preamble = ''): string {
+  if (module.includePreamble) return preamble || `# ${module.heading}\n`;
+  return `## ${module.heading}\n\n`;
+}
+
+function normalizeDesignMdModuleDraft(module: DesignMdModuleSpec, draft: string): string {
+  const trimmed = draft.trim();
+  if (module.includePreamble) return trimmed;
+  if (!trimmed) return `## ${module.heading}`;
+  return /^##\s+/m.test(trimmed) ? trimmed : `## ${module.heading}\n\n${trimmed}`;
 }
 
 function TokenChip({ label, hex }: { label: string; hex: string }) {

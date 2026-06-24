@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DesignKitView } from '../../src/components/DesignKitView';
 import { I18nProvider } from '../../src/i18n';
@@ -72,5 +72,91 @@ describe('DesignKitView iframe sandboxing', () => {
     expect(screen.getByTitle('刷新')).toBeTruthy();
     expect(screen.queryByText('Upload font')).toBeNull();
     expect(screen.queryByText('Copy DESIGN.md')).toBeNull();
+  });
+
+  it('edits only the selected DESIGN.md module section', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <I18nProvider initial="en">
+        <DesignKitView
+          kit={previewKit()}
+          designMd={{
+            body: [
+              '# Preview Kit',
+              '',
+              'The system overview.',
+              '',
+              '## Color Palette',
+              '',
+              '| Role | Name | Hex | Usage |',
+              '| --- | --- | --- | --- |',
+              '| primary | Primary | `#123456` | Primary actions |',
+              '',
+              '## Voice & Tone',
+              '',
+              '- Direct and clear.',
+            ].join('\n'),
+            onSave,
+            saving: false,
+          }}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle('Edit Palette'));
+
+    const textarea = screen.getByRole('textbox', { name: 'Palette DESIGN.md section' }) as HTMLTextAreaElement;
+    expect(textarea.value).toContain('## Color Palette');
+    expect(textarea.value).not.toContain('## Voice & Tone');
+
+    fireEvent.change(textarea, {
+      target: {
+        value: [
+          '## Color Palette',
+          '',
+          '| Role | Name | Hex | Usage |',
+          '| --- | --- | --- | --- |',
+          '| primary | Primary | `#FF6A3D` | Primary actions |',
+        ].join('\n'),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save module' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const saved = onSave.mock.calls[0]?.[0] as string;
+    expect(saved).toContain('# Preview Kit');
+    expect(saved).toContain('## Voice & Tone');
+    expect(saved).toContain('`#FF6A3D`');
+    expect(saved).not.toContain('`#123456`');
+  });
+
+  it('opens the full system in a dismissible preview dialog', async () => {
+    const baseKit = previewKit();
+    const kit = {
+      ...baseKit,
+      system: {
+        kitUrl: baseKit.system!.kitUrl,
+        kitDarkUrl: baseKit.system?.kitDarkUrl,
+        tokensUrl: baseKit.system?.tokensUrl,
+        indexUrl: '/raw/projects/preview/system/index.html',
+      },
+    };
+
+    render(
+      <I18nProvider initial="en">
+        <DesignKitView kit={kit} stickyHeader />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle('Open full system'));
+
+    expect(screen.getByRole('dialog', { name: 'Preview Kit full system' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Preview Kit full system' })).toBeNull();
+    });
   });
 });

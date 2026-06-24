@@ -68,6 +68,7 @@ import { listDesignArtifactCandidates } from './design-files/designArtifacts';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { Icon, type IconName } from './Icon';
 import { BrandEnrichmentBanner } from './BrandEnrichmentBanner';
+import { DesignSystemCreateCta } from './DesignSystemCreateCta';
 import { repoConnectCopy } from './design-system-github-evidence';
 import { isRenderableSketchJson, SketchPreview } from './SketchPreview';
 import type { SettingsSection } from './SettingsDialog';
@@ -570,6 +571,12 @@ interface Props {
   // Runs the optional brand-enrichment turn. The parent sends the project's
   // seeded enrichment prompt with the default per-turn skill bundle.
   onContinueBrandEnrichment?: () => void;
+  // Creates a fresh design project that inherits this design system. The parent
+  // only supplies this for design-system-level projects (a project that *is* a
+  // design system), not for regular design projects that merely use one as
+  // context — so its presence alone gates the empty-state CTA. Surfaces the same
+  // canonical create-from-design-system flow as the right-hand panel button.
+  onCreateDesignFromActiveSystem?: () => void;
   // Bumped by the parent to push a draft into the composer (used by the
   // "Import repo" CTA). The nonce lets the same text fire more than once.
   composerDraftSignal?: { text: string; nonce: number };
@@ -737,6 +744,7 @@ export function ChatPane({
   onConnectRepo,
   brandEnrichmentEligible,
   onContinueBrandEnrichment,
+  onCreateDesignFromActiveSystem,
   composerDraftSignal,
   petConfig,
   onAdoptPet,
@@ -2053,6 +2061,9 @@ export function ChatPane({
                           busy={Boolean(streaming || sendDisabled || loading || !activeConversationId)}
                           onContinue={() => onContinueBrandEnrichment?.()}
                         />
+                      ) : null}
+                      {onCreateDesignFromActiveSystem ? (
+                        <DesignSystemCreateCta onCreate={onCreateDesignFromActiveSystem} />
                       ) : null}
                       <div className="chat-examples" role="list">
                         {pickStarters(projectMetadata, t).map((ex, i) => (

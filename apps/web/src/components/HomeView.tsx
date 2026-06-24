@@ -69,6 +69,7 @@ import { smoothScrollToTop } from '../utils/smoothScrollToTop';
 import { missingRequiredInputs, pluginInputsAreValid } from '../utils/pluginRequiredInputs';
 import { HomeHero, type ExamplePromptInfo, type HomeHeroHandle } from './HomeHero';
 import { findChip, HOME_HERO_CHIPS, type HomeHeroChip } from './home-hero/chips';
+import { homeHeroChipLabel } from './home-hero/chip-labels';
 import type { PlaceholderScenario } from './home-hero/placeholderScenarios';
 import { consumePendingHomeChip, HOME_CHIP_INTENT_EVENT } from '../runtime/home-intent';
 import { navigate } from '../router';
@@ -625,7 +626,7 @@ export function HomeView({
       const defaultPluginId = defaultPluginIdForChip(active.chipId);
       const chip = findChip(active.chipId);
       if (chip && (defaultPluginId === null || defaultPluginId === active.record.id)) {
-        return { title: homeHeroChipLabelForId(chip.id, t), isExplicitPlugin: false };
+        return { title: homeHeroChipLabel(chip.id, t), isExplicitPlugin: false };
       }
     }
     return {
@@ -2084,26 +2085,6 @@ export function shouldShowActivePluginChip(active: ActivePlugin | null): boolean
   // Otherwise a type chip whose default plugin IS this record stands in for the
   // task chip and suppresses a separate plugin chip.
   return active.record.id !== defaultPluginIdForChip(active.chipId);
-}
-
-function homeHeroChipLabelForId(chipId: string, t: ReturnType<typeof useI18n>['t']): string {
-  switch (chipId) {
-    case 'prototype': return t('homeHero.chip.prototype');
-    case 'wireframe': return t('homeHero.chip.wireframe');
-    case 'mobile': return t('homeHero.chip.mobile');
-    case 'live-artifact': return t('homeHero.chip.liveArtifact');
-    case 'deck': return t('homeHero.chip.deck');
-    case 'document': return t('homeHero.chip.document');
-    case 'image': return t('homeHero.chip.image');
-    case 'video': return t('homeHero.chip.video');
-    case 'hyperframes': return t('homeHero.chip.hyperframes');
-    case 'audio': return t('homeHero.chip.audio');
-    case 'create-brand-kit': return t('homeHero.chip.createBrandKit');
-    case 'create-plugin': return t('homeHero.chip.createPlugin');
-    case 'figma': return t('homeHero.chip.figma');
-    case 'template': return t('homeHero.chip.template');
-    default: return chipId;
-  }
 }
 
 // Prototype/deck-specific settings (fidelity, slide count, speaker notes) are

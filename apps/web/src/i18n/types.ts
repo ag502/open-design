@@ -2249,6 +2249,9 @@ export interface Dict {
   'brandEnrichment.body': string;
   'brandEnrichment.cta': string;
   'brandEnrichment.busy': string;
+  'chat.createDesignFromSystemTitle': string;
+  'chat.createDesignFromSystemBody': string;
+  'chat.createDesignFromSystemCta': string;
   'chat.fillInputTitle': string;
   'chat.jumpToLatest': string;
   'chat.scrollToLatest': string;
@@ -3459,7 +3462,6 @@ export interface Dict {
   'onboarding.buildBenefitSourcesTitle': string;
   'onboarding.buildBenefitSourcesBody': string;
   'onboarding.buildPreviewLabel': string;
-  'onboarding.buildArtifacts': string;
   'onboarding.buildStart': string;
   'onboarding.buildHome': string;
   'dsCreate.referenceLabel': string;

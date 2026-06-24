@@ -6167,6 +6167,15 @@ export function ProjectView({
               activeProjectFileName={activeProjectFileName}
               hasActiveDesignSystem={!!projectDesignSystemId}
               activeDesignSystem={chatDesignSystemSummary}
+              onCreateDesignFromActiveSystem={
+                designSystemProject && onCreateProjectFromDesignSystem
+                  ? () =>
+                      void onCreateProjectFromDesignSystem(
+                        designSystemProject.id,
+                        designSystemProject.title,
+                      )
+                  : undefined
+              }
               projectFileNames={projectFileNames}
               skills={skills}
               onEnsureProject={handleEnsureProject}

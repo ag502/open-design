@@ -42,6 +42,7 @@ import {
   type ChipGroup,
   type HomeHeroChip,
 } from './home-hero/chips';
+import { homeHeroChipLabel } from './home-hero/chip-labels';
 import { ScenarioArt } from './home-hero/ScenarioArt';
 import { useEdgeAutoScroll, EdgeScrollZones } from './home-hero/EdgeAutoScroll';
 import {
@@ -3091,26 +3092,6 @@ function ShortcutsMenu({
         : null}
     </div>
   );
-}
-
-function homeHeroChipLabel(chipId: string, t: ReturnType<typeof useT>): string {
-  switch (chipId) {
-    case 'prototype': return t('homeHero.chip.prototype');
-    case 'wireframe': return t('homeHero.chip.wireframe');
-    case 'mobile': return t('homeHero.chip.mobile');
-    case 'live-artifact': return t('homeHero.chip.liveArtifact');
-    case 'deck': return t('homeHero.chip.deck');
-    case 'document': return t('homeHero.chip.document');
-    case 'image': return t('homeHero.chip.image');
-    case 'video': return t('homeHero.chip.video');
-    case 'hyperframes': return t('homeHero.chip.hyperframes');
-    case 'audio': return t('homeHero.chip.audio');
-    case 'create-brand-kit': return t('homeHero.chip.createBrandKit');
-    case 'create-plugin': return t('homeHero.chip.createPlugin');
-    case 'figma': return t('homeHero.chip.figma');
-    case 'template': return t('homeHero.chip.template');
-    default: return chipId;
-  }
 }
 
 // Scenario subtitle shown under the title on the illustrated card rail.

@@ -37,6 +37,7 @@ import {
 } from '../providers/registry';
 import { downloadDesignSystemArchive, downloadProjectArchive } from '../runtime/exports';
 import { deriveFileOps, type FileOpEntry } from '../runtime/file-ops';
+import { parseDesignMd } from '../runtime/design-md-parse';
 import {
   deleteBrandImage,
   deleteBrandLogo,
@@ -47,7 +48,7 @@ import {
 import { latestTodosFromEvents, type TodoItem } from '../runtime/todos';
 import { deliverableSlideNavForActiveFile, isSlideNavDeliverableNow } from '../runtime/slide-nav';
 import { buildSrcdoc } from '../runtime/srcdoc';
-import { useDesignKit, hostnameOf } from '../runtime/design-kit';
+import { useDesignKit, hostnameOf, type KitColor } from '../runtime/design-kit';
 import { useKitModuleUpload } from '../runtime/kit-upload';
 import { DesignKitView } from './DesignKitView';
 import {
@@ -2576,15 +2577,27 @@ function DesignSystemProjectPanel({
   }
 
   async function changeKitColor(index: number, hex: string) {
-    const ok = await updateBrandColor(projectId, index, hex);
+    const nextHex = normalizeDesignKitHex(hex);
+    if (!nextHex) throw new Error('Enter a valid hex color.');
+    const ok = await updateBrandColor(projectId, index, nextHex);
     if (!ok) {
-      const nextBody = replaceDesignMdColorAtIndex(designMdBody, index, hex);
-      if (!nextBody) return;
+      const nextBody = designMdBodyWithColor(designMdBody, kit?.colors ?? [], index, nextHex);
       await saveDesignMd(nextBody);
       return;
     }
     setKitReloadKey((k) => k + 1);
     await onDesignSystemsRefresh?.();
+  }
+
+  async function resetKitColor(index: number) {
+    const originalHex = initialDesignKitColorHex(index, {
+      brandJson: initialBrandJsonRef.current,
+      designMdBody: initialDesignMdRef.current,
+      swatches: system.swatches,
+      currentColors: kit?.colors ?? [],
+    });
+    if (!originalHex) throw new Error('No original color is available for this swatch.');
+    await changeKitColor(index, originalHex);
   }
 
   async function removeKitLogo(index: number) {
@@ -2959,23 +2972,12 @@ function DesignSystemProjectPanel({
   if (creatingInitialDraft) {
     return (
       <div className="ds-project-panel ds-project-panel--generating">
-        <div className="ds-project-generation-stage">
-          <span className="ds-project-generation-mark">
-            <Icon name="blocks" size={24} />
-          </span>
-          <h1>Creating your design system...</h1>
-          <p>Keep this tab open. You can come back in a few minutes.</p>
-          <div
-            className="ds-project-generation-progress"
-            role="progressbar"
-            aria-label={`Design system generation progress ${generationProgress}%`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={generationProgress}
-          >
-            <span style={{ width: `${generationProgress}%` }} />
-          </div>
-        </div>
+        <DesignSystemProjectLoading
+          title="Creating your design system..."
+          subtitle="Keep this tab open. You can come back in a few minutes."
+          progress={generationProgress}
+          progressLabel={`Design system generation progress ${generationProgress}%`}
+        />
       </div>
     );
   }
@@ -3028,10 +3030,12 @@ function DesignSystemProjectPanel({
           type="button"
           className={published ? 'ghost compact' : 'primary'}
           data-testid="design-system-publish"
+          aria-label={published ? 'Unpublish design system' : 'Publish design system'}
+          title={published ? 'Unpublish design system' : 'Publish design system'}
           disabled={statusBusy || (!published && !githubEvidence.ready)}
           onClick={() => void togglePublished(!published)}
         >
-          {published ? <Icon name="check" size={14} /> : null}
+          <Icon name={published ? 'check' : 'arrow-up'} size={14} />
           {published ? 'Published' : 'Publish'}
         </button>
       </span>
@@ -3040,11 +3044,12 @@ function DesignSystemProjectPanel({
           type="button"
           className={`ds-project-default-toggle ${isDefault ? 'is-on' : ''}`}
           aria-pressed={isDefault}
+          aria-label={isDefault ? 'Stop using as chat default' : 'Use as default for new chats'}
           title="Preselect this design system for new chats and new projects."
           disabled={statusBusy || defaultBusy || !onSetDefaultDesignSystem}
           onClick={() => void toggleDefault(!isDefault)}
         >
-          {isDefault ? <Icon name="check" size={14} /> : null}
+          <Icon name={isDefault ? 'check' : 'star'} size={14} />
           {isDefault ? 'Chat default' : 'Default for new chats'}
         </button>
       ) : null}
@@ -3077,15 +3082,20 @@ function DesignSystemProjectPanel({
         </p>
         {published ? (
           <div className="ds-project-use-row">
-            <span>Use this system</span>
+            <span>
+              <strong>Use this system</strong>
+              <small>
+                Start a new design that inherits this system&apos;s colors, type, and
+                components — kept on-brand automatically.
+              </small>
+            </span>
             <Button
-              variant="ghost"
-              className="compact"
+              variant="primary"
               onClick={() => onUseDesignSystem?.(system.id, system.title)}
               disabled={!onUseDesignSystem}
             >
-              <Icon name="external-link" size={13} />
-              New design
+              <Icon name="plus" size={14} />
+              Create new design
             </Button>
           </div>
         ) : null}
@@ -3150,6 +3160,7 @@ function DesignSystemProjectPanel({
           kit={kit}
           actionsSlot={actionsSlot}
           topSlot={topSlot}
+          stickyHeader
           designMd={{
             body: designMdBody,
             onSave: saveDesignMd,
@@ -3158,7 +3169,8 @@ function DesignSystemProjectPanel({
             canEdit: true,
           }}
           onUploadModule={kitUploadModule}
-          onColorChange={(index, hex) => void changeKitColor(index, hex)}
+          onColorChange={(index, hex) => changeKitColor(index, hex)}
+          onColorReset={(index) => resetKitColor(index)}
           onDeleteLogo={(index) => void removeKitLogo(index)}
           onDeleteImage={(index) => void removeKitImage(index)}
           onRefresh={() => void refreshKit()}
@@ -3168,15 +3180,142 @@ function DesignSystemProjectPanel({
           dataTestId="design-system-project-kit"
         />
       ) : (
-        <div className="ds-project-generation-stage">
-          <span className="ds-project-generation-mark">
-            <Icon name="blocks" size={24} />
-          </span>
-          <h1>{systemDisplayName}</h1>
-        </div>
+        <DesignSystemProjectLoading
+          title={systemDisplayName}
+          subtitle="Preparing the design system workspace."
+          progressLabel="Design system workspace is loading"
+        />
       )}
     </div>
   );
+}
+
+function DesignSystemProjectLoading({
+  title,
+  subtitle,
+  progress,
+  progressLabel,
+}: {
+  title: string;
+  subtitle: string;
+  progress?: number;
+  progressLabel: string;
+}) {
+  const hasProgress = typeof progress === 'number' && Number.isFinite(progress);
+  const clampedProgress = hasProgress
+    ? Math.max(0, Math.min(100, Math.round(progress)))
+    : undefined;
+  return (
+    <div className="ds-project-loading-stage" role="status" aria-live="polite">
+      <div className="ds-project-loading-emblem" aria-hidden="true">
+        <span className="ds-project-loading-emblem__grid" />
+        <span className="ds-project-loading-mark">
+          <Icon name="blocks" size={28} />
+        </span>
+      </div>
+      <div className="ds-project-loading-copy">
+        <span className="ds-project-loading-kicker">Design System</span>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      <div
+        className={`ds-project-loading-progress ${hasProgress ? 'is-determinate' : 'is-indeterminate'}`}
+        role="progressbar"
+        aria-label={progressLabel}
+        aria-valuemin={hasProgress ? 0 : undefined}
+        aria-valuemax={hasProgress ? 100 : undefined}
+        aria-valuenow={clampedProgress}
+      >
+        <span style={hasProgress ? { width: `${clampedProgress}%` } : undefined} />
+      </div>
+      <div className="ds-project-loading-skeleton" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+    </div>
+  );
+}
+
+function normalizeDesignKitHex(value: string): string | null {
+  const trimmed = value.trim();
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(withHash)) return withHash.toUpperCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(withHash)) {
+    return `#${withHash[1]}${withHash[1]}${withHash[2]}${withHash[2]}${withHash[3]}${withHash[3]}`.toUpperCase();
+  }
+  return null;
+}
+
+function initialDesignKitColorHex(
+  index: number,
+  sources: {
+    brandJson: string | null;
+    designMdBody: string | null;
+    swatches: string[] | undefined;
+    currentColors: KitColor[];
+  },
+): string | null {
+  const brandColor = colorHexFromBrandJson(sources.brandJson, index);
+  if (brandColor) return brandColor;
+  const designMdColor = colorHexFromDesignMd(sources.designMdBody ?? '', index);
+  if (designMdColor) return designMdColor;
+  return normalizeDesignKitHex(sources.swatches?.[index] ?? sources.currentColors[index]?.hex ?? '');
+}
+
+function colorHexFromBrandJson(raw: string | null, index: number): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { colors?: Array<{ hex?: unknown }> };
+    const hex = parsed.colors?.[index]?.hex;
+    return typeof hex === 'string' ? normalizeDesignKitHex(hex) : null;
+  } catch {
+    return null;
+  }
+}
+
+function colorHexFromDesignMd(body: string, index: number): string | null {
+  if (!body.trim()) return null;
+  return normalizeDesignKitHex(parseDesignMd(body).colors[index]?.hex ?? '');
+}
+
+function designMdBodyWithColor(
+  body: string,
+  colors: KitColor[],
+  index: number,
+  hex: string,
+): string {
+  const replaced = replaceDesignMdColorAtIndex(body, index, hex);
+  if (replaced) return replaced;
+  const nextColors = colors.length > 0
+    ? colors.map((color, colorIndex) => ({
+        ...color,
+        hex: colorIndex === index ? hex : color.hex,
+      }))
+    : [];
+  while (nextColors.length <= index) {
+    nextColors.push({
+      role: `color-${nextColors.length + 1}`,
+      name: `Color ${nextColors.length + 1}`,
+      hex: nextColors.length === index ? hex : '#000000',
+      usage: '',
+    });
+  }
+  if (nextColors[index]) {
+    nextColors[index] = { ...nextColors[index], hex };
+  }
+  const table = [
+    '## Color Palette',
+    '',
+    '| Role | Name | Hex | Usage |',
+    '| --- | --- | --- | --- |',
+    ...nextColors.map((color, colorIndex) => {
+      const role = color.role || `color-${colorIndex + 1}`;
+      const name = color.name || role;
+      return `| ${role} | ${name} | \`${normalizeDesignKitHex(color.hex) ?? '#000000'}\` | ${color.usage || ''} |`;
+    }),
+  ].join('\n');
+  return `${body.trimEnd()}\n\n${table}\n`;
 }
 
 function designSystemHasSourceContext(system: DesignSystemSummary): boolean {
