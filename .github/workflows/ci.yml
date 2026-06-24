@@ -222,13 +222,9 @@ jobs:
           mount | grep -E '/srv/open-design-ci|_work' || true
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
-
-      - name: Setup Playwright
-        uses: ./.github/actions/setup-playwright
-        with:
-          package-json-path: e2e/package.json
-          install-command: pnpm -C e2e exec playwright install --with-deps chromium
+        uses: ./.github/actions/setup-persistent-workspace
+        env:
+          OPEN_DESIGN_POSTINSTALL_CONCURRENCY: "6"
 
       - name: Show persistent cache paths
         shell: bash
@@ -248,7 +244,7 @@ jobs:
         run: pnpm --filter @open-design/web build:sidecar
 
       - name: Web workspace tests
-        run: pnpm --filter @open-design/web test
+        run: pnpm --filter @open-design/web exec vitest run -c vitest.config.ts --maxWorkers=6
 
   nix_validation:
     name: Validate Nix flake
