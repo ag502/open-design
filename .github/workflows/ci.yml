@@ -225,7 +225,6 @@ jobs:
         uses: ./.github/actions/setup-persistent-workspace
         env:
           OPEN_DESIGN_POSTINSTALL_CONCURRENCY: "6"
-          OPEN_DESIGN_POSTINSTALL_PROFILE: web-workspace
 
       - name: Show persistent cache paths
         shell: bash
@@ -245,7 +244,7 @@ jobs:
         run: pnpm --filter @open-design/web build:sidecar
 
       - name: Web workspace tests
-        run: pnpm --filter @open-design/web exec vitest run -c vitest.config.ts --maxWorkers=8
+        run: pnpm --filter @open-design/web exec vitest run -c vitest.config.ts --maxWorkers=6
 
   nix_validation:
     name: Validate Nix flake
