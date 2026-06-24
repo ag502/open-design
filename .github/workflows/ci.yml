@@ -244,7 +244,7 @@ jobs:
         run: pnpm --filter @open-design/web build:sidecar
 
       - name: Web workspace tests
-        run: pnpm --filter @open-design/web exec vitest run -c vitest.config.ts --maxWorkers=6
+        run: pnpm --filter @open-design/web test
 
   nix_validation:
     name: Validate Nix flake
