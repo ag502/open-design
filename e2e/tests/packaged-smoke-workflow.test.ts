@@ -26,6 +26,7 @@ const bakePreviewsAutomergeWorkflowPath = join(
   "workflows",
   "bake-plugin-previews-automerge.yml",
 );
+const bakePreviewsWorkflowPath = join(workspaceRoot, ".github", "workflows", "bake-plugin-previews.yml");
 const handoffScriptPath = join(workspaceRoot, ".github", "scripts", "handoff.py");
 const releaseBetaWorkflowPath = join(workspaceRoot, ".github", "workflows", "release-beta.yml");
 const releaseBetaSelfHostedWorkflowPath = join(workspaceRoot, ".github", "workflows", "release-beta-s.yml");
@@ -318,17 +319,51 @@ describe("packaged smoke workflow", () => {
     expect(approveStep).toContain("steps.pr.outputs.author == 'app/open-design-release-bot'");
     expect(approveStep).toContain("steps.pr.outputs.pristine == 'true'");
     expect(approveStep).toContain("github.token");
+    // Approve only when the run CI actually succeeded — dropping this predicate would approve a
+    // PR whose CI failed.
+    expect(approveStep).toContain("github.event.workflow_run.conclusion == 'success'");
+
+    // The enqueue step carries the same identity + SHA + pristine + success gates as the approve,
+    // and merges via the native --auto path bound to the validated SHA. Dropping the success
+    // predicate here would enqueue a PR whose CI failed.
+    const enqueueStep = sectionBetween(workflow, "Enqueue the clean manifest PR", "gh pr merge");
+    expect(enqueueStep).toContain("steps.pr.outputs.author == 'app/open-design-release-bot'");
+    expect(enqueueStep).toContain("steps.pr.outputs.pristine == 'true'");
+    expect(enqueueStep).toContain("steps.pr.outputs.head_oid == github.event.workflow_run.head_sha");
+    expect(enqueueStep).toContain("github.event.workflow_run.conclusion == 'success'");
 
     // The Feishu failure path carries the same identity gates, so a fork / non-bot PR can't spam
-    // the release group.
+    // the release group, and fires only on a CI *failure* (not success).
     const feishuStep = sectionBetween(workflow, "Notify Feishu on failed manifest CI", "python3");
     expect(feishuStep).toContain("steps.pr.outputs.author == 'app/open-design-release-bot'");
     expect(feishuStep).toContain("steps.pr.outputs.cross == 'false'");
+    expect(feishuStep).toContain("github.event.workflow_run.conclusion == 'failure'");
     // Sign the release webhook with the SAME secret the rest of the repo pairs with
     // FEISHU_RELEASE_WEBHOOK (notify-release-feishu / notify-daily-feishu / backport-automerge),
     // not a stray secret that resolves empty and sends an unsigned, rejected request.
     expect(feishuStep).toContain("secrets.FEISHU_RELEASE_WEBHOOK");
     expect(feishuStep).toContain("secrets.FEISHU_RELEASE_SIGN_SECRET");
+  });
+
+  it("[P2] keeps the bake producer wired so the auto-merge pristine path works", async () => {
+    // The downstream pristine/auto-merge gates only hold if the producer keeps authoring the
+    // rolling manifest PR the right way. Lock the three producer invariants this PR depends on, so
+    // regressing any of them fails here instead of silently breaking auto-merge.
+    const workflow = await readFile(bakePreviewsWorkflowPath, "utf8");
+
+    // 1. The rolling PR is authored with the release-bot App token, not GITHUB_TOKEN — a
+    //    GITHUB_TOKEN-authored push triggers no CI, so the PR could never clear main's required
+    //    `Validate workspace` check or the merge queue.
+    expect(workflow).toContain("actions/create-github-app-token");
+    expect(workflow).toContain("secrets.RELEASE_BOT_APP_ID");
+    expect(workflow).toContain("GH_TOKEN: ${{ steps.app.outputs.token }}");
+    // 2. The manifest commit is pushed via the App token (so it triggers CI), not the checkout's
+    //    persisted GITHUB_TOKEN.
+    expect(workflow).toContain("x-access-token:${APP_TOKEN}");
+    // 3. The commit is made AS github-actions[bot] so GitHub resolves .committer.login to the bot,
+    //    which is what the auto-merge reactor's pristine gate trusts.
+    expect(workflow).toContain('git config user.name "github-actions[bot]"');
+    expect(workflow).toContain("41898282+github-actions[bot]@users.noreply.github.com");
   });
 
   it("[P2] keeps PR and merge queue CI separated by hot/full validation mode", async () => {
