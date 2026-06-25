@@ -51,7 +51,7 @@ describe('visual report PNG sizing', () => {
         writeDiffPng: async (_mainPath: string, prPath: string, diffPath: string) => {
           await mkdir(path.dirname(diffPath), { recursive: true });
           await writeFile(diffPath, await readFile(prPath));
-          return 0;
+          return { diffPixels: 0, totalPixels: 4 };
         },
       };
 
@@ -122,7 +122,7 @@ describe('visual report PNG sizing', () => {
           downloadObject: async () => {
             throw new Error('download failed');
           },
-          writeDiffPng: async () => 0,
+          writeDiffPng: async () => ({ diffPixels: 0, totalPixels: 4 }),
         },
       )).rejects.toThrow('download failed');
     } finally {
@@ -250,7 +250,7 @@ describe('visual report PNG sizing', () => {
           writeDiffPng: async (_mainPath: string, prPath: string, diffPath: string) => {
             await mkdir(path.dirname(diffPath), { recursive: true });
             await writeFile(diffPath, await readFile(prPath));
-            return 32;
+            return { diffPixels: 32, totalPixels: 1_600 };
           },
         },
       );
@@ -259,7 +259,7 @@ describe('visual report PNG sizing', () => {
         name: 'visual-good',
         status: 'unchanged',
         diffPixels: 32,
-        diffPixelRatio: 8,
+        diffPixelRatio: 0.02,
       });
     } finally {
       await rm(workDir, { recursive: true, force: true });

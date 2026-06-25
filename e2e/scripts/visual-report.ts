@@ -61,7 +61,12 @@ type CompareCaseOps = {
   putFile?: (r2: R2Config, key: string, filePath: string) => Promise<void>;
   findBaseline?: (r2: R2Config, caseName: string, candidateShas: string[]) => Promise<BaselineLookup | null>;
   downloadObject?: (r2: R2Config, key: string, outputPath: string) => Promise<void>;
-  writeDiffPng?: (mainPath: string, prPath: string, diffPath: string) => Promise<number>;
+  writeDiffPng?: (mainPath: string, prPath: string, diffPath: string) => Promise<DiffPngResult>;
+};
+
+type DiffPngResult = {
+  diffPixels: number;
+  totalPixels: number;
 };
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -207,9 +212,9 @@ export async function compareCase(input: {
   const diffPath = path.join(outputDir, 'diff', `${visualCase.name}.png`);
   await downloadObjectOp(r2, baseline.key, mainPath);
 
-  let diffPixels: number;
+  let diffResult: DiffPngResult;
   try {
-    diffPixels = await writeDiffPngOp(mainPath, visualCase.path, diffPath);
+    diffResult = await writeDiffPngOp(mainPath, visualCase.path, diffPath);
   } catch (error) {
     return {
       name: visualCase.name,
@@ -231,11 +236,11 @@ export async function compareCase(input: {
   await putFileOp(r2, mainKey, mainPath);
   await putFileOp(r2, diffKey, diffPath);
 
-  const diffPixelRatio = diffPixels / pngPixelCount(visualBuffer, visualCase.path);
+  const diffPixelRatio = diffResult.diffPixels / diffResult.totalPixels;
   return {
     name: visualCase.name,
-    status: isChangedVisualDiff(diffPixels, diffPixelRatio) ? 'changed' : 'unchanged',
-    diffPixels,
+    status: isChangedVisualDiff(diffResult.diffPixels, diffPixelRatio) ? 'changed' : 'unchanged',
+    diffPixels: diffResult.diffPixels,
     diffPixelRatio,
     baselineSha: baseline.sha,
     baselineBehindBy: baseline.behindBy,
@@ -249,7 +254,7 @@ export function isChangedVisualDiff(diffPixels: number, diffPixelRatio: number):
   return diffPixels >= changedPixelFloor && diffPixelRatio >= changedPixelRatioFloor;
 }
 
-async function writeDiffPng(mainPath: string, prPath: string, diffPath: string): Promise<number> {
+async function writeDiffPng(mainPath: string, prPath: string, diffPath: string): Promise<DiffPngResult> {
   const main = PNG.sync.read(await readFile(mainPath));
   const pr = PNG.sync.read(await readFile(prPath));
   assertPngSize(main, mainPath);
@@ -273,7 +278,7 @@ async function writeDiffPng(mainPath: string, prPath: string, diffPath: string):
 
   await mkdir(path.dirname(diffPath), { recursive: true });
   await writeFile(diffPath, PNG.sync.write(diff));
-  return diffPixels;
+  return { diffPixels, totalPixels: width * height };
 }
 
 export type DiffBox = {
@@ -485,16 +490,6 @@ function assertPngHeaderSize(buffer: Buffer, filePath: string): void {
     throw new Error(`Visual case ${filePath} is not a valid PNG file`);
   }
   assertPngPixels(buffer.readUInt32BE(16), buffer.readUInt32BE(20), filePath);
-}
-
-function pngPixelCount(buffer: Buffer, filePath: string): number {
-  if (buffer.length < 24) {
-    throw new Error(`Visual case ${filePath} is not a valid PNG file`);
-  }
-  const width = buffer.readUInt32BE(16);
-  const height = buffer.readUInt32BE(20);
-  assertPngPixels(width, height, filePath);
-  return width * height;
 }
 
 function assertPngSize(png: PNG, filePath: string): void {
