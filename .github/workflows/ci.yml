@@ -842,7 +842,7 @@ jobs:
     name: Web workspace tests
     needs: [scopes]
     if: ${{ needs.scopes.outputs.run_web_workspace_tests == 'true' }}
-    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'performance' && '["blacksmith-4vcpu-ubuntu-2404"]' || vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]') }}
+    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["blacksmith-4vcpu-ubuntu-2404"]') }}
     timeout-minutes: 20
 
     steps:
@@ -855,7 +855,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
-          runner-labels: ${{ vars.OD_CI_RUNNER_MODE == 'performance' && '["blacksmith-4vcpu-ubuntu-2404"]' || vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]' }}
+          runner-labels: ${{ vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["blacksmith-4vcpu-ubuntu-2404"]' }}
 
       - name: Prebuild web sidecar declarations
         run: pnpm --filter @open-design/web build:sidecar
