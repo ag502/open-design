@@ -154,8 +154,9 @@ import { closeAmrActivationWindowBestEffort } from './AmrLoginPill';
 import { smoothScrollToTop } from '../utils/smoothScrollToTop';
 import { summarizeProjectNameFromPrompt } from '../utils/projectName';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
-import { DemoControlBar, isInviteScenario, isSoloPlan, type DemoScenario, type DemoPlan } from './DemoControlBar';
+import { DemoControlBar, isInviteScenario, isSoloPlan, type DemoScenario, type DemoPlan, type InviteRole } from './DemoControlBar';
 import { InsufficientCreditsDialog } from './InsufficientCreditsDialog';
+import { InviteAcceptanceFlow } from './InviteAcceptanceFlow';
 import { Confetti } from './Confetti';
 import {
   providerModelsCacheKey,
@@ -504,6 +505,9 @@ export function EntryShell({
   const [demoScenario, setDemoScenario] = useState<DemoScenario>('home');
   const [demoPlan, setDemoPlan] = useState<DemoPlan>('free');
   const [lowCreditsOpen, setLowCreditsOpen] = useState(false);
+  // Invitee acceptance flow (email link → 账号校验 → 确认加入 → 开始协作).
+  const [inviteFlowOpen, setInviteFlowOpen] = useState(false);
+  const [inviteRole, setInviteRole] = useState<InviteRole>('editor');
   const [celebrate, setCelebrate] = useState(false);
   const [demoToast, setDemoToast] = useState<string | null>(null);
   function fireCelebration(message: string) {
@@ -778,6 +782,10 @@ export function EntryShell({
       plan={demoPlan}
       onPlan={setDemoPlan}
       onLowCredits={() => setLowCreditsOpen(true)}
+      onAcceptInvite={(role) => {
+        setInviteRole(role);
+        setInviteFlowOpen(true);
+      }}
       onScenario={(s) => {
         setDemoScenario(s);
         // Sensible default plan per scenario (still overridable via 版本):
@@ -809,6 +817,23 @@ export function EntryShell({
         onBuyPack={(packLabel) => {
           setLowCreditsOpen(false);
           fireCelebration(`${packLabel}已到账，额度已提升`);
+        }}
+      />
+      <InviteAcceptanceFlow
+        open={inviteFlowOpen}
+        role={inviteRole}
+        onClose={() => setInviteFlowOpen(false)}
+        onJoined={() => {
+          // 开始协作 → land in the team workspace home as the invited member.
+          setInviteFlowOpen(false);
+          setDemoPlan('team');
+          setDemoScenario('home');
+          navigate({ kind: 'home', view: 'home' });
+          fireCelebration('已加入 Nexu 设计团队，开始协作');
+        }}
+        onDeclined={() => {
+          setDemoToast('邀请已忽略，保持待定（pending）');
+          window.setTimeout(() => setDemoToast(null), 3200);
         }}
       />
       {demoToast ? <div className="demo-celebrate-toast">{demoToast}</div> : null}

@@ -26,6 +26,8 @@ export function isSoloPlan(p: DemoPlan): boolean {
   return p !== 'team';
 }
 
+export type InviteRole = 'editor' | 'admin' | 'viewer';
+
 interface Props {
   scenario: DemoScenario;
   onScenario: (s: DemoScenario) => void;
@@ -33,6 +35,8 @@ interface Props {
   onPlan: (p: DemoPlan) => void;
   /** Fires the "积分不足" upgrade/top-up flow. */
   onLowCredits: () => void;
+  /** Launches the invitee acceptance flow (email link → join workspace). */
+  onAcceptInvite: (role: InviteRole) => void;
 }
 
 const MAIN_CHIPS: Array<{ id: DemoScenario; label: string }> = [
@@ -40,10 +44,10 @@ const MAIN_CHIPS: Array<{ id: DemoScenario; label: string }> = [
   { id: 'onboarding-new', label: '🎉 新注册' },
 ];
 
-const INVITE_CHIPS: Array<{ id: DemoScenario; label: string }> = [
-  { id: 'invite-editor', label: 'Editor' },
-  { id: 'invite-admin',  label: '管理者' },
-  { id: 'invite-viewer', label: 'Viewer' },
+const INVITE_CHIPS: Array<{ role: InviteRole; label: string }> = [
+  { role: 'editor', label: 'Editor' },
+  { role: 'admin',  label: '管理者' },
+  { role: 'viewer', label: 'Viewer' },
 ];
 
 const PLAN_CHIPS: Array<{ id: DemoPlan; label: string }> = [
@@ -54,7 +58,7 @@ const PLAN_CHIPS: Array<{ id: DemoPlan; label: string }> = [
   { id: 'team', label: '团队版' },
 ];
 
-function Bar({ scenario, onScenario, plan, onPlan, onLowCredits }: Props) {
+function Bar({ scenario, onScenario, plan, onPlan, onLowCredits, onAcceptInvite }: Props) {
   return (
     <div className="demo-bar">
 
@@ -77,16 +81,16 @@ function Bar({ scenario, onScenario, plan, onPlan, onLowCredits }: Props) {
 
       <div className="demo-bar__divider" />
 
-      {/* ── 被邀请 sub-scenarios ── */}
+      {/* ── 被邀请：接受邀请落地流程（角色 = 邀请时设定） ── */}
       <div className="demo-bar__section">
-        <span className="demo-bar__label">被邀请</span>
+        <span className="demo-bar__label">接受邀请</span>
         <div className="demo-bar__chips">
           {INVITE_CHIPS.map((c) => (
             <button
-              key={c.id}
+              key={c.role}
               type="button"
-              className={`demo-bar__chip${scenario === c.id ? ' is-active' : ''}`}
-              onClick={() => onScenario(c.id)}
+              className="demo-bar__chip"
+              onClick={() => onAcceptInvite(c.role)}
             >
               📧 {c.label}
             </button>
