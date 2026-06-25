@@ -44,6 +44,7 @@ type RunStatus = {
   errorCode: string | null;
   eventsLogPath: string;
 };
+type RunEvent = { event: string; data: unknown };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE_VELA = path.join(HERE, 'fixtures', 'fake-vela.mjs');
@@ -161,11 +162,13 @@ describe('AMR (vela) ACP session resume — full server cycle', () => {
     expect(events.filter((e) => e.event === 'error')).toEqual([]);
     // The failure is held back as a non-user-visible diagnostic instead.
     expect(
-      events.some(
-        (e) => e.event === 'diagnostic'
-          && (e.data as { type?: string } | null)?.type === 'agent_resume_failed_suppressed',
-      ),
+      hasDiagnostic(events, { type: 'agent_resume_failed_suppressed' }),
     ).toBe(true);
+    expect(hasDiagnostic(events, {
+      type: 'agent_resume_auto_reseed',
+      reason: 'resume_failed',
+      stale_session_cleared: true,
+    })).toBe(true);
     // The transparent reseed still happened: new → load (dead) → new.
     expect(await readInvocations(logPath)).toEqual(['new', 'load', 'new']);
   });
@@ -301,7 +304,7 @@ async function readInvocations(logPath: string): Promise<string[]> {
 
 async function readRunEvents(
   eventsLogPath: string,
-): Promise<Array<{ event: string; data: unknown }>> {
+): Promise<RunEvent[]> {
   let raw = '';
   try {
     raw = await readFile(eventsLogPath, 'utf8');
@@ -312,7 +315,18 @@ async function readRunEvents(
     .trim()
     .split('\n')
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as { event: string; data: unknown });
+    .map((line) => JSON.parse(line) as RunEvent);
+}
+
+function hasDiagnostic(events: RunEvent[], expected: Record<string, unknown>): boolean {
+  return events.some((event) => {
+    if (event.event !== 'diagnostic' || !event.data || typeof event.data !== 'object') {
+      return false;
+    }
+    return Object.entries(expected).every(
+      ([key, value]) => (event.data as Record<string, unknown>)[key] === value,
+    );
+  });
 }
 
 function snapshotEnv(): Record<string, string | undefined> {

@@ -40,6 +40,7 @@ type RunStatus = {
 };
 
 type ExecInvocation = { argv: string[]; stdin: string; cwd: string };
+type RunEvent = { event: string; data: unknown };
 
 const THREAD = '019eef4f-0000-7000-8000-000000000abc';
 const FIRST_REPLY_SENTINEL = 'FIRST_TURN_REPLY_SENTINEL_8af31';
@@ -133,6 +134,14 @@ describe('codex native session resume', () => {
     const turn2 = await sendRunAndWait(started.url, conversationId, 'second request');
     expect(turn2.status).toBe('succeeded');
 
+    const events = await readRunEvents(turn2.eventsLogPath);
+    expect(events.filter((e) => e.event === 'error')).toEqual([]);
+    expect(hasDiagnostic(events, {
+      type: 'agent_resume_auto_reseed',
+      reason: 'resume_failed',
+      stale_session_cleared: true,
+    })).toBe(true);
+
     // Two execs happened inside turn 1+2: the create, then turn 2's dead
     // `exec resume`, then the in-turn fresh `exec` reseed.
     const runs = await readChatTurnExecs(logPath, conversationId);
@@ -145,6 +154,34 @@ describe('codex native session resume', () => {
     expect(create.argv).not.toContain('resume');
     expect(deadResume.argv.slice(0, 2)).toEqual(['exec', 'resume']);
     expect(fresh.argv).not.toContain('resume');
+  });
+
+  it('starts fresh on turn 2 when turn 1 succeeds without a captured thread id', async () => {
+    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-codex-nohandle-bin-'));
+    const { bin, logPath } = await writeNoHandleCodex(binDir, 'codex-nohandle');
+
+    clearTelemetryEnv();
+    started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
+    await putConfig(started.url, {
+      agentId: 'codex',
+      agentCliEnv: { codex: { CODEX_BIN: bin } },
+      telemetry: { metrics: true, content: false, artifactManifest: false },
+      privacyDecisionAt: Date.now(),
+    });
+
+    const conversationId = await createConversation(started.url);
+
+    expect((await sendRunAndWait(started.url, conversationId, 'first request')).status)
+      .toBe('succeeded');
+    expect((await sendRunAndWait(started.url, conversationId, 'second request')).status)
+      .toBe('succeeded');
+
+    const runs = await readChatTurnExecs(logPath, conversationId);
+    expect(runs).toHaveLength(2);
+    const [turn1, turn2] = runs as [ExecInvocation, ExecInvocation];
+    expect(turn1.argv).not.toContain('resume');
+    expect(turn2.argv[0]).toBe('exec');
+    expect(turn2.argv).not.toContain('resume');
   });
 
   it('reseeds (no resume) when another agent ran in the conversation between codex turns', async () => {
@@ -259,6 +296,31 @@ async function writeMissingRolloutCodex(
   console.log(JSON.stringify({ type: 'thread.started', thread_id: THREAD }));
   console.log(JSON.stringify({ type: 'turn.started' }));
   console.log(JSON.stringify({ type: 'item.completed', item: { id: 'item-1', type: 'agent_message', text: 'Created reply.' } }));
+  console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 8, cached_input_tokens: 0, output_tokens: 2 } }));
+  setTimeout(() => process.exit(0), 10);`,
+    }),
+    'utf8',
+  );
+  await chmod(bin, 0o755);
+  return { bin, logPath };
+}
+
+// Fake codex CLI: succeeds but never reports `thread.started.thread_id`.
+// Without a durable handle, the daemon must leave the next turn on fresh `exec`.
+async function writeNoHandleCodex(
+  dir: string,
+  name: string,
+): Promise<{ bin: string; logPath: string }> {
+  const bin = path.join(dir, name);
+  const logPath = path.join(dir, `${name}-log.jsonl`);
+  await writeFile(
+    bin,
+    fakeCodexSource({
+      logPath,
+      body: `
+  console.log(JSON.stringify({ type: 'thread.started' }));
+  console.log(JSON.stringify({ type: 'turn.started' }));
+  console.log(JSON.stringify({ type: 'item.completed', item: { id: 'item-1', type: 'agent_message', text: 'Reply without thread id.' } }));
   console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 8, cached_input_tokens: 0, output_tokens: 2 } }));
   setTimeout(() => process.exit(0), 10);`,
     }),
@@ -429,6 +491,31 @@ async function readChatTurnExecs(
         typeof rec.cwd === 'string' &&
         rec.cwd.includes(projectId),
     );
+}
+
+async function readRunEvents(eventsLogPath: string): Promise<RunEvent[]> {
+  let raw = '';
+  try {
+    raw = await readFile(eventsLogPath, 'utf8');
+  } catch {
+    return [];
+  }
+  return raw
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as RunEvent);
+}
+
+function hasDiagnostic(events: RunEvent[], expected: Record<string, unknown>): boolean {
+  return events.some((event) => {
+    if (event.event !== 'diagnostic' || !event.data || typeof event.data !== 'object') {
+      return false;
+    }
+    return Object.entries(expected).every(
+      ([key, value]) => (event.data as Record<string, unknown>)[key] === value,
+    );
+  });
 }
 
 function delay(ms: number): Promise<void> {

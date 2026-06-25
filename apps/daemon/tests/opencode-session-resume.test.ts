@@ -39,6 +39,7 @@ type RunStatus = {
 };
 
 type RunInvocation = { argv: string[]; stdin: string; cwd: string };
+type RunEvent = { event: string; data: unknown };
 
 const SESSION = 'ses_e2e0000resume0000';
 const FIRST_REPLY_SENTINEL = 'FIRST_TURN_REPLY_SENTINEL_0c7d2';
@@ -125,6 +126,14 @@ describe('opencode native session resume', () => {
     const turn2 = await sendRunAndWait(started.url, conversationId, 'second request');
     expect(turn2.status).toBe('succeeded');
 
+    const events = await readRunEvents(turn2.eventsLogPath);
+    expect(events.filter((e) => e.event === 'error')).toEqual([]);
+    expect(hasDiagnostic(events, {
+      type: 'agent_resume_auto_reseed',
+      reason: 'resume_failed',
+      stale_session_cleared: true,
+    })).toBe(true);
+
     // The create, then turn 2's dead resume (`-s`), then the in-turn fresh reseed.
     const runs = await readChatTurnRuns(logPath, conversationId);
     expect(runs).toHaveLength(3);
@@ -136,6 +145,34 @@ describe('opencode native session resume', () => {
     expect(create.argv).not.toContain('-s');
     expect(deadResume.argv).toContain('-s');
     expect(fresh.argv).not.toContain('-s');
+  });
+
+  it('starts fresh on turn 2 when turn 1 succeeds without a captured session id', async () => {
+    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-nohandle-bin-'));
+    const { bin, logPath } = await writeNoHandleOpencode(binDir, 'opencode-nohandle');
+
+    clearTelemetryEnv();
+    started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
+    await putConfig(started.url, {
+      agentId: 'opencode',
+      agentCliEnv: { opencode: { OPENCODE_BIN: bin } },
+      telemetry: { metrics: true, content: false, artifactManifest: false },
+      privacyDecisionAt: Date.now(),
+    });
+
+    const conversationId = await createConversation(started.url);
+
+    expect((await sendRunAndWait(started.url, conversationId, 'first request')).status)
+      .toBe('succeeded');
+    expect((await sendRunAndWait(started.url, conversationId, 'second request')).status)
+      .toBe('succeeded');
+
+    const runs = await readChatTurnRuns(logPath, conversationId);
+    expect(runs).toHaveLength(2);
+    const [turn1, turn2] = runs as [RunInvocation, RunInvocation];
+    expect(turn1.argv).not.toContain('-s');
+    expect(turn2.argv[0]).toBe('run');
+    expect(turn2.argv).not.toContain('-s');
   });
 });
 
@@ -187,6 +224,30 @@ async function writeMissingSessionOpencode(
   console.log(JSON.stringify({ type: 'step_start', sessionID: SESSION, part: { type: 'step-start' } }));
   console.log(JSON.stringify({ type: 'text', sessionID: SESSION, part: { type: 'text', text: 'Created reply.' } }));
   console.log(JSON.stringify({ type: 'step_finish', sessionID: SESSION, part: { type: 'step-finish', tokens: { input: 8, output: 2, reasoning: 0, cache: { read: 0, write: 0 } }, cost: 0 } }));
+  setTimeout(() => process.exit(0), 10);`,
+    }),
+    'utf8',
+  );
+  await chmod(bin, 0o755);
+  return { bin, logPath };
+}
+
+// Fake opencode CLI: succeeds but never stamps `sessionID` on stream events.
+// Without a durable handle, the daemon must leave the next turn on fresh `run`.
+async function writeNoHandleOpencode(
+  dir: string,
+  name: string,
+): Promise<{ bin: string; logPath: string }> {
+  const bin = path.join(dir, name);
+  const logPath = path.join(dir, `${name}-log.jsonl`);
+  await writeFile(
+    bin,
+    fakeOpencodeSource({
+      logPath,
+      body: `
+  console.log(JSON.stringify({ type: 'step_start', part: { type: 'step-start' } }));
+  console.log(JSON.stringify({ type: 'text', part: { type: 'text', text: 'Reply without session id.' } }));
+  console.log(JSON.stringify({ type: 'step_finish', part: { type: 'step-finish', tokens: { input: 8, output: 2, reasoning: 0, cache: { read: 0, write: 0 } }, cost: 0 } }));
   setTimeout(() => process.exit(0), 10);`,
     }),
     'utf8',
@@ -348,6 +409,31 @@ async function readChatTurnRuns(
         typeof rec.cwd === 'string' &&
         rec.cwd.includes(projectId),
     );
+}
+
+async function readRunEvents(eventsLogPath: string): Promise<RunEvent[]> {
+  let raw = '';
+  try {
+    raw = await readFile(eventsLogPath, 'utf8');
+  } catch {
+    return [];
+  }
+  return raw
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as RunEvent);
+}
+
+function hasDiagnostic(events: RunEvent[], expected: Record<string, unknown>): boolean {
+  return events.some((event) => {
+    if (event.event !== 'diagnostic' || !event.data || typeof event.data !== 'object') {
+      return false;
+    }
+    return Object.entries(expected).every(
+      ([key, value]) => (event.data as Record<string, unknown>)[key] === value,
+    );
+  });
 }
 
 function delay(ms: number): Promise<void> {
