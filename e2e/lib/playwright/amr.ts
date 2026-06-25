@@ -11,10 +11,14 @@ export async function waitForLoadingToClear(page: Page) {
 }
 
 export async function dismissPrivacyDialog(page: Page) {
-  const privacyRegion = page.getByRole('region', { name: /Help us improve Open Design/i });
-  if (await privacyRegion.isVisible().catch(() => false)) {
-    await privacyRegion.getByRole('button', { name: /not now|i get it|got it/i }).click();
-    await expect(privacyRegion).toBeHidden();
+  const privacySurface = page
+    .getByRole('region', { name: /Help us improve Open Design/i })
+    .or(page.locator('.privacy-consent-banner'))
+    .first();
+  await privacySurface.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+  if (await privacySurface.isVisible().catch(() => false)) {
+    await privacySurface.getByRole('button', { name: /not now|i get it|got it/i }).click();
+    await expect(privacySurface).toBeHidden();
   }
 }
 
