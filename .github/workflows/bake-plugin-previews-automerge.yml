@@ -179,13 +179,18 @@ jobs:
         # the rolling branch is force-pushed, so an older failed run can finish after
         # the PR head already advanced to a newer (green) commit. Without this guard a
         # stale failure would page Feishu about a SHA that is no longer the PR head.
-        if: ${{ steps.pr.outputs.found == 'true' && steps.pr.outputs.author == 'app/open-design-release-bot' && steps.pr.outputs.cross == 'false' && steps.pr.outputs.head_oid == github.event.workflow_run.head_sha && github.event.workflow_run.conclusion == 'failure' }}
+        # Page on every terminal RED state that leaves the PR stuck — failure AND
+        # timed_out (ci.yml has timeout-minutes jobs) — but NOT cancelled: a force-push
+        # of the rolling branch routinely cancels the prior in-flight run, so alerting on
+        # cancelled would page on every normal refresh.
+        if: ${{ steps.pr.outputs.found == 'true' && steps.pr.outputs.author == 'app/open-design-release-bot' && steps.pr.outputs.cross == 'false' && steps.pr.outputs.head_oid == github.event.workflow_run.head_sha && (github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out') }}
         env:
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_RELEASE_WEBHOOK }}
           FEISHU_SIGN_SECRET: ${{ secrets.FEISHU_RELEASE_SIGN_SECRET }}
           NUM: ${{ steps.pr.outputs.number }}
           TITLE: ${{ steps.pr.outputs.title }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
           python3 - <<'PY'
           import os, time, hmac, hashlib, base64, json, urllib.request
@@ -193,7 +198,7 @@ jobs:
           if not wh:
               raise SystemExit(0)
           secret = os.environ.get("FEISHU_SIGN_SECRET", "")
-          text = (f"⚠️ 插件预览 manifest PR #{os.environ['NUM']} CI 失败（目标 main）\n"
+          text = (f"⚠️ 插件预览 manifest PR #{os.environ['NUM']} CI {os.environ.get('CONCLUSION','failed')}（目标 main）\n"
                   f"{os.environ.get('TITLE','')}\n需要人工跟进：{os.environ.get('RUN_URL','')}")
           body = {"msg_type": "text", "content": {"text": text}}
           if secret:

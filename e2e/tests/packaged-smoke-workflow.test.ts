@@ -345,7 +345,12 @@ describe("packaged smoke workflow", () => {
     const feishuStep = sectionBetween(workflow, "Notify Feishu on failed manifest CI", "python3");
     expect(feishuStep).toContain("steps.pr.outputs.author == 'app/open-design-release-bot'");
     expect(feishuStep).toContain("steps.pr.outputs.cross == 'false'");
+    // Page on every terminal RED state that strands the PR — failure AND timed_out (ci.yml has
+    // timeout-minutes jobs) — but NOT cancelled, which a routine force-push of the rolling branch
+    // produces and would otherwise page on every refresh.
     expect(feishuStep).toContain("github.event.workflow_run.conclusion == 'failure'");
+    expect(feishuStep).toContain("github.event.workflow_run.conclusion == 'timed_out'");
+    expect(feishuStep).not.toContain("'cancelled'");
     // Bind the alert to the exact SHA that failed: the rolling branch is force-pushed, so a stale
     // failed run that finishes after the head advanced must not page about a SHA that is no longer
     // the PR head.
