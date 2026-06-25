@@ -30,7 +30,6 @@ def resolve_profiles(mode):
         "mode": mode,
         "github_hosted": GITHUB_HOSTED,
         "contabo_control": contabo_control,
-        "contabo_poc": CONTABO_CONTROL,
         "hosted_or_blacksmith": hosted_or_blacksmith,
         "blacksmith_default": blacksmith_default,
     }

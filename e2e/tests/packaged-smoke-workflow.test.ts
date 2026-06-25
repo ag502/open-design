@@ -436,7 +436,6 @@ describe("packaged smoke workflow", () => {
     const validate = sectionBetween(workflow, "  validate:", "  runtime_summary:");
 
     expect(workflow).toContain("ci_mode:");
-    expect(workflow).toContain("skip_blacksmith:");
     expect(scopes).toContain("ci_mode: ${{ steps.detect.outputs.ci_mode }}");
     expect(scopes).toContain("ui_p0_validation_required: ${{ steps.detect.outputs.ui_p0_validation_required }}");
     expect(scopes).toContain("run_ui_p0: ${{ steps.detect.outputs.run_ui_p0 }}");
@@ -447,14 +446,6 @@ describe("packaged smoke workflow", () => {
       ci_mode: "hot",
       run_ui_p0: true,
       run_nix_validation: false,
-    });
-    await expect(
-      runScopesPrint("workflow_dispatch", { inputs: { ci_mode: "hot", skip_blacksmith: "true" } }, ["apps/web/src/app/page.tsx"]),
-    ).resolves.toMatchObject({
-      ci_mode: "hot",
-      run_ui_p0: false,
-      run_playwright_visual: false,
-      run_web_workspace_tests: true,
     });
     await expect(runScopesPrint("workflow_dispatch", { inputs: {} })).resolves.toMatchObject({
       ci_mode: "full",
@@ -476,7 +467,7 @@ describe("packaged smoke workflow", () => {
     const workflow = await readFile(ciWorkflowPath, "utf8");
     const scopes = sectionBetween(workflow, "  scopes:", "  runners:");
     const runners = sectionBetween(workflow, "  runners:", "  static_gate:");
-    const staticGate = sectionBetween(workflow, "  static_gate:", "  persistent_runner_poc:");
+    const staticGate = sectionBetween(workflow, "  static_gate:", "  nix_validation:");
     const workspaceUnitTests = sectionBetween(workflow, "  workspace_unit_tests:", "  windows_tools_pack_payload_tests:");
     const webWorkspaceTests = sectionBetween(workflow, "  web_workspace_tests:", "  e2e_vitest:");
     const e2eVitest = sectionBetween(workflow, "  e2e_vitest:", "  playwright_critical:");

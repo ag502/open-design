@@ -10,7 +10,6 @@ self-hosted-runner:
     - nexu-mac
     - nexu-win
     - od-ci-hot-poc
-    - od-zxiyun-poc
     - od-persistent-ci
     - open-design-ci
     - release-beta
