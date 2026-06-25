@@ -1,12 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import http from 'node:http';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { registerBrandRoutes } from '../src/brand-routes.js';
+import { registerBrandRoutes, type BrandRoutesDeps } from '../src/brand-routes.js';
 import { closeDatabase, insertConversation, insertProject, openDatabase, upsertMessage } from '../src/db.js';
+import type { PrefetchResult } from '../src/brands/prefetch.js';
+
+const NO_LOGO_FALLBACK = async () => ({ changed: false });
+const NO_IMAGERY_FALLBACK = async () => ({ changed: false });
 
 describe('brand routes', () => {
   let tempDir: string;
@@ -370,6 +374,67 @@ describe('brand routes', () => {
     expect(storedMeta.status).toBe('extracting');
   });
 
+  it('aborts an active programmatic pass before extracting from browser HTML', async () => {
+    let prefetchStarted!: () => void;
+    const prefetchStartedPromise = new Promise<void>((resolve) => {
+      prefetchStarted = resolve;
+    });
+    let observedSignal: AbortSignal | null = null;
+    const prefetch = vi.fn((_url: string, _brandDir: string, opts?: { signal?: AbortSignal }) => {
+      observedSignal = opts?.signal ?? null;
+      prefetchStarted();
+      return new Promise<PrefetchResult | null>((resolve) => {
+        observedSignal?.addEventListener('abort', () => resolve(null), { once: true });
+      });
+    });
+    const getObservedSignal = () => {
+      if (!observedSignal) throw new Error('expected prefetch abort signal');
+      return observedSignal;
+    };
+    const server = await startBrandServer({
+      prefetch,
+      logoFallback: NO_LOGO_FALLBACK,
+      imageryFallback: NO_IMAGERY_FALLBACK,
+    });
+    try {
+      const started = await server.requestJson('/api/brands', {
+        method: 'POST',
+        body: { url: 'acme.com' },
+      });
+      expect(started.status).toBe(200);
+      await prefetchStartedPromise;
+      expect(getObservedSignal().aborted).toBe(false);
+
+      const extracted = await server.requestJson(`/api/brands/${started.body.id}/extract-from-html`, {
+        method: 'POST',
+        body: {
+          html: [
+            '<!doctype html><html><head>',
+            '<title>Acme Inc</title>',
+            '<meta name="description" content="We build delightful developer tools.">',
+            '</head><body>',
+            '<h1>Welcome to Acme</h1><h2>Fast, friendly software</h2>',
+            `<p>${'Acme builds delightful developer tools teams enjoy using every day. '.repeat(2)}</p>`,
+            '</body></html>',
+          ].join(''),
+          css: [
+            ':root{--brand:#3b5bdb}',
+            'h1{color:#3b5bdb;font-family:"Inter",sans-serif}',
+            'body{background:#ffffff;color:#1f2933}',
+            'a{color:#e8590c}.accent{color:#0ca678}.cta{background:#3b5bdb}',
+          ].join(''),
+          baseUrl: 'https://acme.com/',
+        },
+      });
+
+      expect(getObservedSignal().aborted).toBe(true);
+      expect(extracted.status).toBe(200);
+      expect(extracted.body.id).toBe(started.body.id);
+    } finally {
+      await server.close();
+    }
+  });
+
   function writeBrandFixture(
     id: string,
     options: {
@@ -422,8 +487,24 @@ describe('brand routes', () => {
     return { ...response, body: JSON.parse(response.body) };
   }
 
-  async function requestText(route: string) {
+  async function requestText(route: string, options?: RequestOptions) {
+    const server = await startBrandServer();
+    try {
+      return await server.requestText(route, options);
+    } finally {
+      await server.close();
+    }
+  }
+
+  type RequestOptions = {
+    method?: string;
+    body?: unknown;
+  };
+
+  async function startBrandServer(extraDeps: Partial<BrandRoutesDeps> = {}) {
     const app = express();
+    app.use('/api/brands/:id/extract-from-html', express.json({ limit: '32mb' }));
+    app.use(express.json({ limit: '4mb' }));
     registerBrandRoutes(app, {
       brandsRoot,
       userDesignSystemsRoot,
@@ -431,22 +512,36 @@ describe('brand routes', () => {
       skillsRoot,
       dataDir,
       db,
+      ...extraDeps,
     });
     const server = http.createServer(app);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('server did not bind to a TCP port');
-    try {
-      const response = await fetch(`http://127.0.0.1:${address.port}${route}`);
+    const requestTextFromServer = async (route: string, options: RequestOptions = {}) => {
+      const init: RequestInit = { method: options.method ?? 'GET' };
+      if (Object.hasOwn(options, 'body')) {
+        init.headers = { 'content-type': 'application/json' };
+        init.body = JSON.stringify(options.body);
+      }
+      const response = await fetch(`http://127.0.0.1:${address.port}${route}`, init);
       return {
         status: response.status,
         contentType: response.headers.get('content-type') ?? '',
         body: await response.text(),
       };
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
-      });
-    }
+    };
+    return {
+      requestText: requestTextFromServer,
+      async requestJson(route: string, options: RequestOptions = {}) {
+        const response = await requestTextFromServer(route, options);
+        return { ...response, body: JSON.parse(response.body) };
+      },
+      async close() {
+        await new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        });
+      },
+    };
   }
 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,7 @@ import {
   getProject,
   listConversations,
   listMessages,
+  listProjects,
   listTabs,
   openDatabase,
   upsertMessage,
@@ -417,6 +418,34 @@ describe('agent-driven brand extraction engine', () => {
       logoFallback: NO_LOGO_FALLBACK,
     })).rejects.toThrow();
 
+    const systems = await listDesignSystems(userDesignSystemsRoot, {
+      idPrefix: 'user:',
+      source: 'user',
+      isEditable: true,
+      defaultStatus: 'draft',
+    });
+    expect(systems).toHaveLength(0);
+  });
+
+  it('rolls back brand startup state when setup fails after project insert', async () => {
+    const db = openDatabase(tempDir, { dataDir: tempDir });
+
+    await expect(startOfflineBrandExtraction({
+      url: 'acme.com',
+      brandsRoot,
+      projectsRoot,
+      userDesignSystemsRoot,
+      skillsRoot: SKILLS_ROOT,
+      db,
+      logoFallback: NO_LOGO_FALLBACK,
+      randomId: () => {
+        throw new Error('conversation id failed');
+      },
+    })).rejects.toThrow('conversation id failed');
+
+    expect(listProjects(db)).toHaveLength(0);
+    expect(readdirSync(projectsRoot)).toEqual([]);
+    expect(readdirSync(brandsRoot)).toEqual([]);
     const systems = await listDesignSystems(userDesignSystemsRoot, {
       idPrefix: 'user:',
       source: 'user',

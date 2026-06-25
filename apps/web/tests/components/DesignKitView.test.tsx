@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DesignKitView } from '../../src/components/DesignKitView';
+import { PreviewModal } from '../../src/components/PreviewModal';
 import { I18nProvider } from '../../src/i18n';
 import type { DesignKit } from '../../src/runtime/design-kit';
 
@@ -339,6 +340,49 @@ describe('DesignKitView iframe sandboxing', () => {
     expect(within(dialog).getByRole('img', { name: 'Hero image' }).getAttribute('src')).toBe(
       '/raw/projects/preview/imagery/hero.png',
     );
+  });
+
+  it('lets Escape close an image lightbox before the outer preview modal', () => {
+    const onClose = vi.fn();
+    const kit: DesignKit = {
+      ...previewKit(),
+      imagery: {
+        style: '',
+        subjects: [],
+        treatment: '',
+        avoid: [],
+        samples: [
+          { url: '/raw/projects/preview/imagery/hero.png', caption: 'Hero image', kind: 'hero' },
+        ],
+      },
+    };
+
+    render(
+      <I18nProvider initial="en">
+        <PreviewModal
+          title="Preview Kit"
+          views={[{
+            id: 'kit',
+            label: 'Kit',
+            custom: <DesignKitView kit={kit} />,
+          }]}
+          exportTitleFor={() => 'preview-kit'}
+          onClose={onClose}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hero image' }));
+    expect(screen.getByRole('dialog', { name: 'Hero image' })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Hero image' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Preview Kit preview' })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('scrolls to Logo and reveals edit controls for edit focus requests', () => {

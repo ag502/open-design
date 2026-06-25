@@ -36,6 +36,7 @@ import {
   type UserDesignSystemInput,
 } from '../design-systems/index.js';
 import {
+  deleteProject as deleteDbProject,
   getProject,
   insertConversation,
   insertProject,
@@ -211,6 +212,43 @@ function readDesignMdInput(brandsRoot: string, id: string): string {
     return normalizeDesignMdInput(fs.readFileSync(file, 'utf8'));
   } catch {
     return '';
+  }
+}
+
+async function rollbackBrandExtractionStartup(input: {
+  db: Parameters<typeof insertProject>[0];
+  brandsRoot: string;
+  projectsRoot: string;
+  brandId: string;
+  projectId: string;
+  metadata: ProjectMetadata;
+  userDesignSystemsRoot?: string | undefined;
+  draftDesignSystemId?: string | null;
+}): Promise<void> {
+  try {
+    deleteDbProject(input.db, input.projectId);
+  } catch (err) {
+    if (!isClosedDatabaseError(err)) {
+      console.warn(`[brand] failed to roll back project row for ${input.brandId}`, err);
+    }
+  }
+  try {
+    const projectDir = resolveProjectDir(input.projectsRoot, input.projectId, input.metadata);
+    fs.rmSync(projectDir, { recursive: true, force: true });
+  } catch (err) {
+    console.warn(`[brand] failed to roll back project directory for ${input.brandId}`, err);
+  }
+  if (input.draftDesignSystemId && input.userDesignSystemsRoot) {
+    try {
+      await deleteUserDesignSystem(input.userDesignSystemsRoot, input.draftDesignSystemId);
+    } catch (rollbackErr) {
+      console.warn(`[brand] failed to roll back draft design system for ${input.brandId}`, rollbackErr);
+    }
+  }
+  try {
+    deleteBrandDir(input.brandsRoot, input.brandId);
+  } catch (err) {
+    console.warn(`[brand] failed to roll back brand directory for ${input.brandId}`, err);
   }
 }
 
@@ -471,13 +509,16 @@ export async function startBrandExtraction(
     ...(draftDesignSystemId ? { designSystemId: draftDesignSystemId } : {}),
   };
   } catch (err) {
-    if (draftDesignSystemId && opts.userDesignSystemsRoot) {
-      try {
-        await deleteUserDesignSystem(opts.userDesignSystemsRoot, draftDesignSystemId);
-      } catch (rollbackErr) {
-        console.warn(`[brand] failed to roll back draft design system for ${id}`, rollbackErr);
-      }
-    }
+    await rollbackBrandExtractionStartup({
+      db,
+      brandsRoot,
+      projectsRoot,
+      brandId: id,
+      projectId,
+      metadata,
+      userDesignSystemsRoot: opts.userDesignSystemsRoot,
+      draftDesignSystemId,
+    });
     throw err;
   }
 }

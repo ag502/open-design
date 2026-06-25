@@ -537,6 +537,8 @@ function DesignKitViewInner({
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         setLightboxIndex(null);
         setLogoLightbox(null);
         setAssetPreview(null);
@@ -555,8 +557,8 @@ function DesignKitViewInner({
         showNextLightboxImage();
       }
     }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [
     assetPreview,
     colorEditor,

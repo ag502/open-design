@@ -67,6 +67,10 @@ export interface BrandRoutesDeps {
   };
   /** Optional id factory; defaults inside the brand engine when omitted. */
   randomId?: () => string;
+  /** Optional extraction overrides used by deterministic harnesses. */
+  prefetch?: Parameters<typeof startBrandExtraction>[0]['prefetch'];
+  logoFallback?: Parameters<typeof startBrandExtraction>[0]['logoFallback'];
+  imageryFallback?: Parameters<typeof startBrandExtraction>[0]['imageryFallback'];
   /** Selected agent identity for programmatic transcript rows. */
   resolveTranscriptAgent?: () => Promise<{ agentId?: string | null; agentName?: string | null } | null>;
 }
@@ -90,6 +94,13 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         activeProgrammaticBrandExtractions.delete(brandId);
       }
     });
+  }
+
+  function abortActiveProgrammaticBrandExtraction(brandId: string): void {
+    const active = activeProgrammaticBrandExtractions.get(brandId);
+    if (!active) return;
+    active.abort();
+    activeProgrammaticBrandExtractions.delete(brandId);
   }
 
   // GET /api/brands — list every stored brand as a summary.
@@ -142,6 +153,9 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
       if (designMd.trim()) startOptions.designMd = designMd;
       if (locale.trim()) startOptions.locale = locale;
       if (randomId) startOptions.randomId = randomId;
+      if (deps.prefetch) startOptions.prefetch = deps.prefetch;
+      if (deps.logoFallback) startOptions.logoFallback = deps.logoFallback;
+      if (deps.imageryFallback) startOptions.imageryFallback = deps.imageryFallback;
       const transcriptAgent = await deps.resolveTranscriptAgent?.().catch(() => null);
       if (transcriptAgent) startOptions.transcriptAgent = transcriptAgent;
       const result = await startBrandExtraction(startOptions);
@@ -162,11 +176,7 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
   app.post('/api/brands/:id/continue-extraction', async (req: Request, res: Response) => {
     const id = String(req.params.id);
     try {
-      const prior = activeProgrammaticBrandExtractions.get(id);
-      if (prior) {
-        prior.abort();
-        activeProgrammaticBrandExtractions.delete(id);
-      }
+      abortActiveProgrammaticBrandExtraction(id);
       const programmaticAbortController = new AbortController();
       const backgroundExtractionRef: { current: Promise<unknown> | null } = { current: null };
       const transcriptAgent = await deps.resolveTranscriptAgent?.().catch(() => null);
@@ -184,6 +194,9 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         onBackgroundExtraction: (settled) => {
           backgroundExtractionRef.current = settled;
         },
+        ...(deps.prefetch ? { prefetch: deps.prefetch } : {}),
+        ...(deps.logoFallback ? { logoFallback: deps.logoFallback } : {}),
+        ...(deps.imageryFallback ? { imageryFallback: deps.imageryFallback } : {}),
       });
       trackProgrammaticBrandExtraction(id, programmaticAbortController, backgroundExtractionRef.current);
       res.json(result);
@@ -205,11 +218,7 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         res.status(404).json({ error: 'brand not found' });
         return;
       }
-      const active = activeProgrammaticBrandExtractions.get(id);
-      if (active) {
-        active.abort();
-        activeProgrammaticBrandExtractions.delete(id);
-      }
+      abortActiveProgrammaticBrandExtraction(id);
       if (detail.meta.status !== 'ready') {
         patchMeta(brandsRoot, id, {
           status: 'failed',
@@ -336,6 +345,7 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         res.status(404).json({ error: 'brand not found' });
         return;
       }
+      abortActiveProgrammaticBrandExtraction(id);
       const result = await extractBrandFromHtml({
         id,
         meta,
@@ -349,6 +359,8 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         html,
         ...(css.trim() ? { css } : {}),
         ...(baseUrl.trim() ? { baseUrl } : {}),
+        ...(deps.logoFallback ? { logoFallback: deps.logoFallback } : {}),
+        ...(deps.imageryFallback ? { imageryFallback: deps.imageryFallback } : {}),
       });
       if (!result) {
         res
