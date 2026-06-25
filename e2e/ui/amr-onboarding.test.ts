@@ -45,7 +45,7 @@ test('[P0] @critical onboarding lets AMR Cloud sign in and complete setup after 
   // continue" AMR-card CTA).
   const primary = cloudPrimaryButton(page);
   await expect(primary).toBeVisible();
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Open Design|登录 Open Design/i);
   const statusCallsBeforeLogin = await page.evaluate(() => window.__amrOnboardingStatusCalls ?? 0);
   await clickCloudPrimary(page);
 
@@ -83,7 +83,7 @@ test('[P0] onboarding signed-out AMR authorization cannot be skipped or bypassed
 
   const primary = cloudPrimaryButton(page);
   await expect(primary).toBeVisible();
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Open Design|登录 Open Design/i);
   await expect(page.getByText(/Optional details for better defaults/i)).toHaveCount(0);
 
   // Trigger sign-in: it stays pending (login never completes), so we remain on
@@ -229,7 +229,7 @@ test('[P0] onboarding signed-in AMR status failure stays gated instead of bypass
   await expect(page.getByRole('button', { name: /About you|了解你/i })).toHaveCount(0);
   const primary = cloudPrimaryButton(page);
   await expect(primary).toBeVisible();
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Open Design|登录 Open Design/i);
   await expect(page.getByText(/Optional details for better defaults/i)).toHaveCount(0);
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -259,7 +259,7 @@ test('[P0] onboarding lets the user cancel an incomplete AMR sign-in and retry',
   await expect(cancelSignIn).toBeVisible();
   await cancelSignIn.click();
 
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Open Design|登录 Open Design/i);
   await expect(page.getByRole('button', { name: /Cancel sign-in/i })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingCancelCalls ?? 0)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(1);
@@ -295,7 +295,7 @@ test('[P0] onboarding cancel during a slow AMR status check does not start login
   await cancelSignIn.click();
 
   const primary = cloudPrimaryButton(page);
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Open Design|登录 Open Design/i);
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingCancelCalls ?? 0)).toBe(1);
   await expect
     .poll(() => page.evaluate(() => window.__amrOnboardingSlowStatusResolved ?? false))

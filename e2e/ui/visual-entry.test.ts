@@ -28,7 +28,7 @@ test('[P2] captures the onboarding cloud sign-in surface', async ({ page }) => {
   // vela/status is mocked signed-out, so the primary CTA resolves to the
   // signed-out cloud sign-in copy (past the transient loading state).
   await expect(
-    page.getByRole('button', { name: /Sign in to Open Design Cloud|登录 Open Design 云端/i }),
+    page.getByRole('button', { name: /Sign in to Open Design|登录 Open Design/i }),
   ).toBeVisible();
   // The secondary runtime links remain available beneath the cloud CTA.
   await expect(

@@ -26,9 +26,11 @@ import {
 import { useAnalytics } from '../analytics/provider';
 import {
   amrHandoffDeviceId,
+  attributedAmrUrl,
   recordAmrEntry,
   type AmrEntryAttribution,
 } from '../analytics/amr-attribution';
+import { amrPlansUrlForProfile } from '../runtime/amr-guidance';
 import { getResolvedDeviceId } from '../analytics/client';
 import { trackExecutionSettingsPopoverClick } from '../analytics/events';
 import {
@@ -39,8 +41,10 @@ import { KNOWN_PROVIDERS } from '../state/config';
 import { fetchProviderModels } from '../providers/provider-models';
 import { SUGGESTED_MODELS_BY_PROTOCOL } from '../state/apiProtocols';
 import {
+  canUpgradeVelaPlan,
   cancelVelaLogin,
   fetchVelaLoginStatus,
+  formatVelaBalanceUsd,
   startVelaLogin,
   type VelaLoginStatus,
 } from '../providers/daemon';
@@ -131,11 +135,11 @@ function markAmrReminderSeen(): void {
 }
 
 function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
-  return agent.id === 'amr' ? 'Open Design AMR' : agent.name;
+  return agent.id === 'amr' ? 'Open Design' : agent.name;
 }
 
 function displayAgentChipName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
-  return agent.id === 'amr' ? 'AMR' : displayAgentName(agent);
+  return agent.id === 'amr' ? 'Open Design' : displayAgentName(agent);
 }
 
 export function InlineModelSwitcher({
@@ -421,24 +425,35 @@ export function InlineModelSwitcher({
   const currentModelLabel =
     currentAgent?.models?.find((m) => m.id === currentModelId)?.label ?? null;
   const amrLoggedIn = amrStatus?.loggedIn === true;
+  // Signed-in rows show the current plan instead of a redundant "Signed in" +
+  // check mark. When the plan can't be resolved (free user, stale local config,
+  // upstream not yet fetched), show no status at all. Signed-in-without-plan is
+  // distinguished from signed-out (which keeps the sign-in CTA) by `amrLoggedIn`,
+  // never by plan presence.
+  const amrPlanLabel = amrLoggedIn
+    ? amrStatus?.account?.plan?.trim() || null
+    : null;
+  const amrBalanceLabel = amrLoggedIn
+    ? formatVelaBalanceUsd(amrStatus?.account?.balanceUsd)
+    : null;
+  const amrCanUpgrade =
+    amrLoggedIn && canUpgradeVelaPlan(amrStatus?.account?.plan);
   const amrActionLabel = amrLoginPending
     ? t('settings.amrSigningIn')
     : amrLoggedIn
-      ? t('settings.amrSignedIn')
+      ? amrPlanLabel ?? ''
       : t('settings.amrSignIn');
   const amrPendingHoverLabel = t('settings.amrCancelSignIn');
+  // Visually hidden state for screen readers keeps announcing "signed in" even
+  // when no plan label is shown.
   const amrInlineStatus = amrLoginError
     ? amrLoginError
     : amrLoggedIn
-      ? t('settings.amrSignedIn')
+      ? amrPlanLabel ?? t('settings.amrSignedIn')
       : amrLoginPending
         ? t('settings.amrSigningIn')
         : t('settings.amrSignIn');
-  const amrStatusIconName = amrLoggedIn
-      ? 'check'
-      : amrLoginPending
-        ? 'spinner'
-        : null;
+  const amrStatusIconName = amrLoginPending ? 'spinner' : null;
 
   const apiProtocol = config.apiProtocol ?? 'anthropic';
   const providerForProtocol = useMemo(
@@ -762,40 +777,6 @@ export function InlineModelSwitcher({
                             <span className="inline-switcher__agent-name">
                               {agentName}
                             </span>
-                            {a.id === 'amr' ? (
-                              <span className="inline-switcher__agent-status">
-                                {amrStatusIconName ? (
-                                  <span
-                                    className={
-                                      'inline-switcher__agent-status-icon' +
-                                      (amrLoginPending ? ' is-pending' : '') +
-                                      (amrLoggedIn ? ' is-signed-in' : '') +
-                                      (!amrLoginPending && !amrLoggedIn ? ' is-signed-out' : '')
-                                    }
-                                  >
-                                    <Icon name={amrStatusIconName} size={13} />
-                                  </span>
-                                ) : null}
-                                <span
-                                  className={
-                                    'inline-switcher__agent-action-label' +
-                                    (amrLoginPending ? ' is-cancelable' : '')
-                                  }
-                                >
-                                  <span className="inline-switcher__agent-action-default">
-                                    {amrActionLabel}
-                                  </span>
-                                  {amrLoginPending ? (
-                                    <span
-                                      className="inline-switcher__agent-action-hover"
-                                      aria-hidden="true"
-                                    >
-                                      {amrPendingHoverLabel}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </span>
-                            ) : null}
                           </button>
                         </div>
                       );
@@ -803,6 +784,103 @@ export function InlineModelSwitcher({
                   </div>
                 )}
               </div>
+
+              {amrInstalled ? (
+                <div className="inline-switcher__account">
+                  <span className="inline-switcher__account-id">
+                    <AgentIcon id="amr" size={24} />
+                    <span className="inline-switcher__account-text">
+                      <span className="inline-switcher__account-name-row">
+                        <span className="inline-switcher__account-name">
+                          Open Design
+                        </span>
+                        {amrLoggedIn && amrPlanLabel ? (
+                          <span className="inline-switcher__account-plan-badge">
+                            {amrPlanLabel}
+                          </span>
+                        ) : null}
+                      </span>
+                      {amrLoggedIn && amrBalanceLabel ? (
+                        <span className="inline-switcher__account-subtitle">
+                          <span className="inline-switcher__account-stat">
+                            <span className="inline-switcher__account-stat-label">
+                              {t('settings.amrBalance')}
+                            </span>
+                            <span className="inline-switcher__account-stat-value">
+                              {amrBalanceLabel}
+                            </span>
+                          </span>
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                  {amrLoginError ? (
+                    <span className="inline-switcher__account-status is-error">
+                      {amrLoginError}
+                    </span>
+                  ) : amrLoggedIn ? (
+                    amrCanUpgrade ? (
+                      <button
+                        type="button"
+                        className="inline-switcher__account-upgrade"
+                        data-testid="inline-model-switcher-account-upgrade"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const attribution = recordAmrEntry(
+                            analytics.track,
+                            'inline_amr_upgrade',
+                            new Date(),
+                            { metricsConsent: config.telemetry?.metrics === true },
+                          );
+                          const deviceId = amrHandoffDeviceId({
+                            metricsConsent: config.telemetry?.metrics === true,
+                            resolvedDeviceId: getResolvedDeviceId(),
+                            installationId: config.installationId,
+                          });
+                          window.open(
+                            attributedAmrUrl(
+                              amrPlansUrlForProfile(
+                                config.agentCliEnv?.amr?.OPEN_DESIGN_AMR_PROFILE,
+                              ),
+                              attribution,
+                              deviceId,
+                            ),
+                            '_blank',
+                            'noopener,noreferrer',
+                          );
+                        }}
+                      >
+                        {t('settings.amrUpgrade')}
+                      </button>
+                    ) : null
+                  ) : (
+                    <button
+                      type="button"
+                      className="inline-switcher__account-action"
+                      data-testid="inline-model-switcher-account-action"
+                      title={amrLoginPending ? amrPendingHoverLabel : undefined}
+                      onClick={() => {
+                        if (amrLoginPending) {
+                          void handleAmrCancelLogin();
+                          return;
+                        }
+                        const attribution = recordAmrEntry(
+                          analytics.track,
+                          'inline_model_switcher_amr_row',
+                          new Date(),
+                          { metricsConsent: config.telemetry?.metrics === true },
+                        );
+                        void handleAmrSignIn(attribution);
+                      }}
+                    >
+                      {amrStatusIconName ? (
+                        <Icon name={amrStatusIconName} size={13} />
+                      ) : null}
+                      {amrActionLabel}
+                    </button>
+                  )}
+                </div>
+              ) : null}
 
               {currentAgent &&
               currentAgent.models &&

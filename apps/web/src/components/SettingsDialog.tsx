@@ -45,11 +45,16 @@ import {
   amrLoginStatusEventReason,
 } from './amrLoginPolling';
 import {
+  canUpgradeVelaPlan,
   fetchAmrWalletSnapshot,
   fetchVelaLoginStatus,
+  formatVelaBalanceUsd,
   type VelaLoginStatus,
 } from '../providers/daemon';
-import { amrProfileBadgeLabel } from '../runtime/amr-guidance';
+import {
+  amrPlansUrlForProfile,
+  amrProfileBadgeLabel,
+} from '../runtime/amr-guidance';
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import {
@@ -620,7 +625,7 @@ function cleanAgentVersionLabel(
 }
 
 function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
-  return agent.id === 'amr' ? 'Open Design AMR' : agent.name;
+  return agent.id === 'amr' ? 'Open Design' : agent.name;
 }
 
 const AGENT_CLI_ENV_FIELDS = [
@@ -3707,6 +3712,19 @@ export function SettingsDialog({
                             amrWalletVisible && amrWalletSnapshot?.status === 'available'
                               ? formatAmrWalletBalance(amrWalletSnapshot.balanceUsd)
                               : null;
+                          const amrCardBalanceLabel =
+                            isAmrAgent && active && amrCardStatus?.loggedIn
+                              ? amrWalletBalance ??
+                                formatVelaBalanceUsd(amrCardStatus.account?.balanceUsd)
+                              : null;
+                          const amrCardPlanLabel =
+                            isAmrAgent && active && amrCardStatus?.loggedIn
+                              ? amrCardStatus.account?.plan?.trim() || null
+                              : null;
+                          const amrCardCanUpgrade =
+                            isAmrAgent && active && amrCardStatus?.loggedIn
+                              ? canUpgradeVelaPlan(amrCardStatus.account?.plan)
+                              : false;
                           const amrWalletTime =
                             amrWalletVisible && amrWalletSnapshot?.status === 'available'
                               ? formatAmrWalletTime(
@@ -3826,28 +3844,42 @@ export function SettingsDialog({
                                           ) : null}
                                         </div>
                                       ) : null}
-                                      {amrWalletVisible ? (
-                                        <div className="agent-card-amr-wallet">
-                                          <span className="agent-card-amr-wallet__label">
-                                            {t('settings.amrWalletBalance')}
-                                          </span>
-                                          <span className="agent-card-amr-wallet__value">
-                                            {amrWalletValueLabel({
-                                              balance: amrWalletBalance,
-                                              loadingLabel: t('common.loading'),
-                                              ready: amrWalletReady,
-                                              snapshot: amrWalletSnapshot,
-                                              unavailableLabel: t('settings.amrWalletUnavailable'),
-                                            })}
-                                          </span>
-                                          {amrWalletTime ? (
-                                            <span className="agent-card-amr-wallet__meta">
-                                              {t('settings.amrWalletUpdatedAt', { time: amrWalletTime })}
-                                              {amrWalletSnapshot?.source === 'daemon_cache'
-                                                ? ` · ${t('settings.amrWalletCached')}`
-                                                : ''}
+                                      {amrCardPlanLabel || amrWalletVisible ? (
+                                        <div className="agent-card-amr-meta-row">
+                                          {amrCardPlanLabel ? (
+                                            <span className="agent-card-amr-balance">
+                                              <span className="agent-card-amr-balance-label">
+                                                {t('settings.amrPlan')}
+                                              </span>
+                                              <span className="agent-card-amr-balance-value agent-card-amr-plan-value">
+                                                {amrCardPlanLabel}
+                                              </span>
                                             </span>
                                           ) : null}
+                                          {amrWalletVisible ? (
+                                            <span className="agent-card-amr-balance">
+                                              <span className="agent-card-amr-balance-label">
+                                                {t('settings.amrBalance')}
+                                              </span>
+                                              <span className="agent-card-amr-balance-value">
+                                                {amrWalletValueLabel({
+                                                  balance: amrCardBalanceLabel,
+                                                  loadingLabel: t('common.loading'),
+                                                  ready: amrWalletReady || Boolean(amrCardBalanceLabel),
+                                                  snapshot: amrWalletSnapshot,
+                                                  unavailableLabel: t('settings.amrWalletUnavailable'),
+                                                })}
+                                              </span>
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
+                                      {amrWalletTime ? (
+                                        <div className="agent-card-amr-wallet__meta">
+                                          {t('settings.amrWalletUpdatedAt', { time: amrWalletTime })}
+                                          {amrWalletSnapshot?.source === 'daemon_cache'
+                                            ? ` · ${t('settings.amrWalletCached')}`
+                                            : ''}
                                         </div>
                                       ) : null}
                                       {!active && modelSummary ? (
@@ -3902,6 +3934,25 @@ export function SettingsDialog({
                                             />
                                           </svg>
                                         </span>
+                                      ) : null}
+                                      {amrCardCanUpgrade ? (
+                                        <button
+                                          type="button"
+                                          className="agent-card-amr-upgrade"
+                                          data-testid="settings-agent-card-amr-upgrade"
+                                          onClick={() =>
+                                            void openExternalUrl(
+                                              attributedAmrSettingsUrl(
+                                                amrPlansUrlForProfile(
+                                                  amrCardStatus?.profile,
+                                                ),
+                                                'settings_amr_upgrade',
+                                              ),
+                                            )
+                                          }
+                                        >
+                                          {t('settings.amrUpgrade')}
+                                        </button>
                                       ) : null}
                                       <AmrLoginPill
                                         className="agent-card-amr-auth"

@@ -18,10 +18,18 @@ import {
   mirrorAmrOnboardingProfileAnalytics,
   parseAmrEntryAnalyticsPayload,
   parseAmrOnboardingProfileAnalyticsPayload,
+  applyVelaLiveAccount,
+  clearAllVelaLiveAccounts,
+  clearVelaLiveAccountRefreshThrottle,
   parseVelaLoginAttribution,
+  peekVelaLiveAccount,
   readVelaCredentialRevision,
   readVelaLoginStatus,
+  setVelaLiveAccount,
+  shouldRefreshVelaLiveAccount,
+  velaLiveAccountCacheKey,
   spawnVelaLogin,
+  type VelaLiveAccount,
 } from '../integrations/vela.js';
 import {
   clearVelaWalletSnapshotCache,
@@ -29,6 +37,7 @@ import {
 } from '../integrations/vela-wallet.js';
 import { amrModelLoadingCache } from '../runtimes/amr-model-cache.js';
 import {
+  fetchVelaBillingSummary,
   fetchVelaPresetModels,
   fetchVelaRemoteModelsWithRetry,
 } from '../runtimes/defs/amr.js';
@@ -176,6 +185,43 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
     return { launchPath, env: spawnEnv, configuredEnv, cacheKey };
   }
 
+  // Single-flight the live billing fetch per credential revision. Treating
+  // `peekVelaLiveAccount(key) === null` as the cold signal (rather than the
+  // refresh throttle) means a concurrent second /status that arrives during the
+  // first fetch awaits the SAME promise instead of slipping past the throttle
+  // and returning config-only — which the read-once surfaces can't recover from.
+  const inFlightVelaAccountFetches = new Map<
+    string,
+    Promise<VelaLiveAccount | null>
+  >();
+  function fetchVelaLiveAccountSingleFlight(
+    accountCacheKey: string,
+  ): Promise<VelaLiveAccount | null> {
+    const existing = inFlightVelaAccountFetches.get(accountCacheKey);
+    if (existing) return existing;
+    const pending = (async () => {
+      const probe = await resolveAmrModelProbe();
+      amrModelLoadingCache.warm(probe.cacheKey, () =>
+        fetchVelaRemoteModelsWithRetry(probe.launchPath, probe.env),
+      );
+      const account = await fetchVelaBillingSummary(probe.launchPath, probe.env);
+      setVelaLiveAccount(accountCacheKey, account);
+      return account;
+    })()
+      .catch((err) => {
+        // Clear the throttle so the next poll retries; caller falls back to
+        // config-only (no account field).
+        clearVelaLiveAccountRefreshThrottle(accountCacheKey);
+        console.warn('[amr] live account fetch failed', err);
+        return null;
+      })
+      .finally(() => {
+        inFlightVelaAccountFetches.delete(accountCacheKey);
+      });
+    inFlightVelaAccountFetches.set(accountCacheKey, pending);
+    return pending;
+  }
+
   app.get('/api/amr/models', async (_req, res) => {
     try {
       const probe = await resolveAmrModelProbe();
@@ -195,13 +241,34 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
       const status = readVelaLoginStatus(mergeVelaEnv(env, configuredEnv));
       if (status.loggedIn) {
-        void resolveAmrModelProbe()
-          .then((probe) => {
-            amrModelLoadingCache.warm(probe.cacheKey, () =>
-              fetchVelaRemoteModelsWithRetry(probe.launchPath, probe.env),
-            );
-          })
-          .catch((err) => console.warn('[amr] model cache warm failed', err));
+        // Key the live-account cache by the full credential revision (not just
+        // profile) so a logout / account switch can never surface the previous
+        // account's plan or balance. Merge the cached projection synchronously
+        // (works for env-backed sessions where status.user is null too); the
+        // background refresh below updates the cache for the next poll.
+        const accountCacheKey = velaLiveAccountCacheKey(
+          readVelaCredentialRevision(env, configuredEnv),
+        );
+        const cachedAccount = peekVelaLiveAccount(accountCacheKey);
+        if (!cachedAccount) {
+          // Cold cache (or a fetch already in flight): BLOCK on the single-flight
+          // billing fetch so the first open already carries plan/balance. The
+          // consumers (settings card, inline switcher, avatar) read /status once
+          // and do not re-poll, so returning config-only here would hide the
+          // fields until the user refocuses. On failure the helper resolves null
+          // and we fall back to config-only (no account field).
+          applyVelaLiveAccount(
+            status,
+            await fetchVelaLiveAccountSingleFlight(accountCacheKey),
+          );
+        } else {
+          // Warm cache: serve it immediately; refresh in the background for the
+          // next poll once the TTL has lapsed.
+          applyVelaLiveAccount(status, cachedAccount);
+          if (shouldRefreshVelaLiveAccount(accountCacheKey)) {
+            void fetchVelaLiveAccountSingleFlight(accountCacheKey).catch(() => {});
+          }
+        }
       }
       res.json(status);
     } catch (err) {
@@ -343,6 +410,9 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
       forgetVelaLogin(mergeVelaEnv(env, configuredEnv));
+      // Drop any cached plan/balance so the next login can't surface this
+      // (now signed-out) account's billing data.
+      clearAllVelaLiveAccounts();
       clearVelaWalletSnapshotCache();
       delete env.VELA_RUNTIME_KEY;
       delete env.VELA_LINK_URL;

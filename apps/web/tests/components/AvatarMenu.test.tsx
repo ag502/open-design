@@ -211,39 +211,24 @@ describe('AvatarMenu', () => {
     ).toBeTruthy();
   });
 
-  it('routes the AMR account shortcut through the active AMR profile', () => {
-    renderMenu({
-      config: {
-        ...baseConfig,
-        agentId: 'amr',
-        agentCliEnv: {
-          amr: {
-            OPEN_DESIGN_AMR_PROFILE: 'test',
-          },
-        },
-      },
-      agents: [
-        {
-          id: 'amr',
-          name: 'Open Design AMR',
-          bin: 'vela',
-          available: true,
-          models: [{ id: 'default', label: 'Default (CLI config)' }],
-        },
-      ],
+  it('renders the signed-in plan/balance and stamps the avatar upgrade link', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/api/integrations/vela/status') {
+        return new Response(
+          JSON.stringify({
+            loggedIn: true,
+            loginInFlight: false,
+            profile: 'test',
+            user: { id: 'u1', email: 'a@b.c' },
+            account: { plan: 'plus', balanceUsd: '247.5087' },
+            configPath: '/Users/test/.amr/config.json',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('{}', { status: 202 });
     });
-
-    openMenu();
-
-    expect(
-      screen
-        .getByRole('link', { name: 'avatar.amrConsoleavatar.amrConsoleMeta' })
-        .getAttribute('href'),
-    ).toBe('https://vela.powerformer.net/wallet?source=open_design');
-  });
-
-  it('adds Open Design attribution to the AMR account shortcut on click', () => {
-    const fetchMock = vi.fn(async () => new Response('{}', { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
 
     renderMenu({
@@ -252,11 +237,7 @@ describe('AvatarMenu', () => {
         agentId: 'amr',
         telemetry: { metrics: true },
         installationId: 'od-install-abc',
-        agentCliEnv: {
-          amr: {
-            OPEN_DESIGN_AMR_PROFILE: 'test',
-          },
-        },
+        agentCliEnv: { amr: { OPEN_DESIGN_AMR_PROFILE: 'test' } },
       },
       agents: [
         {
@@ -269,21 +250,19 @@ describe('AvatarMenu', () => {
       ],
     });
 
-    openMenu();
-    const link = screen.getByRole('link', {
-      name: 'avatar.amrConsoleavatar.amrConsoleMeta',
-    }) as HTMLAnchorElement;
-    fireEvent.click(link);
+    const dialog = openMenu();
+    // Plan badge + balance render once the signed-in status resolves.
+    expect(await screen.findByText('Plus')).toBeTruthy();
+    expect(dialog.textContent).toContain('$247.51');
 
-    const url = new URL(link.href);
+    const upgrade = screen.getByRole('link', {
+      name: 'settings.amrUpgrade',
+    }) as HTMLAnchorElement;
+    fireEvent.click(upgrade);
+    const url = new URL(upgrade.href);
+    expect(url.searchParams.get('view')).toBe('plans');
+    expect(url.searchParams.get('od_entry_source')).toBe('avatar_amr_upgrade');
     expect(url.searchParams.get('source')).toBe('open_design');
-    expect(url.searchParams.get('od_origin')).toBe('open_design');
-    expect(url.searchParams.get('od_entry_source')).toBe('avatar_amr_console');
     expect(url.searchParams.get('od_device_id')).toBe('od-install-abc');
-    expect(url.searchParams.get('od_entry_id')).toMatch(/^od-amr-/u);
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/integrations/vela/analytics-entry',
-      expect.objectContaining({ method: 'POST' }),
-    );
   });
 });
