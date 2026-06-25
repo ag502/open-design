@@ -658,6 +658,35 @@ function isStoredChatAttachment(value: unknown): value is ChatAttachment {
   );
 }
 
+function fallbackDesignSystemSummaryForProject(
+  project: Project,
+  designSystemId: string | null,
+): DesignSystemSummary | null {
+  if (!designSystemId || !isDesignSystemProject(project)) return null;
+  const metadata = project.metadata;
+  const sourceUrl = metadata?.brandSourceUrl?.trim() || null;
+  const title =
+    metadata?.sourceFileName?.trim()
+    || project.name.replace(/\s+Design System\s*$/i, '').trim()
+    || project.name
+    || 'Design system';
+  return {
+    id: designSystemId,
+    title,
+    category: 'Brands',
+    summary: sourceUrl ? `Draft design system extracted from ${sourceUrl}.` : '',
+    swatches: [],
+    surface: 'web',
+    source: 'user',
+    status: 'draft',
+    isEditable: true,
+    projectId: project.id,
+    ...(sourceUrl
+      ? { provenance: { sourceUrls: [sourceUrl], sourceNotes: `Extracting from ${sourceUrl}` } }
+      : {}),
+  };
+}
+
 function workspaceContextItemEqual(
   a: WorkspaceContextItem | null,
   b: WorkspaceContextItem | null,
@@ -4706,10 +4735,16 @@ export function ProjectView({
     if (programmaticBrandId) {
       void Promise.resolve(cancelBrandExtraction(programmaticBrandId))
         .finally(() => {
-          void projectDetail.refresh();
-          void onProjectsRefresh();
-          void onDesignSystemsRefresh?.();
-          void refreshWorkspaceItems();
+          void (async () => {
+            await Promise.allSettled([
+              projectDetail.refresh(),
+              Promise.resolve(onProjectsRefresh()),
+              Promise.resolve(onDesignSystemsRefresh?.()),
+              refreshWorkspaceItems(),
+            ]);
+            setFilesRefresh((n) => n + 1);
+            requestOpenFile(DESIGN_SYSTEM_TAB);
+          })();
         });
     }
     cancelSendTextBuffer(true);
@@ -4742,6 +4777,7 @@ export function ProjectView({
     onProjectsRefresh,
     persistMessage,
     projectDetail.refresh,
+    requestOpenFile,
     refreshWorkspaceItems,
   ]);
 
@@ -5810,6 +5846,16 @@ export function ProjectView({
 
   const designSystemProject = useMemo(() => {
     if (!projectIsDesignSystemProject || !projectDesignSystemId) return null;
+    return designSystems.find((d) => d.id === projectDesignSystemId)
+      ?? fallbackDesignSystemSummaryForProject(currentProject, projectDesignSystemId);
+  }, [
+    currentProject,
+    designSystems,
+    projectDesignSystemId,
+    projectIsDesignSystemProject,
+  ]);
+  const designSystemProjectFromRegistry = useMemo(() => {
+    if (!projectIsDesignSystemProject || !projectDesignSystemId) return null;
     return designSystems.find((d) => d.id === projectDesignSystemId) ?? null;
   }, [designSystems, projectDesignSystemId, projectIsDesignSystemProject]);
   useEffect(() => {
@@ -5817,7 +5863,7 @@ export function ProjectView({
       missingDesignSystemRefreshRef.current = null;
       return;
     }
-    if (designSystemProject) {
+    if (designSystemProjectFromRegistry) {
       missingDesignSystemRefreshRef.current = null;
       return;
     }
@@ -5828,7 +5874,7 @@ export function ProjectView({
       console.warn('[design-system] failed to refresh missing project design system', err);
     });
   }, [
-    designSystemProject,
+    designSystemProjectFromRegistry,
     onDesignSystemsRefresh,
     projectDesignSystemId,
     projectIsDesignSystemProject,

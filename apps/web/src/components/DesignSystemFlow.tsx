@@ -900,7 +900,20 @@ export function DesignSystemCreationFlow({
       // `projects` list yet — hydrate it so onCreated can prepend it before
       // navigating into the live extraction.
       const project = (await getProject(result.projectId).catch(() => undefined)) ?? undefined;
-      let projectForCreated = project;
+      let projectForCreated = project && result.designSystemId
+        ? {
+            ...project,
+            designSystemId: project.designSystemId ?? result.designSystemId,
+            metadata: {
+              ...(project.metadata ?? {}),
+              kind: 'brand' as const,
+              importedFrom: 'brand-extraction' as const,
+              brandId: result.id,
+              brandSourceUrl: result.sourceUrl,
+              brandDesignSystemId: result.designSystemId,
+            } satisfies ProjectMetadata,
+          }
+        : project;
       if (project && hasProjectStagingSources(state)) {
         await prepareCreatedDesignSystemProject({
           project,

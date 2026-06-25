@@ -19,6 +19,7 @@ import {
   listMessages,
 } from '../../src/state/projects';
 import { fetchPreviewComments } from '../../src/providers/registry';
+import { cancelBrandExtraction } from '../../src/runtime/brands';
 
 const fileWorkspaceSpy = vi.hoisted(() => vi.fn());
 
@@ -50,6 +51,16 @@ vi.mock('../../src/providers/daemon', () => ({
 vi.mock('../../src/providers/project-events', () => ({
   useProjectFileEvents: vi.fn(),
 }));
+
+vi.mock('../../src/runtime/brands', async () => {
+  const actual = await vi.importActual<typeof import('../../src/runtime/brands')>(
+    '../../src/runtime/brands',
+  );
+  return {
+    ...actual,
+    cancelBrandExtraction: vi.fn().mockResolvedValue({ ok: true, status: 'failed' }),
+  };
+});
 
 vi.mock('../../src/providers/registry', async () => {
   const actual = await vi.importActual<typeof import('../../src/providers/registry')>(
@@ -99,7 +110,10 @@ vi.mock('../../src/components/AvatarMenu', () => ({
 
 vi.mock('../../src/components/FileWorkspace', () => ({
   DESIGN_SYSTEM_TAB: '__design_system__',
-  FileWorkspace: (props: { openRequest?: { name: string } | null }) => {
+  FileWorkspace: (props: {
+    openRequest?: { name: string } | null;
+    onBrandExtractionStopRequest?: () => void;
+  }) => {
     fileWorkspaceSpy(props);
     return <div data-testid="file-workspace" />;
   },
@@ -123,6 +137,7 @@ const mockedListConversations = vi.mocked(listConversations);
 const mockedCreateConversation = vi.mocked(createConversation);
 const mockedListMessages = vi.mocked(listMessages);
 const mockedFetchPreviewComments = vi.mocked(fetchPreviewComments);
+const mockedCancelBrandExtraction = vi.mocked(cancelBrandExtraction);
 
 const config: AppConfig = {
   mode: 'api',
@@ -236,6 +251,29 @@ describe('ProjectView pending prompt seeding', () => {
     await waitFor(() => expect(onDesignSystemsRefresh).toHaveBeenCalledTimes(1));
   });
 
+  it('auto-opens a draft design system tab before the registry summary refreshes', async () => {
+    renderProjectView(
+      {
+        ...project('brand-draft-open'),
+        metadata: {
+          kind: 'brand',
+          importedFrom: 'brand-extraction',
+          brandId: 'brand-draft-open',
+          brandSourceUrl: 'https://nexu.io/',
+          brandDesignSystemId: 'user:brand-draft-open',
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(
+        fileWorkspaceSpy.mock.calls.some(([props]) =>
+          props.openRequest?.name === '__design_system__',
+        ),
+      ).toBe(true);
+    });
+  });
+
   it('auto-opens the design system tab once a brand extraction backing system is available', async () => {
     renderProjectView(
       {
@@ -266,6 +304,40 @@ describe('ProjectView pending prompt seeding', () => {
       },
     );
 
+    await waitFor(() => {
+      expect(
+        fileWorkspaceSpy.mock.calls.some(([props]) =>
+          props.openRequest?.name === '__design_system__',
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it('stops a programmatic brand extraction and returns to the draft design system tab', async () => {
+    const onDesignSystemsRefresh = vi.fn();
+    const onProjectsRefresh = vi.fn();
+    renderProjectView(
+      {
+        ...project('brand-stop'),
+        metadata: {
+          kind: 'brand',
+          importedFrom: 'brand-extraction',
+          brandId: 'brand-stop',
+          brandSourceUrl: 'https://nexu.io/',
+          brandDesignSystemId: 'user:brand-stop',
+        },
+      },
+      vi.fn(),
+      { onDesignSystemsRefresh, onProjectsRefresh },
+    );
+
+    await waitFor(() => {
+      expect(fileWorkspaceSpy.mock.calls.at(-1)?.[0].onBrandExtractionStopRequest).toBeTypeOf('function');
+    });
+    fileWorkspaceSpy.mock.calls.at(-1)?.[0].onBrandExtractionStopRequest?.();
+
+    await waitFor(() => expect(mockedCancelBrandExtraction).toHaveBeenCalledWith('brand-stop'));
+    await waitFor(() => expect(onDesignSystemsRefresh).toHaveBeenCalled());
     await waitFor(() => {
       expect(
         fileWorkspaceSpy.mock.calls.some(([props]) =>

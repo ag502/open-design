@@ -264,26 +264,26 @@ export async function startBrandExtraction(
   // even if extraction fails or is stopped — instead of only materializing on a
   // successful finalize (the bug where a started extraction never showed up in
   // the list). finalizeBrandCore reuses this exact id (never duplicates),
-  // enriching the draft in place. Best-effort: a registry hiccup just falls back
-  // to the create-on-finalize path.
+  // enriching the draft in place. This is part of the start contract: if the
+  // draft cannot be registered, the extraction should not create a project that
+  // looks like a design system but has no backing editable system.
   let draftDesignSystemId: string | null = null;
   if (runProgrammatic && opts.userDesignSystemsRoot) {
-    try {
-      const draft = await createUserDesignSystem(opts.userDesignSystemsRoot, {
-        title: host,
-        category: 'Brands',
-        surface: 'web',
-        status: 'draft',
-        artifactMode: 'agent-managed',
-        provenance: { sourceNotes: `Extracting from ${url}` },
-      });
-      draftDesignSystemId = draft.id;
-      meta.designSystemId = draft.id;
-      patchMeta(brandsRoot, id, { designSystemId: draft.id });
-      metadata.brandDesignSystemId = draft.id;
-    } catch (err) {
-      console.warn(`[brand] failed to pre-create draft design system for ${id}`, err);
-    }
+    const draft = await createUserDesignSystem(opts.userDesignSystemsRoot, {
+      title: host,
+      category: 'Brands',
+      surface: 'web',
+      status: 'draft',
+      artifactMode: 'agent-managed',
+      provenance: {
+        sourceUrls: [url],
+        sourceNotes: `Extracting from ${url}`,
+      },
+    });
+    draftDesignSystemId = draft.id;
+    meta.designSystemId = draft.id;
+    patchMeta(brandsRoot, id, { designSystemId: draft.id });
+    metadata.brandDesignSystemId = draft.id;
   }
   insertProject(db, {
     id: projectId,
