@@ -9,14 +9,13 @@ const ENTERPRISE_BASE =
     ? 'http://127.0.0.1:17574'
     : 'https://open-design.ai';
 
-// Map the client's active locale to the landing page's locale segment so the
-// enterprise page opens in the same language the user is already reading.
-// Locales the landing site doesn't ship (th / fa / hu) fall back to default
+// Map the client's active locale to an active landing-page locale segment so
+// the enterprise page opens in the same language the user is already reading.
+// Retired or unsupported landing locales intentionally fall back to default
 // English. Keep in sync with apps/landing-page LANDING_LOCALES — web cannot
 // import landing source directly (app-boundary rule).
 const ENTERPRISE_LOCALE_SEGMENT: Record<string, string> = {
   'zh-CN': 'zh',
-  'zh-TW': 'zh-tw',
   ja: 'ja',
   ko: 'ko',
   de: 'de',
@@ -25,11 +24,7 @@ const ENTERPRISE_LOCALE_SEGMENT: Record<string, string> = {
   'es-ES': 'es',
   'pt-BR': 'pt-br',
   it: 'it',
-  pl: 'pl',
-  id: 'id',
-  ar: 'ar',
   tr: 'tr',
-  uk: 'uk',
 };
 
 export function enterpriseUrl(locale: string): string {
