@@ -127,6 +127,10 @@ interface Props {
   prompt: string;
   onPromptChange: (value: string) => void;
   onSubmit: HomeHeroSubmitHandler;
+  // Send pressed on an EMPTY composer while the placeholder carousel is
+  // showing: the host seeds the prompt with `scenario.text`, binds the
+  // scenario's template, and creates the project — one-click "just start".
+  onSubmitScenario?: (scenario: PlaceholderScenario) => void;
   sessionMode?: ChatSessionMode;
   onSessionModeChange?: (mode: ChatSessionMode) => void;
   activePluginTitle: string | null;
@@ -252,7 +256,6 @@ const EMPTY_STAGED_FILES: File[] = [];
 const EMPTY_SKILLS: SkillSummary[] = [];
 const EMPTY_MCP_OPTIONS: McpServerConfig[] = [];
 const EMPTY_CONNECTOR_OPTIONS: ConnectorDetail[] = [];
-const ignorePlaceholderScenario = () => undefined;
 
 export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   {
@@ -260,6 +263,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     prompt,
     onPromptChange,
     onSubmit,
+    onSubmitScenario = () => undefined,
     firstRunGuide,
     sessionMode = 'design',
     onSessionModeChange,
@@ -361,6 +365,9 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   // getContextMention regex) + the caret box the popover anchors to.
   const [mentionTrigger, setMentionTrigger] = useState<{ query: string } | null>(null);
   const [caretRect, setCaretRect] = useState<CaretRect | null>(null);
+  // The scenario the placeholder carousel is currently showing. A Send on an
+  // empty composer submits THIS scenario's text + template (see handleSend).
+  const [carouselScenario, setCarouselScenario] = useState<PlaceholderScenario | null>(null);
   const editorRef = useRef<LexicalComposerInputHandle | null>(null);
   const promptEditorRef = useRef<HTMLDivElement | null>(null);
   const mentionPickerRef = useRef<HTMLDivElement | null>(null);
@@ -378,11 +385,12 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     : t('homeHero.placeholder');
   const mentionActive = Boolean(mentionTrigger);
   const mentionQuery = mentionTrigger?.query ?? '';
-  // Scenarios the carousel cycles, with copy resolved through `t()`. With a
-  // create-template chip selected we narrow to that template's scenarios so
-  // the suggestions match the picked output; with nothing bound we cycle the
-  // full set. Memoised by chip + locale so the reference only changes on a
-  // real switch, which restarts the carousel.
+  // Scenarios the carousel cycles, with copy resolved through `t()` so the
+  // typed placeholder AND the submitted query follow the locale. With a
+  // create-template chip selected we narrow to that template's scenarios (so
+  // the suggestions match the picked output and a submit keeps that template);
+  // with nothing bound we cycle the full set. Memoised by chip + locale so the
+  // reference only changes on a real switch, which restarts the carousel.
   const carouselScenarios = useMemo<PlaceholderScenario[]>(() => {
     const resolved = PLACEHOLDER_SCENARIO_DEFS.map((def) => ({
       id: def.id,
@@ -409,10 +417,22 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     !activePluginIsExplicit &&
     !mentionActive &&
     carouselScenarios.length > 0;
-  const sendEnabled = canSubmit;
+  // Empty composer, but the carousel is offering a runnable scenario from the
+  // CURRENT pool: Send stays highlighted and submits that scenario instead of
+  // sitting disabled. The membership check guards the brief window after a
+  // template switch before the carousel reports the new pool's first scenario.
+  const carouselSubmittable =
+    carouselActive &&
+    carouselScenario !== null &&
+    carouselScenarios.some((scenario) => scenario.id === carouselScenario.id);
+  const sendEnabled = canSubmit || carouselSubmittable;
   function handleSend() {
-    if (!canSubmit) return;
-    onSubmit();
+    if (submitting || submitDisabled) return;
+    if (canSubmit) {
+      onSubmit();
+      return;
+    }
+    if (carouselSubmittable && carouselScenario) onSubmitScenario(carouselScenario);
   }
   const fileMatches = useMemo(
     () =>
@@ -1333,7 +1353,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
             <PlaceholderCarousel
               active={carouselActive}
               scenarios={carouselScenarios}
-              onScenarioChange={ignorePlaceholderScenario}
+              onScenarioChange={setCarouselScenario}
             />
           </div>
         </div>
