@@ -7753,15 +7753,12 @@ function HtmlViewer({
     rendererId === 'html';
   const canShare = source !== null && isShareableArtifact;
   const canDownload = source !== null && (isShareableArtifact || isMarkdownArtifact);
-  // PPTX export is slide-based, so gate it on the EXPLICIT deck signal
-  // (`isDeckArtifact`: deck renderer/kind/presentation) — NOT the `.slide` regex
-  // (`effectiveDeck`/`looksLikeDeck`), which false-positives on ordinary pages
-  // that contain carousel/testimonial `.slide` markup and would force those down
-  // the deck renderer via the hardcoded `deck: true`. It requires the desktop
-  // host screenshot renderer; there is no web-only PPTX fallback.
-  // (Image/PDF stay on the broader signal — they handle pages too.)
+  // PPTX export is slide-based, so show it for explicit deck artifacts and for
+  // HTML that the export engine itself can prove is deck-shaped. Generated
+  // decks do not always carry deck metadata after the #4691 viewer rewrite; the
+  // visible 1/N deck navigation should still offer the PPTX route.
   const hostExportAvailable = isOpenDesignHostAvailable();
-  const showPptxExport = canShare && isDeckArtifact;
+  const showPptxExport = canShare && (isDeckArtifact || deckExportSignal);
   const canPptx = showPptxExport && !streaming && hostExportAvailable;
   const showMarkdownExport = source !== null && isMarkdownArtifact;
   const showImageExport = canShare;
