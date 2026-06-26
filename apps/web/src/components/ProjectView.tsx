@@ -114,6 +114,7 @@ import {
   extractBrandFromHtml,
   finalizeBrandProject,
 } from '../runtime/brands';
+import { isOpenDesignHostAvailable } from '@open-design/host';
 import { getBrandBrowser, BRAND_BROWSER_TAB_ID } from '../runtime/brand-browser-bridge';
 import {
   BROWSER_SERIALIZE_HTML_SCRIPT,
@@ -2690,7 +2691,7 @@ export function ProjectView({
   );
 
   const readBrandBrowserSnapshot = useCallback(
-    async (tabId = BRAND_BROWSER_TAB_ID): Promise<BrandBrowserSnapshot> => {
+    async (tabId = BRAND_BROWSER_TAB_ID, timeoutMs = 8000): Promise<BrandBrowserSnapshot> => {
       const handle = getBrandBrowser(project.id, tabId);
       if (!handle || !handle.isDesktopWebview) {
         return { status: 'unavailable', message: t('chat.brandBrowserAssistDesktopOnly') };
@@ -2703,16 +2704,16 @@ export function ProjectView({
       }
       // Electron's executeJavaScript never times out on its own; a tab still on a
       // challenge wall / mid-redirect / hung renderer would freeze the recovery
-      // forever. Cap the read so the UI surfaces a retryable error instead.
-      const readTab = async (script: string): Promise<string> => {
+      // forever. Cap each read so the UI surfaces a retryable error instead.
+      const readTab = (script: string): Promise<string> => {
         const promise = handle.executeJavaScript<string>(script, true);
-        if (!promise) return '';
+        if (!promise) return Promise.resolve('');
         return Promise.race([
           promise,
           new Promise<string>((_, reject) =>
             window.setTimeout(
               () => reject(new Error(t('chat.brandBrowserAssistReadFailed'))),
-              8000,
+              timeoutMs,
             ),
           ),
         ]);
@@ -2720,8 +2721,15 @@ export function ProjectView({
       let html = '';
       let css = '';
       try {
-        html = await readTab(BROWSER_SERIALIZE_HTML_SCRIPT);
-        css = await readTab(BROWSER_SERIALIZE_STYLES_SCRIPT).catch(() => '');
+        // Read the DOM and the computed-style digest CONCURRENTLY: serially they
+        // stacked two full timeout windows back-to-back (a slow page meant ~16s
+        // per attempt, and the retry loop multiplied that into a minute-long
+        // spinner). The CSS digest is best-effort — a sparse/empty palette no
+        // longer fails extraction server-side — so it must never reject the read.
+        [html, css] = await Promise.all([
+          readTab(BROWSER_SERIALIZE_HTML_SCRIPT),
+          readTab(BROWSER_SERIALIZE_STYLES_SCRIPT).catch(() => ''),
+        ]);
       } catch (err) {
         return {
           status: 'read-failed',
@@ -2735,6 +2743,30 @@ export function ProjectView({
       return { status: 'ready', html, css, baseUrl };
     },
     [project.id, t],
+  );
+
+  const readBrandBrowserSnapshotWithRetry = useCallback(
+    async (tabId = BRAND_BROWSER_TAB_ID): Promise<BrandBrowserSnapshot> => {
+      // The pinned webview can still be mounting/registering right after a
+      // workspace remount, and a freshly-focused tab may not have committed its
+      // post-wall URL yet — so a single read can spuriously report the live DOM
+      // unreadable. Re-read a few times before giving up. Only meaningful on the
+      // desktop host: the web-only host never exposes a webview, so retrying
+      // can't change an `unavailable` verdict.
+      let snapshot = await readBrandBrowserSnapshot(tabId, 8000);
+      if (snapshot.status === 'ready' || !isOpenDesignHostAvailable()) return snapshot;
+      // Retries cover the mount/registration race only — a ready webview resolves
+      // these reads almost instantly. Use a short per-retry cap so a genuinely
+      // hung/walled page fails fast instead of stacking full timeout windows.
+      for (let attempt = 0; attempt < 3 && snapshot.status !== 'ready'; attempt += 1) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 500);
+        });
+        snapshot = await readBrandBrowserSnapshot(tabId, 3000);
+      }
+      return snapshot;
+    },
+    [readBrandBrowserSnapshot],
   );
 
   // Client-side handler for the brand-browser-assist od-card's button: open or
@@ -2753,6 +2785,36 @@ export function ProjectView({
     },
     [currentProject.metadata?.brandSourceUrl, t],
   );
+
+  // Identity for host-authored chat messages (the brand browser-assist prompt
+  // below). Without it the message collapses to the generic "Assistant" label +
+  // monogram; stamping the user's currently-selected design agent makes its
+  // avatar and role name follow that selection (Claude by default), matching how
+  // handleSend identifies a real turn.
+  const selectedAssistantIdentity = useMemo<{
+    agentId: string | undefined;
+    agentName: string | undefined;
+  }>(() => {
+    if (config.mode === 'daemon') {
+      const selectedAgent = config.agentId ? agentsById.get(config.agentId) : null;
+      const selectedAgentChoice = config.agentId
+        ? config.agentModels?.[config.agentId]
+        : undefined;
+      const effectiveChoice = effectiveAgentModelChoice(selectedAgent, selectedAgentChoice);
+      return {
+        agentId: config.agentId ?? undefined,
+        agentName: agentModelDisplayName(
+          config.agentId,
+          selectedAgent?.name,
+          effectiveChoice?.model,
+        ),
+      };
+    }
+    return {
+      agentId: apiProtocolAgentId(config.apiProtocol),
+      agentName: apiProtocolModelLabel(config.apiProtocol, config.model),
+    };
+  }, [config, agentsById]);
 
   // One-shot: when extraction is blocked by an anti-bot wall (or has stalled past
   // the timeout), drop the assist card into the conversation so the user can
@@ -2780,6 +2842,8 @@ export function ProjectView({
     appendConversationMessage(activeConversationId, {
       id: randomUUID(),
       role: 'assistant',
+      agentId: selectedAssistantIdentity.agentId,
+      agentName: selectedAssistantIdentity.agentName,
       content,
       events: [{ kind: 'text', text: content }],
       createdAt: Date.now(),
@@ -2791,6 +2855,7 @@ export function ProjectView({
     appendConversationMessage,
     dismissBrandBrowserAssist,
     messagesConversationId,
+    selectedAssistantIdentity,
     t,
   ]);
 
@@ -6577,30 +6642,60 @@ export function ProjectView({
     };
 
     void (async () => {
-      const snapshot = await readBrandBrowserSnapshot(BRAND_BROWSER_TAB_ID);
+      // Prefer the live, post-wall DOM out of the pinned Browser tab. Read it
+      // BEFORE switching the workspace to the preview so the read runs against
+      // the still-focused browser tab.
+      const snapshot = await readBrandBrowserSnapshotWithRetry(BRAND_BROWSER_TAB_ID);
       requestOpenFile(brandPreviewFile);
-      if (
-        snapshot.status === 'ready' &&
-        brandBrowserSnapshotMatchesSource(snapshot.baseUrl, brandExtractionSourceUrl)
-      ) {
-        const outcome = await extractBrandFromHtml(brandId, {
-          html: snapshot.html,
-          css: snapshot.css,
-          baseUrl: snapshot.baseUrl,
-        });
-        if (!outcome.ok) {
-          setBrandExtractionStatusOverride({ brandId, status: 'failed' });
-          setProjectActionsToast({
-            message: outcome.error,
-            details: null,
-            tone: 'error',
-            ttlMs: 5000,
+
+      if (snapshot.status === 'ready') {
+        if (brandBrowserSnapshotMatchesSource(snapshot.baseUrl, brandExtractionSourceUrl)) {
+          const outcome = await extractBrandFromHtml(brandId, {
+            html: snapshot.html,
+            css: snapshot.css,
+            baseUrl: snapshot.baseUrl,
           });
+          if (!outcome.ok) {
+            setBrandExtractionStatusOverride({ brandId, status: 'failed' });
+            setProjectActionsToast({
+              message: outcome.error,
+              details: null,
+              tone: 'error',
+              ttlMs: 6000,
+            });
+            return;
+          }
+          await refreshAfterProgrammaticContinue('ready');
           return;
         }
-        await refreshAfterProgrammaticContinue('ready');
+        // The Browser tab is parked on a different page than the brand source —
+        // re-extracting its DOM would describe the wrong site. Guide the user
+        // rather than silently re-running the (still-walled) server fetch.
+        setBrandExtractionStatusOverride({ brandId, status: 'failed' });
+        setProjectActionsToast({
+          message: t('chat.brandBrowserAssistReadFailed'),
+          details: null,
+          tone: 'error',
+          ttlMs: 7000,
+        });
         return;
       }
+
+      // No readable live DOM. On the desktop host the Browser tab is the only
+      // way past the anti-bot wall, so a server re-fetch would just hit it
+      // again — surface the reason and stop. The web-only host has no in-app
+      // webview at all, so the server fetch is its only available path.
+      if (isOpenDesignHostAvailable()) {
+        setBrandExtractionStatusOverride({ brandId, status: 'failed' });
+        setProjectActionsToast({
+          message: snapshot.message || t('chat.brandBrowserAssistReadFailed'),
+          details: null,
+          tone: 'error',
+          ttlMs: 7000,
+        });
+        return;
+      }
+
       const outcome = await continueBrandExtraction(brandId);
       if (!outcome.ok) {
         setBrandExtractionStatusOverride({ brandId, status: 'failed' });
@@ -6639,7 +6734,7 @@ export function ProjectView({
     projectDetail,
     projectFiles,
     projectIsProgrammaticBrandExtraction,
-    readBrandBrowserSnapshot,
+    readBrandBrowserSnapshotWithRetry,
     refreshConversationsForProgrammaticBrandRetry,
     refreshWorkspaceItems,
     requestOpenFile,
@@ -7256,6 +7351,7 @@ export function ProjectView({
           commentSendDisabled={currentConversationQueueDisabled}
           openRequest={openRequest}
           browserOpenRequest={browserOpenRequest}
+          pinnedBrowserTabId={projectIsProgrammaticBrandExtraction ? BRAND_BROWSER_TAB_ID : null}
           shareRequest={shareRequest}
           downloadRequest={downloadRequest}
           slideNavRequest={slideNavRequest}

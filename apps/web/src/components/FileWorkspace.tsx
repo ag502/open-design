@@ -146,6 +146,12 @@ interface Props {
   commentSendDisabled?: boolean;
   openRequest?: { name: string; nonce: number } | null;
   browserOpenRequest?: BrowserOpenRequest | null;
+  // Browser tab whose <webview> must stay mounted even while another workspace
+  // tab is active. Set for programmatic brand extraction: the chat "Continue
+  // extraction" handler reads the live, post-wall DOM out of this tab's webview,
+  // so tearing it down on a tab switch (or a refresh-driven remount) would
+  // silently drop the read back to a re-walled server fetch.
+  pinnedBrowserTabId?: string | null;
   // Open the named file AND surface its Share/Export menu. Drives the chat-side
   // "Share" next-step action without a dedicated share backend.
   shareRequest?: { name: string; nonce: number } | null;
@@ -425,6 +431,7 @@ export function FileWorkspace({
   commentSendDisabled = false,
   openRequest,
   browserOpenRequest,
+  pinnedBrowserTabId,
   shareRequest,
   downloadRequest,
   slideNavRequest,
@@ -595,6 +602,20 @@ export function FileWorkspace({
   // first). A browser tab is mounted only after it has been activated; we cap
   // the live set at BROWSER_KEEPALIVE_CAP and unmount the rest.
   const [liveBrowserTabIds, setLiveBrowserTabIds] = useState<string[]>([]);
+
+  // The set actually rendered. The activation LRU governs ad-hoc browser tabs,
+  // but a pinned brand-extraction tab must stay mounted even when it was never
+  // activated this session (a refresh can remount the workspace with brand.html
+  // active and the LRU empty). Keeping its <webview> alive is what lets the chat
+  // "Continue extraction" handler read the live, post-wall DOM instead of
+  // silently degrading to a re-walled server fetch.
+  const mountedBrowserTabIds = useMemo(() => {
+    const ids = new Set(liveBrowserTabIds);
+    if (pinnedBrowserTabId && browserTabs.some((tab) => tab.id === pinnedBrowserTabId)) {
+      ids.add(pinnedBrowserTabId);
+    }
+    return ids;
+  }, [liveBrowserTabIds, pinnedBrowserTabId, browserTabs]);
 
   const visibleFiles = useMemo(
     () => files.filter((file) => !isLiveArtifactImplementationPath(file.name)),
@@ -2181,7 +2202,7 @@ export function FileWorkspace({
             </button>
           </div>
         ) : null}
-        {browserTabs.filter((browserTab) => liveBrowserTabIds.includes(browserTab.id)).map((browserTab) => (
+        {browserTabs.filter((browserTab) => mountedBrowserTabIds.has(browserTab.id)).map((browserTab) => (
           <div
             key={`${projectId}:${browserTab.id}`}
             className={`ws-browser-panel ${activeTab === browserTab.id ? 'active' : ''}`}

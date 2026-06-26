@@ -154,9 +154,9 @@
   .asset:hover { border-color: var(--accent); transform: translateY(-1px); }
   .asset.pending { opacity: .55; pointer-events: none; }
   .asset-frame { aspect-ratio: 16 / 10; background: var(--line-soft); position: relative; overflow: hidden; }
-  /* --asset-surface follows the brand theme (set from JS): light brands keep a
-     near-white backdrop, dark brands get a dark one, so the iframe backdrop that
-     flashes before a brand-asset page paints matches the kit's cast. */
+  /* --asset-surface is the light logo surface (set from JS): a near-white
+     backdrop so the iframe placeholder that flashes before a brand-asset page
+     paints stays consistent with the kit's light chrome. */
   .asset-frame iframe { position: absolute; top: 0; left: 0; width: 200%; height: 200%; border: 0; transform: scale(.5); transform-origin: top left; pointer-events: none; background: var(--asset-surface, #fff); }
   .asset-meta { padding: 11px 13px; }
   .asset-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -301,26 +301,18 @@
   var accent = role(brand, 'accent', '#c96442');
   var surface = role(brand, 'surface', '#ffffff');
 
-  // Theme-aware surface for logo / brand-asset tiles. A light-themed brand must
-  // paint these on a light surface (and a dark one on a dark surface) — never
-  // let a single mis-derived dark `background` role paint the whole logo region
-  // black on an otherwise-light kit.
-  //
-  // We decide the kit's cast by a vote across the neutral roles rather than the
-  // `background` role alone, so one mis-measured swatch can't flip the theme: a
-  // genuinely light brand reads light on background + surface + (inverted)
-  // foreground, a dark brand the opposite. Then we pick a neutral that keeps the
-  // mark visible — a light brand gets a near-white paper (so a dark mark reads),
-  // a dark brand keeps its dark canvas (so a light mark reads).
-  var lightVotes = (isLight(bg) ? 1 : 0) + (isLight(surface) ? 1 : 0) + (isLight(fg) ? 0 : 1);
-  var kitLight = lightVotes >= 2;
-  var logoSurface = kitLight
-    ? (isLight(surface) ? surface : isLight(bg) ? bg : '#ffffff')
-    : (!isLight(bg) ? bg : !isLight(surface) ? surface : '#1a1a18');
+  // Logo / brand-asset tiles always sit on a LIGHT neutral. The kit chrome
+  // itself is fixed-light (`--paper` / `--surface` are hard-coded light tokens),
+  // so a dark logo stage reads as a defect on the white page — and a single
+  // mis-derived dark `background` / `surface` role (e.g. The Economist resolves a
+  // near-black masthead swatch) would otherwise black out a mark that belongs on
+  // white. Prefer the brand's own light surface, then its light background, and
+  // fall back to plain paper; never flip the stage dark.
+  var logoSurface = isLight(surface) ? surface : isLight(bg) ? bg : '#ffffff';
 
   // Apply brand accent/ink to the page chrome so the kit feels on-brand.
   document.documentElement.style.setProperty('--accent', accent);
-  // Brand-asset iframe backdrops follow the same theme-aware surface as the logo.
+  // Brand-asset iframe backdrops share the same light logo surface.
   document.documentElement.style.setProperty('--asset-surface', logoSurface);
 
   var typo = brand.typography || {};

@@ -465,6 +465,69 @@ describe('brand routes', () => {
     }
   });
 
+  it('synthesizes from a content-rich page whose minimalist palette the network gate would reject', async () => {
+    // Regression: a black/white/red brand (e.g. the Economist) harvests fewer
+    // than three non-extreme colors, which the network prefetch's `thin` gate
+    // treats as a failed harvest. The post-wall browser DOM is a real,
+    // user-confirmed page, so the `extract-from-html` path must still succeed —
+    // the sparse palette is filled by seed defaults and refined by the later AI
+    // enrichment pass, rather than dead-ending on "Extraction failed".
+    let prefetchStarted!: () => void;
+    const prefetchStartedPromise = new Promise<void>((resolve) => {
+      prefetchStarted = resolve;
+    });
+    let observedSignal: AbortSignal | null = null;
+    const prefetch = vi.fn((_url: string, _brandDir: string, opts?: { signal?: AbortSignal }) => {
+      observedSignal = opts?.signal ?? null;
+      prefetchStarted();
+      return new Promise<PrefetchResult | null>((resolve) => {
+        observedSignal?.addEventListener('abort', () => resolve(null), { once: true });
+      });
+    });
+    const server = await startBrandServer({
+      prefetch,
+      logoFallback: NO_LOGO_FALLBACK,
+      imageryFallback: NO_IMAGERY_FALLBACK,
+    });
+    try {
+      const started = await server.requestJson('/api/brands', {
+        method: 'POST',
+        body: { url: 'economist.com' },
+      });
+      expect(started.status).toBe(200);
+      await prefetchStartedPromise;
+
+      const extracted = await server.requestJson(`/api/brands/${started.body.id}/extract-from-html`, {
+        method: 'POST',
+        body: {
+          html: [
+            '<!doctype html><html><head>',
+            '<title>The Economist</title>',
+            '<meta name="description" content="Authoritative analysis of world news, politics, business and finance.">',
+            '</head><body>',
+            '<h1>The world this week</h1><h2>Leaders</h2><h3>Finance &amp; economics</h3>',
+            `<p>${'In-depth reporting and rigorous analysis from around the globe. '.repeat(2)}</p>`,
+            '</body></html>',
+          ].join(''),
+          // White and black are "extreme"; only the red is chromatic, so the
+          // harvest lands fewer than three non-extreme colors.
+          css: 'body{background:#ffffff;color:#000000}a{color:#e3120b}',
+          baseUrl: 'https://www.economist.com/',
+        },
+      });
+
+      expect(extracted.status).toBe(200);
+      expect(extracted.body.id).toBe(started.body.id);
+
+      const meta = JSON.parse(
+        readFileSync(path.join(brandsRoot, started.body.id, 'meta.json'), 'utf8'),
+      );
+      expect(meta.status).toBe('ready');
+    } finally {
+      await server.close();
+    }
+  });
+
   it('marks browser HTML retry failure terminal after aborting an active programmatic pass', async () => {
     let prefetchStarted!: () => void;
     const prefetchStartedPromise = new Promise<void>((resolve) => {

@@ -1857,6 +1857,53 @@ describe('FileWorkspace add-module menu', () => {
     });
   });
 
+  it('keeps the pinned brand browser tab mounted while another tab is active', () => {
+    const browserTabs = [
+      {
+        id: '__browser__:1',
+        label: 'Browser',
+        title: 'The Economist',
+        url: 'https://www.economist.com/',
+      },
+    ];
+
+    // Without the pin, a browser tab that was never activated this session is
+    // not mounted while a file tab is active, so its live (post-wall) DOM can't
+    // be read — this is the failure the pin fixes.
+    const { unmount } = render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[workspaceFile('brand.html')]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: ['brand.html'], active: 'brand.html', browserTabs }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('design-browser-panel')).toBeNull();
+    unmount();
+
+    // With the pin, the same inactive browser tab stays mounted so the chat
+    // "Continue extraction" handler can read its post-wall DOM.
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[workspaceFile('brand.html')]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: ['brand.html'], active: 'brand.html', browserTabs }}
+        pinnedBrowserTabId="__browser__:1"
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+    const panel = screen.getByTestId('design-browser-panel');
+    expect(panel.dataset.initialTitle).toBe('The Economist');
+  });
+
 });
 
 describe('FileWorkspace empty-project generation contract', () => {

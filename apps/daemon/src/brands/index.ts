@@ -1642,6 +1642,35 @@ export interface ExtractBrandFromHtmlOptions
 }
 
 /**
+ * Whether a harvest of already-rendered browser DOM produced essentially
+ * nothing a brand can be synthesized from. Used only by the post-wall
+ * `extract-from-html` path, where the page is real (the user cleared the wall),
+ * so this is intentionally far more permissive than `PrefetchResult.thin`:
+ *
+ *  - A sparse palette (`< 3` non-extreme colors) is NOT disqualifying on its
+ *    own. Minimalist brands (black/white/red) and transient computed-style
+ *    reads routinely land few chromatic colors yet still describe a real site.
+ *  - Missing headings/description is NOT disqualifying on its own either.
+ *
+ * We bail only when the harvest is `blocked` (the serialized DOM still looked
+ * like the bare anti-bot wall, e.g. read too early) or when both real page copy
+ * AND a real palette are absent (a blank/"still loading" placeholder read). A
+ * harvested logo is deliberately NOT counted as a usable signal here: the
+ * favicon-service fallback returns an icon for essentially any hostname, so it
+ * would wrongly rescue an empty/placeholder page.
+ */
+export function browserHarvestIsUnusable(material: PrefetchResult): boolean {
+  if (material.blocked) return true;
+  const hasColor = material.colors.some((c) => !c.extreme);
+  const hasCopy =
+    material.headings.length > 0 ||
+    Boolean(material.description) ||
+    material.paragraphs.length > 0 ||
+    material.navLabels.length > 0;
+  return !hasColor && !hasCopy;
+}
+
+/**
  * Re-run programmatic extraction against HTML the web already rendered (the
  * in-app browser tab the user unblocked), instead of fetching. Same
  * harvest → synthesize → finalize pipeline as `runProgrammaticExtraction`, but
@@ -1671,9 +1700,16 @@ export async function extractBrandFromHtml(
 
   const material = await prefetchFromHtml(opts.html, opts.css ?? '', baseUrl, brandDir);
   throwIfProgrammaticExtractionNotCurrent({ ...opts, extractionAttemptId });
-  // The page is already past the wall, so do NOT bail on `material.blocked`; only
-  // a genuinely thin harvest (confirmed too early, wrong tab) can't synthesize.
-  if (!material || material.thin) return null;
+  // This DOM was read out of the in-app browser tab AFTER the user cleared the
+  // anti-bot wall, so it is a real page — be far more permissive than the
+  // network prefetch's `thin` gate. A content-rich page with a sparse palette
+  // (a minimalist black/white/red brand like the Economist, or a transiently
+  // incomplete computed-style read) MUST still synthesize: `brandFromMaterial`
+  // falls back to seed defaults for missing colors and the AI enrichment pass
+  // refines later. Only bail when the harvest captured nothing a brand can be
+  // built from — which in practice means the read grabbed the wall/blank page
+  // (`blocked`) or an empty document, not the unblocked site.
+  if (!material || browserHarvestIsUnusable(material)) return null;
 
   const brand = brandFromMaterial(material, currentMeta.sourceUrl);
   const guideMd = brandGuideMd(brand);

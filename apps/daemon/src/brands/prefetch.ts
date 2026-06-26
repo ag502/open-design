@@ -173,16 +173,48 @@ async function fetchBinary(
 
 const CHALLENGE_TITLE_RE =
   /just a moment|attention required|access denied|verifying you are human|checking your browser|security check|please verify|are you a robot|ddos[- ]guard|captcha/i;
-const CHALLENGE_BODY_RE =
-  /challenges\.cloudflare\.com|cf-browser-verification|_cf_chl_opt|cf-turnstile|this website uses a security service|enable javascript and cookies to continue|verify you are human|px-captcha|datadome|_incapsula_|EO_Bot_Ssid|__tst_status/i;
+// Markers that only ever appear on the interstitial itself — the legacy CF
+// verification shell, the challenge opt blob, the "turn on JS and cookies"
+// copy, the PerimeterX/Imperva/EdgeOne block-page resources. Their presence is
+// proof the body IS the wall, never the real site.
+const CHALLENGE_DEFINITIVE_RE =
+  /cf-browser-verification|_cf_chl_opt|this website uses a security service|enable javascript and cookies to continue|verify you are human|px-captcha|_incapsula_|EO_Bot_Ssid|__tst_status/i;
+// Markers a *real* page can legitimately carry: a Cloudflare Turnstile or
+// DataDome widget embedded on a login / subscribe / comment surface. The
+// Economist's homepage, for instance, still references challenges.cloudflare.com
+// once you are past the wall. These count as a challenge ONLY when the page is
+// otherwise content-sparse (a bare verification widget and little else).
+const CHALLENGE_AMBIGUOUS_RE = /challenges\.cloudflare\.com|cf-turnstile|datadome/i;
+
+/** A real interstitial is content-sparse: a verification widget and not much
+ *  else. A real page that merely embeds an anti-bot widget still ships a full
+ *  nav and body. Count the cheap structural signals a harvest feeds on — links,
+ *  headings, paragraphs — to tell the two apart. */
+function looksContentRich(html: string): boolean {
+  const scan = html.slice(0, 400_000);
+  const anchors = (scan.match(/<a\s[^>]*\bhref=/gi) ?? []).length;
+  const headings = (scan.match(/<h[1-3][\s/>]/gi) ?? []).length;
+  const paragraphs = (scan.match(/<p[\s/>]/gi) ?? []).length;
+  return anchors >= 8 || headings >= 3 || (anchors >= 3 && paragraphs >= 3);
+}
 
 /** True when the HTML is a bot-protection interstitial (Cloudflare, DataDome,
  *  PerimeterX, …) rather than the real site. Harvesting one of these poisons
- *  every downstream field — "Just a moment…" becomes the brand name. */
+ *  every downstream field — "Just a moment…" becomes the brand name.
+ *
+ *  The check is deliberately asymmetric: a challenge *title* or a challenge-only
+ *  body marker blocks unconditionally, but an embeddable widget marker
+ *  (Turnstile / DataDome) blocks only when the page is also sparse. That
+ *  asymmetry is what lets the in-app browser's post-wall DOM — a real,
+ *  content-rich page that still references the widget — survive the harvest
+ *  instead of being discarded as if it were the wall itself. */
 export function isChallengePage(html: string): boolean {
   const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "";
   if (CHALLENGE_TITLE_RE.test(title)) return true;
-  return CHALLENGE_BODY_RE.test(html.slice(0, 60_000));
+  const head = html.slice(0, 60_000);
+  if (CHALLENGE_DEFINITIVE_RE.test(head)) return true;
+  if (CHALLENGE_AMBIGUOUS_RE.test(head)) return !looksContentRich(html);
+  return false;
 }
 
 export function previewablePrefetchHtml(html: string, cap = HTML_CAP): string {
