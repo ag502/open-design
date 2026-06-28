@@ -12,7 +12,7 @@ export async function ensureRailOpen(page: Page): Promise<void> {
   const toggle = page.getByTestId('entry-rail-toggle');
   // The toggle is only present while collapsed (it's display:none once docked).
   if (await toggle.isVisible().catch(() => false)) {
-    await toggle.click();
+    await toggle.evaluate((element: HTMLElement) => element.click());
   }
   await expect(page.locator('.entry-nav-rail')).toBeVisible();
 }

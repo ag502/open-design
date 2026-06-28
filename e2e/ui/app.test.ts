@@ -1249,10 +1249,12 @@ async function createProjectNameOnly(
   await openNewProjectModal(page);
   await expect(page.getByTestId('new-project-panel')).toBeVisible();
   if (entry.create.tab) {
-    await page.getByTestId(`new-project-tab-${entry.create.tab}`).click();
+    await clickVisible(page.getByTestId(`new-project-tab-${entry.create.tab}`));
+    await expect(page.getByTestId(`new-project-tab-${entry.create.tab}`)).toHaveAttribute('aria-selected', 'true');
   }
   if (entry.create.tab === 'media' && entry.create.mediaSurface) {
-    await page.getByTestId(`new-project-media-surface-${entry.create.mediaSurface}`).click();
+    await clickVisible(page.getByTestId(`new-project-media-surface-${entry.create.mediaSurface}`));
+    await expect(page.getByTestId(`new-project-media-surface-${entry.create.mediaSurface}`)).toHaveAttribute('aria-selected', 'true');
   }
   if (entry.create.tab === 'media' && entry.create.mediaSurface === 'video' && entry.create.videoModel) {
     await page.getByTestId('model-picker-trigger').click();
@@ -1262,6 +1264,11 @@ async function createProjectNameOnly(
     await page.getByRole('button', { name: 'SFX' }).click();
   }
   await page.getByTestId('new-project-name').fill(entry.create.projectName);
+}
+
+async function clickVisible(locator: Locator) {
+  await expect(locator).toBeVisible({ timeout: T.medium });
+  await locator.evaluate((element: HTMLElement) => element.click());
 }
 
 async function gotoEntryHome(page: Page) {
@@ -1278,7 +1285,7 @@ async function gotoEntryHome(page: Page) {
 
 async function openNewProjectModal(page: Page) {
   await ensureRailOpen(page);
-  await page.getByTestId('entry-nav-new-project').click();
+  await clickVisible(page.getByTestId('entry-nav-new-project'));
   await expect(page.getByTestId('new-project-modal')).toBeVisible();
   await expect(page.getByTestId('new-project-panel')).toBeVisible();
 }
