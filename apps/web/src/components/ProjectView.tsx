@@ -86,6 +86,7 @@ import {
 import {
   buildByokRunCreatedProps,
   buildByokRunFinishedProps,
+  byokSessionModeForTracking,
 } from '../analytics/byok-run';
 import {
   clearOnboardingSessionId,
@@ -4519,9 +4520,7 @@ export function ProjectView({
           model: config.model,
           apiProtocol: config.apiProtocol,
           skillId: project.skillId ?? null,
-          sessionMode: (runSessionMode === 'design' ? 'design' : 'ask') as
-            | 'design'
-            | 'ask',
+          sessionMode: byokSessionModeForTracking(runSessionMode),
         };
         trackRunCreated(analytics.track, buildByokRunCreatedProps(byokRunBase));
         const byokRunStartedAt = startedAt;
