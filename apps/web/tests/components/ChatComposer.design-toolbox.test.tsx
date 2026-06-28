@@ -366,11 +366,11 @@ describe('ChatComposer design toolbox', () => {
       document.body.querySelectorAll('.plus-menu__list .plus-menu__item span'),
       (node) => node.textContent,
     );
-    expect(rowNames.indexOf('Search')).toBeLessThan(rowNames.indexOf('Research Asset Plugin'));
     expect(rowNames).toContain('Research Asset Plugin');
     expect(rowNames).toContain('Figma');
     expect(rowNames).toContain('index.html');
     expect(rowNames).toContain('data/proof.csv');
+    expect(rowNames.indexOf('Search')).toBeLessThan(rowNames.indexOf('Research Asset Plugin'));
   });
 
   it('stages a one-turn follow-up skill without patching the project skill', async () => {

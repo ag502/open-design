@@ -4149,6 +4149,10 @@ function designToolboxDefaultResources(
       }
     }
   }
+  for (const resource of resources) {
+    if (out.length >= DESIGN_TOOLBOX_DEFAULT_RESOURCE_LIMIT) return out;
+    if (resource.kind !== 'skill') add(resource);
+  }
   for (const resource of skillResources) {
     addSkill(resource, false);
     if (out.length >= DESIGN_TOOLBOX_DEFAULT_RESOURCE_LIMIT) return out;
