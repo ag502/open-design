@@ -1159,7 +1159,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
 
     async function handleReferenceProject(project: Project, resolvedDir: string) {
       const path = resolvedDir.trim();
-      if (path) await addLinkedDir(path);
+      if (!path || !(await addLinkedDir(path))) return;
       const item: WorkspaceContextItem = {
         id: `project:${project.id}`,
         kind: 'project',
@@ -1172,7 +1172,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         item,
         t('chat.contextPrompt.referenceProject', {
           name: project.name || project.id,
-          path: path || project.id,
+          path,
         }),
       );
       setProjectReferenceOpen(false);
@@ -1181,7 +1181,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     async function handleLinkLocalCodeContext() {
       const selected = await openFolderDialog();
       if (!selected) return;
-      await addLinkedDir(selected);
+      if (!(await addLinkedDir(selected))) return;
       const label = selected.split(/[/\\]/).filter(Boolean).pop() || selected;
       const item: WorkspaceContextItem = {
         id: `local-code:${selected}`,

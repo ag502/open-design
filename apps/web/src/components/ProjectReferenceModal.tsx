@@ -33,6 +33,7 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,11 +71,15 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
   async function confirm() {
     if (!selectedProject || pending) return;
     setPending(true);
+    setError(null);
     try {
       const detail = await getProjectDetail(selectedProject.id);
-      const project = detail?.project ?? selectedProject;
-      const resolvedDir = detail?.resolvedDir || project.metadata?.baseDir || project.id;
-      onSelect(project, resolvedDir);
+      const resolvedDir = detail?.resolvedDir.trim() ?? '';
+      if (!detail || !resolvedDir) {
+        setError(t('homeWorkingDir.applyFailed'));
+        return;
+      }
+      onSelect(detail.project, resolvedDir);
     } finally {
       setPending(false);
     }
@@ -149,6 +154,11 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
               })
             )}
           </div>
+          {error ? (
+            <div className={styles.error} role="alert">
+              {error}
+            </div>
+          ) : null}
         </div>
         <footer className={styles.footer}>
           <button type="button" className={styles.button} onClick={onClose} disabled={pending}>
