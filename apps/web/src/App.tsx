@@ -14,7 +14,7 @@ import {
   projectKindFromMetadataToTracking,
   fidelityToTracking,
 } from '@open-design/contracts/analytics';
-import type { AmrModelsResponse, ChatSessionMode } from '@open-design/contracts';
+import type { AmrModelsResponse, ChatSessionMode, RunContextSelection } from '@open-design/contracts';
 import { EntryView } from './components/EntryView';
 import type { IntegrationTab } from './components/IntegrationsView';
 import { MarketplaceView } from './components/MarketplaceView';
@@ -1348,6 +1348,7 @@ function AppInner() {
         pluginType?: string;
         appliedPluginSnapshotId?: string;
         pluginInputs?: Record<string, unknown>;
+        initialRunContext?: RunContextSelection | null;
         conversationMode?: ChatSessionMode;
         autoSendFirstMessage?: boolean;
         requestId?: string;
@@ -1522,6 +1523,16 @@ function AppInner() {
           } else {
             window.sessionStorage.removeItem(
               `od:auto-send-attachments:${result.project.id}`,
+            );
+          }
+          if (input.initialRunContext && Object.keys(input.initialRunContext).length > 0) {
+            window.sessionStorage.setItem(
+              `od:auto-send-context:${result.project.id}`,
+              JSON.stringify(input.initialRunContext),
+            );
+          } else {
+            window.sessionStorage.removeItem(
+              `od:auto-send-context:${result.project.id}`,
             );
           }
         } catch {

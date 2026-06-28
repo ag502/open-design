@@ -129,13 +129,47 @@ describe('ComposerPlusMenu pick-row caret protection', () => {
       const menu = screen.getByRole('menu');
       expect(menu.parentElement).toBe(document.body);
       expect(menu.style.left).toBe('12px');
-      expect(menu.style.width).toBe('190px');
+      expect(menu.style.width).toBe('208px');
       expect(menu.style.maxHeight).toBe('356px');
       expect(menu.style.top).toBe('auto');
       expect(menu.style.bottom).toBe('52px');
       expect(screen.getByRole('menuitem', { name: /Connectors/i })).toBeTruthy();
       expect(screen.getByRole('menuitem', { name: /Plugins/i })).toBeTruthy();
       expect(screen.getByRole('menuitem', { name: /^MCP/i })).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight });
+    }
+  });
+
+  it('can open downward for the home surface even when there is enough room above', () => {
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 720 });
+
+    try {
+      renderMenu({ placementPreference: 'down' });
+      const trigger = screen.getByTestId('plus-trigger') as HTMLButtonElement;
+      trigger.getBoundingClientRect = () =>
+        ({
+          x: 280,
+          y: 320,
+          top: 320,
+          left: 280,
+          right: 312,
+          bottom: 352,
+          width: 32,
+          height: 32,
+          toJSON: () => ({}),
+        }) as DOMRect;
+
+      fireEvent.click(trigger);
+
+      const menu = screen.getByRole('menu');
+      expect(menu.style.top).toBe('360px');
+      expect(menu.style.bottom).toBe('auto');
+      expect(menu.style.width).toBe('208px');
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight });

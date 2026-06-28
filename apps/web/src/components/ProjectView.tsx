@@ -150,7 +150,7 @@ import {
   type SaveMessageOptions,
   waitGeneratedPluginShareTask,
 } from '../state/projects';
-import type { AppliedPluginSnapshot, ChatAnalyticsEntryFrom, ChatSessionMode, InstalledPluginRecord, WorkspaceContextItem } from '@open-design/contracts';
+import type { AppliedPluginSnapshot, ChatAnalyticsEntryFrom, ChatSessionMode, InstalledPluginRecord, RunContextSelection, WorkspaceContextItem } from '@open-design/contracts';
 import type {
   AgentEvent,
   AgentInfo,
@@ -493,7 +493,7 @@ function historyWithWorkspaceContext(
     '',
     '',
     '<active-workspace-context>',
-    'Open Design selected the currently focused workspace tab as the default context for this turn.',
+    'Open Design selected or inferred these workspace contexts for this turn. Treat absolute paths as reference context unless the user explicitly asks to edit them.',
     ...items.map((item, index) => {
       const details = [
         item.path ? `path: ${item.path}` : null,
@@ -576,6 +576,10 @@ function autoSendAttachmentsKey(projectId: string): string {
   return `od:auto-send-attachments:${projectId}`;
 }
 
+function autoSendContextKey(projectId: string): string {
+  return `od:auto-send-context:${projectId}`;
+}
+
 function designSystemAuditAutoRepairKey(projectId: string): string {
   return `od:design-system-audit-auto-repair:${projectId}`;
 }
@@ -593,11 +597,24 @@ function readAutoSendAttachments(projectId: string): ChatAttachment[] {
   }
 }
 
+function readAutoSendContext(projectId: string): RunContextSelection | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(autoSendContextKey(projectId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return isStoredRunContextSelection(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function clearAutoSendSession(projectId: string): void {
   if (typeof window === 'undefined') return;
   try {
     window.sessionStorage.removeItem(autoSendFirstMessageKey(projectId));
     window.sessionStorage.removeItem(autoSendAttachmentsKey(projectId));
+    window.sessionStorage.removeItem(autoSendContextKey(projectId));
   } catch {
     /* ignore */
   }
@@ -661,6 +678,44 @@ function isStoredChatAttachment(value: unknown): value is ChatAttachment {
     (record.kind === 'image' || record.kind === 'file') &&
     (record.size === undefined || typeof record.size === 'number') &&
     (record.order === undefined || typeof record.order === 'number')
+  );
+}
+
+function isStoredStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isStoredWorkspaceContextItem(value: unknown): value is WorkspaceContextItem {
+  if (value === null || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === 'string' &&
+    record.id.length > 0 &&
+    typeof record.kind === 'string' &&
+    record.kind.length > 0 &&
+    typeof record.label === 'string' &&
+    record.label.length > 0 &&
+    (record.tabId === undefined || typeof record.tabId === 'string') &&
+    (record.path === undefined || typeof record.path === 'string') &&
+    (record.absolutePath === undefined || typeof record.absolutePath === 'string') &&
+    (record.url === undefined || typeof record.url === 'string') &&
+    (record.title === undefined || typeof record.title === 'string')
+  );
+}
+
+function isStoredRunContextSelection(value: unknown): value is RunContextSelection {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    (record.skillIds === undefined || isStoredStringArray(record.skillIds)) &&
+    (record.pluginIds === undefined || isStoredStringArray(record.pluginIds)) &&
+    (record.mcpServerIds === undefined || isStoredStringArray(record.mcpServerIds)) &&
+    (record.connectorIds === undefined || isStoredStringArray(record.connectorIds)) &&
+    (
+      record.workspaceItems === undefined ||
+      (Array.isArray(record.workspaceItems) &&
+        record.workspaceItems.every(isStoredWorkspaceContextItem))
+    )
   );
 }
 
@@ -6384,6 +6439,7 @@ export function ProjectView({
       ''
     ).trim();
     const attachments = autoSendAttachmentsRef.current ?? [];
+    const context = readAutoSendContext(project.id);
     if (!seed && attachments.length === 0) {
       return;
     }
@@ -6393,7 +6449,7 @@ export function ProjectView({
     }
     clearAutoSendSession(project.id);
     autoSendAttachmentsRef.current = [];
-    void handleSend(seed, attachments, []);
+    void handleSend(seed, attachments, [], context ? { context } : undefined);
   }, [
     activeConversationId,
     messagesInitialized,
