@@ -1566,11 +1566,14 @@ export function FileWorkspace({
     name: string,
     sceneOverride?: ExcalidrawSketchScene,
     options: SaveSketchOptions = {},
+    revisionOverride?: number,
   ): Promise<boolean | undefined> {
-    clearSketchAutosave(name);
     const entry = sketches[name] ?? (sceneOverride ? defaultSketchState(name, sceneOverride) : null);
     if (!entry) return;
     const scene = sceneOverride ?? entry.scene;
+    const currentRevision = sketchSceneRevisionRef.current.get(name) ?? 0;
+    const revision = revisionOverride ?? currentRevision;
+    if (revision === currentRevision) clearSketchAutosave(name);
     if (sketchSaveInFlightRef.current.has(name)) {
       if (options.showSaving !== false) {
         setSketches((curr) => ({
@@ -1585,12 +1588,13 @@ export function FileWorkspace({
         const pending = pendingSketchSavesRef.current.get(name);
         pendingSketchSavesRef.current.set(name, {
           scene,
+          revision,
           options: pending ? mergeSketchSaveOptions(pending.options, options) : options,
           resolvers: [...(pending?.resolvers ?? []), resolve],
         });
       });
     }
-    return runSketchSave(name, entry, scene, options);
+    return runSketchSave(name, entry, scene, options, revision);
   }
 
   async function runSketchSave(
@@ -1598,6 +1602,7 @@ export function FileWorkspace({
     entry: SketchState,
     scene: ExcalidrawSketchScene,
     options: SaveSketchOptions,
+    revision: number,
   ): Promise<boolean | undefined> {
     sketchSaveInFlightRef.current.add(name);
     const showSaving = options.showSaving !== false;
@@ -1620,16 +1625,17 @@ export function FileWorkspace({
       if (showSaving && elapsed < 500) await new Promise((resolve) => setTimeout(resolve, 500 - elapsed));
       if (file) {
         const hasPendingSave = pendingSketchSavesRef.current.has(name);
+        const savedRevisionIsCurrent = revision === (sketchSceneRevisionRef.current.get(name) ?? 0);
         setSketches((curr) => {
           const current = curr[name] ?? entry;
           return {
             ...curr,
-            [name]: hasPendingSave
+            [name]: hasPendingSave || !savedRevisionIsCurrent
               ? {
                 ...current,
                 persisted: true,
                 loaded: true,
-                saving: true,
+                saving: hasPendingSave,
               }
               : {
                 ...current,
@@ -1677,7 +1683,7 @@ export function FileWorkspace({
     const pending = pendingSketchSavesRef.current.get(name);
     if (pending) {
       pendingSketchSavesRef.current.delete(name);
-      const pendingResult = await saveSketch(name, pending.scene, pending.options);
+      const pendingResult = await saveSketch(name, pending.scene, pending.options, pending.revision);
       for (const resolve of pending.resolvers) resolve(pendingResult);
       return pendingResult;
     }
@@ -1687,13 +1693,25 @@ export function FileWorkspace({
 
   function queueSketchAutosave(name: string, scene: ExcalidrawSketchScene) {
     clearSketchAutosave(name);
+    const revision = sketchSceneRevisionRef.current.get(name) ?? 0;
+    const options: SaveSketchOptions = {
+      activate: false,
+      refreshFiles: false,
+      showSaving: false,
+    };
+    if (sketchSaveInFlightRef.current.has(name)) {
+      const pending = pendingSketchSavesRef.current.get(name);
+      pendingSketchSavesRef.current.set(name, {
+        scene,
+        revision,
+        options: pending ? mergeSketchSaveOptions(pending.options, options) : options,
+        resolvers: pending?.resolvers ?? [],
+      });
+      return;
+    }
     const timer = setTimeout(() => {
       sketchAutosaveTimersRef.current.delete(name);
-      void saveSketch(name, scene, {
-        activate: false,
-        refreshFiles: false,
-        showSaving: false,
-      });
+      void saveSketch(name, scene, options, revision);
     }, SKETCH_AUTOSAVE_DELAY_MS);
     sketchAutosaveTimersRef.current.set(name, timer);
   }
