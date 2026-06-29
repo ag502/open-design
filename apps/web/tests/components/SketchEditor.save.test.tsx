@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { SketchEditor } from '../../src/components/SketchEditor';
@@ -143,6 +143,11 @@ describe('SketchEditor save', () => {
     expect(saveButton().textContent).toBe('common.save');
   });
 
+  it('does not render the sketch Close menu item', () => {
+    renderEditor({ dirty: true });
+    expect(screen.queryByTestId('sketch-menu-close')).toBeNull();
+  });
+
   it('shows the saving label when saving', () => {
     renderEditor({ saving: true, dirty: true });
     expect(saveButton().textContent).toBe('sketch.saving');
@@ -254,6 +259,37 @@ describe('SketchEditor save', () => {
     expect(btn.textContent).not.toBe('common.save');
     expect(btn.querySelector('svg')).not.toBeNull();
     expect(btn.disabled).toBe(false);
+  });
+
+  it('shows a toast after save completes', async () => {
+    const onSave = vi.fn().mockResolvedValue(true);
+    renderEditor({ dirty: true, onSave });
+    await act(async () => {
+      fireEvent.click(saveButton());
+    });
+    expect(screen.getByRole('status').textContent).toContain('sketch.saved');
+  });
+
+  it('shows a clickable toast after exporting an image', async () => {
+    const onExportImage = vi.fn().mockResolvedValue({ fileName: 'exports/test.png' });
+    const onOpenExportedImage = vi.fn();
+    renderEditor({
+      scene: sceneWithElement(),
+      onExportImage,
+      onOpenExportedImage,
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('sketch-menu-export-image'));
+    });
+
+    await waitFor(() => expect(onExportImage).toHaveBeenCalledTimes(1));
+    expect(onExportImage.mock.calls[0]?.[1]).toBe('test.png');
+    expect(screen.getByRole('status').textContent).toContain('fileViewer.exportImageSaved');
+    expect(screen.getByRole('status').textContent).toContain('exports/test.png');
+
+    fireEvent.click(screen.getByRole('button', { name: 'workspace.openFile' }));
+    expect(onOpenExportedImage).toHaveBeenCalledWith('exports/test.png');
   });
 
   it('reverts to the Save label after the saved indicator expires', async () => {

@@ -16,6 +16,7 @@ import type {
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useI18n, type Locale } from '../i18n';
 import { Icon } from './Icon';
+import { Toast } from './Toast';
 import { readDefaultSketchToolColor } from './sketch-colors';
 import {
   emptySketchScene,
@@ -33,6 +34,19 @@ interface SketchSceneChangeOptions {
   discardLegacyItems?: boolean;
 }
 
+interface SketchExportedImageResult {
+  fileName: string;
+}
+
+type SketchExportImageResult = boolean | void | SketchExportedImageResult;
+
+interface SketchToastState {
+  message: string;
+  details?: string | null;
+  tone: 'default' | 'success' | 'error' | 'loading';
+  actionFileName?: string;
+}
+
 interface Props {
   scene: ExcalidrawSketchScene;
   legacyItems?: SketchItem[];
@@ -44,8 +58,8 @@ interface Props {
     base64: string,
     fileName: string,
     scene: ExcalidrawSketchScene,
-  ) => Promise<boolean | void> | boolean | void;
-  onCancel?: () => void;
+  ) => Promise<SketchExportImageResult> | SketchExportImageResult;
+  onOpenExportedImage?: (fileName: string) => void;
   saving?: boolean;
   dirty?: boolean;
   fileName: string;
@@ -59,7 +73,7 @@ export function SketchEditor({
   onClear,
   onSave,
   onExportImage,
-  onCancel,
+  onOpenExportedImage,
   saving = false,
   dirty = false,
   fileName,
@@ -70,12 +84,13 @@ export function SketchEditor({
   const [showSaved, setShowSaved] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [theme, setTheme] = useState(readExcalidrawTheme);
+  const [toast, setToast] = useState<SketchToastState | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const onSceneChangeRef = useLatestRef(onSceneChange);
   const onClearRef = useLatestRef(onClear);
   const onSaveRef = useLatestRef(onSave);
   const onExportImageRef = useLatestRef(onExportImage);
-  const onCancelRef = useLatestRef(onCancel);
+  const onOpenExportedImageRef = useLatestRef(onOpenExportedImage);
   const sceneRef = useLatestRef(scene);
   const fileNameRef = useLatestRef(fileName);
   const skipHydrationChangeRef = useRef(true);
@@ -167,13 +182,13 @@ export function SketchEditor({
       return;
     }
     setShowSaved(true);
+    setToast({
+      message: t('sketch.saved'),
+      tone: 'success',
+    });
     clearTimeout(savedTimerRef.current);
     savedTimerRef.current = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
-  }, [currentScene, onSaveRef]);
-
-  const handleCancel = useCallback(() => {
-    onCancelRef.current?.();
-  }, [onCancelRef]);
+  }, [currentScene, onSaveRef, t]);
 
   const handleExportImage = useCallback(async () => {
     const exportHandler = onExportImageRef.current;
@@ -197,8 +212,16 @@ export function SketchEditor({
         exportPadding: 16,
       });
       const base64 = await blobToBase64(blob);
-      const ok = await exportHandler(base64, exportedImageFileName(fileNameRef.current), exportedScene);
-      if (ok === false) return;
+      const requestedFileName = exportedImageFileName(fileNameRef.current);
+      const result = await exportHandler(base64, requestedFileName, exportedScene);
+      if (result === false) return;
+      const savedFileName = exportedImageResultFileName(result, requestedFileName);
+      setToast({
+        message: t('fileViewer.exportImageSaved'),
+        details: savedFileName,
+        tone: 'success',
+        actionFileName: savedFileName,
+      });
     } catch (err) {
       console.warn('[SketchEditor] export image failed', err);
       alert(t('common.exportImageFailed'));
@@ -226,7 +249,6 @@ export function SketchEditor({
 
   const canClear = sketchSceneHasContent(scene) || legacyItems.length > 0 || hasPreservedRawItems;
   const canSave = dirty || sketchSceneHasContent(scene) || legacyItems.length > 0 || hasPreservedRawItems;
-  const canCancel = Boolean(onCancel);
 
   const renderMainMenu = useCallback(() => (
     <MainMenu>
@@ -250,15 +272,6 @@ export function SketchEditor({
           {exporting ? t('fileViewer.exportImageSaving') : t('common.exportImage')}
         </MainMenu.Item>
       ) : null}
-      {canCancel ? (
-        <MainMenu.Item
-          data-testid="sketch-menu-close"
-          icon={<Icon name="close" size={16} />}
-          onClick={handleCancel}
-        >
-          {t('sketch.close')}
-        </MainMenu.Item>
-      ) : null}
       <MainMenu.Separator />
       <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
@@ -276,9 +289,7 @@ export function SketchEditor({
   ), [
     canClear,
     canSave,
-    canCancel,
     exporting,
-    handleCancel,
     handleClear,
     handleExportImage,
     handleSave,
@@ -308,6 +319,22 @@ export function SketchEditor({
           {renderMainMenu()}
         </Excalidraw>
       </div>
+      {toast ? (
+        <Toast
+          message={toast.message}
+          details={toast.details}
+          tone={toast.tone}
+          ttlMs={toast.actionFileName ? 5000 : 2200}
+          actionLabel={toast.actionFileName ? t('workspace.openFile') : undefined}
+          onAction={toast.actionFileName ? () => {
+            const fileNameToOpen = toast.actionFileName;
+            if (!fileNameToOpen) return;
+            onOpenExportedImageRef.current?.(fileNameToOpen);
+            setToast(null);
+          } : undefined}
+          onDismiss={() => setToast(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -361,6 +388,13 @@ function exportedImageFileName(fileName: string): string {
   const baseName = slash >= 0 ? fileName.slice(slash + 1) : fileName;
   const stem = baseName.replace(/\.sketch\.json$/i, '') || 'sketch';
   return `${stem}.png`;
+}
+
+function exportedImageResultFileName(result: SketchExportImageResult, fallback: string): string {
+  if (result && typeof result === 'object' && typeof result.fileName === 'string') {
+    return result.fileName;
+  }
+  return fallback;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {

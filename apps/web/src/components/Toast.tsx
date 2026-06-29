@@ -33,6 +33,8 @@ export interface ToastProps {
   role?: 'status' | 'alert';
   tone?: 'default' | 'success' | 'error' | 'loading';
   placement?: 'bottom' | 'top';
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 const DEFAULT_TTL = 4000;
@@ -53,7 +55,18 @@ const TONE_ICON: Record<NonNullable<ToastProps['tone']>, 'check' | 'close' | 'sp
   loading: 'spinner',
 };
 
-export function Toast({ message, details, code, ttlMs = DEFAULT_TTL, onDismiss, role = 'status', tone = 'default', placement = 'bottom' }: ToastProps) {
+export function Toast({
+  message,
+  details,
+  code,
+  ttlMs = DEFAULT_TTL,
+  onDismiss,
+  role = 'status',
+  tone = 'default',
+  placement = 'bottom',
+  actionLabel,
+  onAction,
+}: ToastProps) {
   // When code is present the toast is a manual-action surface; never
   // auto-dismiss it out from under the user mid-copy.
   const effectiveTtl = code ? 0 : ttlMs;
@@ -99,6 +112,15 @@ export function Toast({ message, details, code, ttlMs = DEFAULT_TTL, onDismiss, 
       {details ? <div className="od-toast-details">{details}</div> : null}
       {code ? (
         <pre className="od-toast-code">{code}</pre>
+      ) : null}
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          className="od-toast-action"
+          onClick={onAction}
+        >
+          {actionLabel}
+        </button>
       ) : null}
       {code && onDismiss ? (
         <button

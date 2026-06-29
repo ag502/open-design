@@ -10663,6 +10663,10 @@ function isJsonFile(file: ProjectFile): boolean {
 type MarkdownViewerMode = 'edit' | 'split' | 'preview';
 type MarkdownSaveState = 'idle' | 'saving' | 'saved' | 'error';
 type MarkdownScrollPane = 'editor' | 'preview';
+type MarkdownSaveOptions = {
+  refreshFiles?: boolean;
+  showSaving?: boolean;
+};
 
 function markdownScrollRange(element: HTMLElement): number {
   return Math.max(0, element.scrollHeight - element.clientHeight);
@@ -10676,6 +10680,13 @@ function markdownScrollRatio(element: HTMLElement): number {
 function markdownScrollTopForRatio(element: HTMLElement, ratio: number): number {
   const clamped = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
   return markdownScrollRange(element) * clamped;
+}
+
+function mergeMarkdownSaveOptions(a: MarkdownSaveOptions, b: MarkdownSaveOptions): MarkdownSaveOptions {
+  return {
+    refreshFiles: a.refreshFiles !== false || b.refreshFiles !== false,
+    showSaving: a.showSaving !== false || b.showSaving !== false,
+  };
 }
 
 function MarkdownViewer({
@@ -10694,6 +10705,7 @@ function MarkdownViewer({
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [mode, setMode] = useState<MarkdownViewerMode>('split');
   const [saveState, setSaveState] = useState<MarkdownSaveState>('idle');
+  const [, bumpSavedRevision] = useState(0);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const markdownPreviewPaneRef = useRef<HTMLElement | null>(null);
   const markdownArticleRef = useRef<HTMLElement | null>(null);
@@ -10706,10 +10718,11 @@ function MarkdownViewer({
   const programmaticScrollRef = useRef<{ pane: MarkdownScrollPane; top: number } | null>(null);
   const previousModeRef = useRef<MarkdownViewerMode>('split');
   const saveInFlightRef = useRef(false);
-  const pendingSaveAfterFlightRef = useRef(false);
+  const pendingSaveAfterFlightRef = useRef<MarkdownSaveOptions | null>(null);
   const textRef = useRef('');
   const lastSavedTextRef = useRef<string | null>(null);
   const loadedFileKeyRef = useRef<string | null>(null);
+  const loadedReloadKeyRef = useRef(0);
   const markdownFileKey = `${projectId}::${file.name}`;
   const status = file.artifactManifest?.status ?? 'complete';
   const isStreaming = status === 'streaming';
@@ -10718,14 +10731,16 @@ function MarkdownViewer({
 
   useEffect(() => {
     const sameLoadedFile = loadedFileKeyRef.current === markdownFileKey;
+    const forceReload = loadedReloadKeyRef.current !== reloadKey;
     if (
       sameLoadedFile &&
+      !forceReload &&
       lastSavedTextRef.current !== null &&
       textRef.current !== lastSavedTextRef.current
     ) {
       return undefined;
     }
-    setText(null);
+    if (!sameLoadedFile) setText(null);
     copiedMarkdownBlockRef.current = null;
     if (copyBlockTimerRef.current) {
       window.clearTimeout(copyBlockTimerRef.current);
@@ -10736,16 +10751,31 @@ function MarkdownViewer({
       if (cancelled) return;
       if (
         loadedFileKeyRef.current === markdownFileKey &&
+        !forceReload &&
         lastSavedTextRef.current !== null &&
         textRef.current !== lastSavedTextRef.current
       ) {
         return;
       }
       const loaded = next ?? '';
+      if (
+        sameLoadedFile &&
+        !forceReload &&
+        lastSavedTextRef.current !== null &&
+        textRef.current === lastSavedTextRef.current &&
+        loaded === lastSavedTextRef.current
+      ) {
+        loadedFileKeyRef.current = markdownFileKey;
+        loadedReloadKeyRef.current = reloadKey;
+        pendingSaveAfterFlightRef.current = null;
+        setSaveState((current) => current === 'saved' ? current : 'idle');
+        return;
+      }
       textRef.current = loaded;
       lastSavedTextRef.current = loaded;
       loadedFileKeyRef.current = markdownFileKey;
-      pendingSaveAfterFlightRef.current = false;
+      loadedReloadKeyRef.current = reloadKey;
+      pendingSaveAfterFlightRef.current = null;
       setSaveState('idle');
       setText(loaded);
     });
@@ -10777,34 +10807,55 @@ function MarkdownViewer({
   }, []);
 
   const saveMarkdownText = useCallback(
-    (value: string) => {
-      const run = async (nextValue: string): Promise<void> => {
+    (value: string, options: MarkdownSaveOptions = {}) => {
+      const run = async (nextValue: string, saveOptions: MarkdownSaveOptions): Promise<void> => {
+        if (lastSavedTextRef.current === nextValue) {
+          const showSaving = saveOptions.showSaving !== false;
+          if (textRef.current === nextValue) setSaveState(showSaving ? 'saved' : 'idle');
+          if (saveOptions.refreshFiles !== false && onFileSaved) {
+            void Promise.resolve(onFileSaved()).catch(() => undefined);
+          }
+          return;
+        }
         if (saveInFlightRef.current) {
-          pendingSaveAfterFlightRef.current = true;
+          pendingSaveAfterFlightRef.current = pendingSaveAfterFlightRef.current
+            ? mergeMarkdownSaveOptions(pendingSaveAfterFlightRef.current, saveOptions)
+            : saveOptions;
           return;
         }
         saveInFlightRef.current = true;
-        setSaveState('saving');
+        const showSaving = saveOptions.showSaving !== false;
+        if (showSaving) setSaveState('saving');
         try {
           const saved = await writeProjectTextFile(projectId, file.name, nextValue);
           if (!saved) throw new Error('write failed');
           lastSavedTextRef.current = nextValue;
-          if (textRef.current === nextValue) setSaveState('saved');
-          await onFileSaved?.();
+          bumpSavedRevision((n) => n + 1);
+          if (textRef.current === nextValue) setSaveState(showSaving ? 'saved' : 'idle');
+          if (saveOptions.refreshFiles !== false && onFileSaved) {
+            void Promise.resolve(onFileSaved()).catch(() => undefined);
+          }
         } catch {
           if (textRef.current === nextValue) setSaveState('error');
         } finally {
           saveInFlightRef.current = false;
-          if (pendingSaveAfterFlightRef.current) {
-            pendingSaveAfterFlightRef.current = false;
+          const pending = pendingSaveAfterFlightRef.current;
+          if (pending) {
+            pendingSaveAfterFlightRef.current = null;
             const latest = textRef.current;
             if (latest !== lastSavedTextRef.current) {
-              void run(latest);
+              void run(latest, pending);
+            } else {
+              const showPendingSaving = pending.showSaving !== false;
+              if (textRef.current === latest) setSaveState(showPendingSaving ? 'saved' : 'idle');
+              if (pending.refreshFiles !== false && onFileSaved) {
+                void Promise.resolve(onFileSaved()).catch(() => undefined);
+              }
             }
           }
         }
       };
-      void run(value);
+      void run(value, options);
     },
     [file.name, onFileSaved, projectId],
   );
@@ -10816,7 +10867,7 @@ function MarkdownViewer({
     }
     const latest = textRef.current;
     if (lastSavedTextRef.current !== null && latest !== lastSavedTextRef.current) {
-      saveMarkdownText(latest);
+      saveMarkdownText(latest, { refreshFiles: false, showSaving: false });
     }
   }, [saveMarkdownText]);
 
@@ -10830,13 +10881,13 @@ function MarkdownViewer({
     if (text === null) return undefined;
     textRef.current = text;
     if (text === lastSavedTextRef.current) return undefined;
-    setSaveState('saving');
+    setSaveState((current) => current === 'saved' ? 'idle' : current);
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
-      saveMarkdownText(textRef.current);
+      saveMarkdownText(textRef.current, { refreshFiles: false, showSaving: false });
     }, 700);
     return () => {
       if (saveTimerRef.current) {

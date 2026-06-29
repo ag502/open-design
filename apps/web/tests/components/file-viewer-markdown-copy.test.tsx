@@ -73,6 +73,7 @@ describe('FileViewer markdown code block copy', () => {
     }
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('copies fenced code blocks from the markdown preview', async () => {
@@ -201,5 +202,85 @@ describe('FileViewer markdown code block copy', () => {
 
     expect(mockedFetchProjectFileText).toHaveBeenCalledTimes(1);
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('dirty draft');
+  });
+
+  it('keeps autosave quiet and does not refresh the file list while typing', async () => {
+    mockedFetchProjectFileText.mockResolvedValue('initial');
+    const onFileSaved = vi.fn();
+    const { container } = render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={baseFile()}
+        onFileSaved={onFileSaved}
+      />,
+    );
+
+    const editor = await screen.findByRole('textbox') as HTMLTextAreaElement;
+    vi.useFakeTimers();
+    fireEvent.change(editor, { target: { value: 'initial draft' } });
+    editor.focus();
+    editor.setSelectionRange(7, 7);
+
+    expect(screen.queryByText('Saving...')).toBeNull();
+    expect(container.querySelector('.icon-spin')).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockedWriteProjectTextFile).toHaveBeenCalledWith(
+      'project-1',
+      'notes.md',
+      'initial draft',
+    );
+    expect(onFileSaved).not.toHaveBeenCalled();
+    expect(screen.queryByText('Saving...')).toBeNull();
+    expect(container.querySelector('.icon-spin')).toBeNull();
+    expect((screen.getByRole('button', { name: /^save$/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(document.activeElement).toBe(editor);
+    expect(editor.selectionStart).toBe(7);
+    expect(editor.selectionEnd).toBe(7);
+  });
+
+  it('keeps focus and selection when a clean markdown file receives a metadata refresh', async () => {
+    mockedFetchProjectFileText
+      .mockResolvedValueOnce('initial')
+      .mockResolvedValue('initial draft');
+    const { rerender } = render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={baseFile({ mtime: 1 })} />,
+    );
+
+    const editor = await screen.findByRole('textbox') as HTMLTextAreaElement;
+    vi.useFakeTimers();
+    fireEvent.change(editor, { target: { value: 'initial draft' } });
+    editor.focus();
+    editor.setSelectionRange(8, 8);
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockedWriteProjectTextFile).toHaveBeenCalledWith(
+      'project-1',
+      'notes.md',
+      'initial draft',
+    );
+
+    await act(async () => {
+      rerender(
+        <FileViewer projectId="project-1" projectKind="prototype" file={baseFile({ mtime: 2 })} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('textbox')).toBe(editor);
+    expect(document.activeElement).toBe(editor);
+    expect(editor.value).toBe('initial draft');
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(8);
   });
 });

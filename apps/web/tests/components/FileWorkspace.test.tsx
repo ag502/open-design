@@ -1725,6 +1725,57 @@ describe('FileWorkspace sketch save', () => {
     expect(container.querySelector('[data-testid="sketch-preview-svg"]')).toBeNull();
   });
 
+  it('preloads persisted sketches before the tab is opened', async () => {
+    const file: ProjectFile = {
+      name: 'test.sketch.json',
+      path: 'test.sketch.json',
+      type: 'file',
+      size: 100,
+      mtime: 1700000000,
+      kind: 'sketch',
+      mime: 'application/json',
+    };
+
+    mockedFetchProjectFileText.mockResolvedValue(
+      JSON.stringify({
+        type: 'excalidraw',
+        version: 2,
+        elements: [{ id: 'box', type: 'rectangle', isDeleted: false }],
+        appState: { viewBackgroundColor: '#ffffff' },
+        files: {},
+      }),
+    );
+
+    const baseProps: React.ComponentProps<typeof FileWorkspace> = {
+      projectId: 'project-1',
+      projectKind: 'prototype',
+      files: [file],
+      liveArtifacts: [],
+      onRefreshFiles: vi.fn(),
+      isDeck: false,
+      tabsState: { tabs: [], active: null },
+      onTabsStateChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <FileWorkspace {...baseProps} />,
+    );
+
+    await waitFor(() => {
+      expect(mockedFetchProjectFileText).toHaveBeenCalledWith('project-1', 'test.sketch.json');
+    });
+
+    rerender(
+      <FileWorkspace
+        {...baseProps}
+        tabsState={{ tabs: ['test.sketch.json'], active: 'test.sketch.json' }}
+      />,
+    );
+
+    expect(screen.queryByText('Loading sketch…')).toBeNull();
+    expect(screen.getByTestId('excalidraw')).toBeTruthy();
+    expect(mockedFetchProjectFileText).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps saving state visible for at least 500ms', async () => {
     // Simulate user doing some edits in the workspace
     const file: ProjectFile = {

@@ -261,6 +261,7 @@ interface SketchState {
   discardRawItemsOnSave: boolean;
   items: SketchItem[];
   scene: ExcalidrawSketchScene;
+  sourceKey?: string;
   dirty: boolean;
   persisted: boolean;
   loaded: boolean;
@@ -279,6 +280,40 @@ function defaultSketchState(name: string, scene: ExcalidrawSketchScene = emptySk
     loaded: true,
     saving: false,
   };
+}
+
+function loadedSketchStateFromDocument(
+  doc: ReturnType<typeof parseSketchWorkspaceDocument>,
+  sourceKey: string,
+): SketchState {
+  return {
+    version: doc.version,
+    rawItems: doc.rawItems,
+    discardRawItemsOnSave: false,
+    items: doc.items,
+    scene: doc.scene,
+    sourceKey,
+    dirty: false,
+    persisted: true,
+    loaded: true,
+    saving: false,
+  };
+}
+
+function sketchFileSourceKey(projectId: string, file: Pick<ProjectFile, 'name' | 'path' | 'size' | 'mtime'>): string {
+  return `${projectId}:${file.path ?? file.name}:${file.size}:${file.mtime}`;
+}
+
+function shouldKeepCurrentSketchState(
+  current: SketchState | undefined,
+  name: string,
+  sourceKey: string,
+  saveInFlight: Set<string>,
+): boolean {
+  if (!current) return false;
+  if (!current.persisted) return true;
+  if (current.dirty || current.saving || saveInFlight.has(name)) return true;
+  return current.loaded && current.sourceKey === sourceKey;
 }
 
 export const DESIGN_FILES_TAB = '__design_files__';
@@ -550,10 +585,15 @@ export function FileWorkspace({
   // are created under this folder instead of the project root.
   const [uploadDir, setUploadDir] = useState<string>('');
   const [sketches, setSketches] = useState<Record<string, SketchState>>({});
+  const sketchesRef = useRef<Record<string, SketchState>>({});
+  sketchesRef.current = sketches;
+  const activeProjectIdRef = useRef(projectId);
+  activeProjectIdRef.current = projectId;
   const sketchAutosaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const sketchSceneRevisionRef = useRef<Map<string, number>>(new Map());
   const sketchSaveInFlightRef = useRef<Set<string>>(new Set());
   const pendingSketchSavesRef = useRef<Map<string, PendingSketchSave>>(new Map());
+  const sketchPreloadInFlightRef = useRef<Map<string, Promise<boolean>>>(new Map());
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [projectFolders, setProjectFolders] = useState<ProjectFolder[]>(EMPTY_PROJECT_FOLDERS);
   // Reset the folder list during render — NOT in an effect — when the project
@@ -623,6 +663,55 @@ export function FileWorkspace({
     [files],
   );
 
+  const sketchFiles = useMemo(
+    () => visibleFiles.filter((file) => isSketchName(file.name)),
+    [visibleFiles],
+  );
+
+  const loadSketchFile = useCallback((file: ProjectFile): Promise<boolean> => {
+    const sourceKey = sketchFileSourceKey(projectId, file);
+    const startedRevision = sketchSceneRevisionRef.current.get(file.name) ?? 0;
+    const current = sketchesRef.current[file.name];
+    if (shouldKeepCurrentSketchState(current, file.name, sourceKey, sketchSaveInFlightRef.current)) {
+      return Promise.resolve(true);
+    }
+    const existing = sketchPreloadInFlightRef.current.get(sourceKey);
+    if (existing) return existing;
+
+    const inFlight = { promise: null as Promise<boolean> | null };
+    const promise = (async () => {
+      try {
+        const text = await fetchProjectFileText(projectId, file.name);
+        const doc = parseSketchWorkspaceDocument(text);
+        if (activeProjectIdRef.current !== projectId) return false;
+        setSketches((curr) => {
+          const activeRevision = sketchSceneRevisionRef.current.get(file.name) ?? 0;
+          if (activeRevision !== startedRevision) return curr;
+          const existingState = curr[file.name];
+          if (shouldKeepCurrentSketchState(existingState, file.name, sourceKey, sketchSaveInFlightRef.current)) {
+            return curr;
+          }
+          sketchSceneRevisionRef.current.set(file.name, 0);
+          return {
+            ...curr,
+            [file.name]: loadedSketchStateFromDocument(doc, sourceKey),
+          };
+        });
+        return true;
+      } catch (err) {
+        console.warn('[FileWorkspace] sketch load failed', file.name, err);
+        return false;
+      } finally {
+        if (sketchPreloadInFlightRef.current.get(sourceKey) === inFlight.promise) {
+          sketchPreloadInFlightRef.current.delete(sourceKey);
+        }
+      }
+    })();
+    inFlight.promise = promise;
+    sketchPreloadInFlightRef.current.set(sourceKey, promise);
+    return promise;
+  }, [projectId]);
+
   const liveArtifactEntries = useMemo(
     () => liveArtifacts.map(liveArtifactSummaryToWorkspaceEntry),
     [liveArtifacts],
@@ -667,6 +756,7 @@ export function FileWorkspace({
     setBrowserTabs([]);
     browserTabSequenceRef.current = 0;
     setLauncherOpen(false);
+    sketchPreloadInFlightRef.current.clear();
   }, [projectId]);
 
   useEffect(() => {
@@ -678,6 +768,19 @@ export function FileWorkspace({
       sketchSceneRevisionRef.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const file of sketchFiles) {
+        if (cancelled) return;
+        await loadSketchFile(file);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSketchFile, sketchFiles]);
 
   useEffect(() => {
     const nextBrowserTabs = browserTabsFromState(tabsState.browserTabs);
@@ -1416,7 +1519,9 @@ export function FileWorkspace({
       sketchSceneRevisionRef.current.delete(oldName);
       if (revision !== undefined) sketchSceneRevisionRef.current.set(renamed.name, revision);
       delete next[oldName];
-      next[renamed.name] = entry;
+      next[renamed.name] = isSketchName(renamed.name)
+        ? { ...entry, sourceKey: sketchFileSourceKey(projectId, renamed) }
+        : entry;
       return next;
     });
 
@@ -1474,7 +1579,19 @@ export function FileWorkspace({
     openFile(file.name);
   }
 
-  const activeSketchLoaded = isSketchName(activeTab) ? sketches[activeTab]?.loaded : undefined;
+  const activeSketchFile = useMemo(() => {
+    if (!isSketchName(activeTab)) return null;
+    return visibleFiles.find((file) => file.name === activeTab) ?? null;
+  }, [activeTab, visibleFiles]);
+  const activeSketchSourceKey = activeSketchFile ? sketchFileSourceKey(projectId, activeSketchFile) : null;
+  const activeSketchEntry = isSketchName(activeTab) ? sketches[activeTab] : undefined;
+  const activeSketchLoaded = Boolean(
+    activeSketchEntry?.loaded
+    && (
+      !activeSketchEntry.persisted
+      || (activeSketchSourceKey !== null && activeSketchEntry.sourceKey === activeSketchSourceKey)
+    ),
+  );
 
   // When the active tab is a sketch we don't have items for yet, load from
   // disk. Pending sketches start with loaded=true and skip this path.
@@ -1482,30 +1599,9 @@ export function FileWorkspace({
     if (activeTab === DESIGN_FILES_TAB) return;
     if (!isSketchName(activeTab)) return;
     if (activeSketchLoaded) return;
-    let cancelled = false;
-    void fetchProjectFileText(projectId, activeTab).then((text) => {
-      if (cancelled) return;
-      const doc = parseSketchWorkspaceDocument(text);
-      sketchSceneRevisionRef.current.set(activeTab, 0);
-      setSketches((curr) => ({
-        ...curr,
-        [activeTab]: {
-          version: doc.version,
-          rawItems: doc.rawItems,
-          discardRawItemsOnSave: false,
-          items: doc.items,
-          scene: doc.scene,
-          dirty: false,
-          persisted: true,
-          loaded: true,
-          saving: false,
-        },
-      }));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSketchLoaded, activeTab, projectId]);
+    if (!activeSketchFile) return;
+    void loadSketchFile(activeSketchFile);
+  }, [activeSketchFile, activeSketchLoaded, activeTab, loadSketchFile]);
 
   function setSketchScene(
     name: string,
@@ -1624,6 +1720,7 @@ export function FileWorkspace({
       // Ensures saving UI shows so the button does not flicker
       if (showSaving && elapsed < 500) await new Promise((resolve) => setTimeout(resolve, 500 - elapsed));
       if (file) {
+        const savedSourceKey = sketchFileSourceKey(projectId, file);
         const hasPendingSave = pendingSketchSavesRef.current.has(name);
         const savedRevisionIsCurrent = revision === (sketchSceneRevisionRef.current.get(name) ?? 0);
         setSketches((curr) => {
@@ -1633,6 +1730,7 @@ export function FileWorkspace({
             [name]: hasPendingSave || !savedRevisionIsCurrent
               ? {
                 ...current,
+                sourceKey: savedSourceKey,
                 persisted: true,
                 loaded: true,
                 saving: hasPendingSave,
@@ -1643,6 +1741,7 @@ export function FileWorkspace({
                 rawItems: [],
                 items: [],
                 scene,
+                sourceKey: savedSourceKey,
                 discardRawItemsOnSave: false,
                 dirty: false,
                 persisted: true,
@@ -1727,7 +1826,7 @@ export function FileWorkspace({
     sketchName: string,
     base64: string,
     imageFileName: string,
-  ): Promise<boolean> {
+  ): Promise<{ fileName: string } | false> {
     const targetDir = parentDirForProjectFile(sketchName);
     const targetName = targetDir ? `${targetDir}/${imageFileName}` : imageFileName;
     const file = await writeProjectBase64File(projectId, targetName, base64);
@@ -1738,7 +1837,7 @@ export function FileWorkspace({
     setUploadError(null);
     await onRefreshFiles();
     await refreshProjectFolders();
-    return true;
+    return { fileName: file.name };
   }
 
   const activeFile = useMemo<ProjectFile | null>(() => {
@@ -1750,9 +1849,12 @@ export function FileWorkspace({
     ) return null;
     const onDisk = visibleFiles.find((f) => f.name === activeTab);
     if (onDisk) return onDisk;
-    if (isSketchName(activeTab) && sketches[activeTab]) {
+    const activeSketch = sketches[activeTab];
+    if (isSketchName(activeTab) && activeSketch && !activeSketch.persisted) {
       return {
         name: activeTab,
+        path: activeTab,
+        type: 'file',
         size: 0,
         mtime: Date.now(),
         kind: 'sketch',
@@ -2534,9 +2636,9 @@ export function FileWorkspace({
               onClear={() => clearSketch(activeFile.name)}
               onSave={(scene) => saveSketch(activeFile.name, scene)}
               onExportImage={(base64, fileName) => exportSketchImage(activeFile.name, base64, fileName)}
+              onOpenExportedImage={openFile}
               saving={activeSketch.saving}
               dirty={activeSketch.dirty || !activeSketch.persisted}
-              onCancel={() => closeTab(activeFile.name)}
             />
           ) : (
             <div className="viewer-empty">{t('workspace.loadingSketch')}</div>
