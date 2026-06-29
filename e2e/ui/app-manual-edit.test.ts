@@ -414,6 +414,28 @@ test('[P0] deck host navigation advances one slide when the deck also handles sl
   await expect(frame.getByText('Slide Three')).toBeHidden();
 });
 
+test('[P0] deck host navigation works when deck content only mentions slide messages', async ({ page }) => {
+  await routeMockAgents(page);
+  const projectId = await createEmptyProject(page, 'Deck protocol text');
+  await seedDeckArtifact(
+    page,
+    projectId,
+    'protocol-text-deck.html',
+    'Protocol Text Deck',
+    ['Slide One', 'Slide Two'],
+    { mentionsSlideMessageProtocol: true },
+  );
+  await page.goto(`/projects/${projectId}/files/protocol-text-deck.html`);
+  await openDesignFile(page, 'protocol-text-deck.html');
+
+  const frame = artifactPreviewFrame(page);
+  await expect(frame.getByText('Slide One')).toBeVisible();
+  await expect(frame.getByText('Protocol token: od:slide')).toBeVisible();
+  await page.getByLabel('Next slide').click();
+  await expect(frame.getByText('Slide Two')).toBeVisible();
+  await expect(frame.getByText('Slide One')).toBeHidden();
+});
+
 
 test('[P0] simple deck keeps the active slide stable across preview mode switches', async ({ page }) => {
   await routeMockAgents(page);
@@ -669,7 +691,7 @@ async function seedDeckArtifact(
   fileName: string,
   title: string,
   slides: string[],
-  options: { selfHandlesSlideMessages?: boolean } = {},
+  options: { selfHandlesSlideMessages?: boolean; mentionsSlideMessageProtocol?: boolean } = {},
 ) {
   const slideHtml = slides
     .map((slide, index) => `<section class="slide" data-od-id="slide-${index + 1}"${index === 0 ? '' : ' hidden'}><h1>${slide}</h1></section>`)
@@ -697,12 +719,15 @@ async function seedDeckArtifact(
     })();
     </script>`
     : '';
+  const protocolText = options.mentionsSlideMessageProtocol
+    ? '<p>Protocol token: od:slide</p>'
+    : '';
   const resp = await page.request.post(
     `/api/projects/${projectId}/files`,
     {
       data: {
         name: fileName,
-        content: `<!doctype html><html><body>${slideHtml}${slideScript}</body></html>`,
+        content: `<!doctype html><html><body>${slideHtml}${protocolText}${slideScript}</body></html>`,
         artifactManifest: {
           version: 1,
           kind: 'deck',

@@ -2026,7 +2026,6 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
   const safeInitialSlideIndex = Number.isFinite(initialSlideIndex)
     ? Math.max(0, Math.floor(initialSlideIndex))
     : 0;
-  const hasNativeSlideMessageHandler = /\bod:slide\b/.test(doc);
   const isFrameworkDeck = /\bid\s*=\s*["']deck-stage["']/i.test(doc);
   const styleFix = isFrameworkDeck
     ? ''
@@ -2035,7 +2034,6 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
 </style>`;
   const script = `<script data-od-deck-bridge>(function(){
   var initialSlideIndex = ${safeInitialSlideIndex};
-  var nativeSlideMessageHandler = ${JSON.stringify(hasNativeSlideMessageHandler)};
   var didRestoreInitialSlide = initialSlideIndex <= 0;
   function slides(){
     // Structured selectors first so decorative .slide markup in non-deck
@@ -2413,10 +2411,6 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
     var before = odSlideMessageBeforeIndex;
     odSlideMessageBeforeIndex = -1;
     var current = activeIndex(slides());
-    if (nativeSlideMessageHandler && data.action !== 'go') {
-      setTimeout(report, 0);
-      return;
-    }
     if (data.action === 'go' && typeof data.index === 'number') {
       if (current === data.index) {
         report();
