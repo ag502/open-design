@@ -985,6 +985,42 @@ async function runDomToPptx(slideSelector: string): Promise<{ b64?: string; erro
     }
   }
 
+  function stabilizeLargeSingleLineText(slides: HTMLElement[]): void {
+    for (const slide of slides) {
+      slide.querySelectorAll<HTMLElement>("*").forEach((el) => {
+        const rawText = el.innerText || el.textContent || "";
+        const text = rawText.replace(/\s+/g, " ").trim();
+        if (!text || rawText.includes("\n")) return;
+
+        const style = getComputedStyle(el);
+        const fontSizePx = Number.parseFloat(style.fontSize);
+        if (!Number.isFinite(fontSizePx) || fontSizePx < 96) return;
+
+        const lineHeightPx = Number.parseFloat(style.lineHeight);
+        if (!Number.isFinite(lineHeightPx) || lineHeightPx <= 0 || lineHeightPx > fontSizePx * 1.05) return;
+
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 1 || rect.height <= 1) return;
+
+        const justify =
+          style.textAlign === "center" || style.textAlign === "-webkit-center"
+            ? "center"
+            : style.textAlign === "right" || style.textAlign === "end"
+              ? "flex-end"
+              : "flex-start";
+
+        el.style.setProperty("display", "flex", "important");
+        el.style.setProperty("align-items", "center", "important");
+        el.style.setProperty("justify-content", justify, "important");
+        el.style.setProperty("width", `${rect.width}px`, "important");
+        el.style.setProperty("height", `${rect.height}px`, "important");
+        el.style.setProperty("line-height", "normal", "important");
+        el.style.setProperty("white-space", "nowrap", "important");
+        el.style.setProperty("overflow", "visible", "important");
+      });
+    }
+  }
+
   try {
     const w = window as unknown as {
       domToPptx?: { exportToPptx: (target: unknown, options: unknown) => Promise<Blob> };
@@ -997,6 +1033,7 @@ async function runDomToPptx(slideSelector: string): Promise<{ b64?: string; erro
       .filter((el) => !(el as HTMLElement).closest(".mini-slide, .overview, .notes-overlay, .thumb"));
     if (slides.length === 0) return { error: "no slides to export" };
     ensureExplicitSlideBackgrounds(slides as HTMLElement[]);
+    stabilizeLargeSingleLineText(slides as HTMLElement[]);
     // dom-to-pptx assumes `node.className` is a string, but SVG elements expose
     // an SVGAnimatedString, so its DOM walk throws on decks containing inline SVG.
     // Normalize those to a plain string in this throwaway render window.
