@@ -425,6 +425,10 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
     expect(screen.getByRole('tab', { name: 'OpenAI' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Azure OpenAI' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Google Gemini' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Ollama Cloud' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'SenseAudio' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'AIHubMix' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'AWS Bedrock' })).toBeTruthy();
     expect(screen.getByLabelText('Gateway preset')).toBeTruthy();
     expect(screen.getByLabelText('Model')).toBeTruthy();
     const baseUrlInput = screen.getByLabelText('Base URL') as HTMLInputElement;

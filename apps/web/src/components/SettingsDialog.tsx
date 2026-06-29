@@ -72,6 +72,8 @@ import {
 import type { KnownProvider } from '../state/config';
 import { navigate as navigateRoute, useRoute } from '../router';
 import {
+  API_PROTOCOL_TABS,
+  DEFAULT_BASE_URL_BY_PROTOCOL,
   API_PROTOCOL_LABELS,
   isFixedOriginGateway,
   resolveFixedOriginBaseUrl,
@@ -2490,11 +2492,37 @@ export function SettingsDialog({
       custom: true,
     },
   ];
-  const customByokProvider = byokProviderPresets[byokProviderPresets.length - 1];
+  const customByokProvider = byokProviderPresets.find((provider) => provider.custom) ?? {
+    id: 'custom',
+    title: t('settings.customProvider'),
+    protocol: apiProtocol,
+    baseUrl: cfg.baseUrl,
+    model: cfg.model,
+    custom: true,
+  };
+  const byokPresetProtocols = new Set(
+    byokProviderPresets
+      .filter((provider) => !provider.custom)
+      .map((provider) => provider.protocol),
+  );
+  const byokProviderOptions: ReadonlyArray<ByokProviderPreset> = [
+    ...byokProviderPresets.filter((provider) => !provider.custom),
+    ...API_PROTOCOL_TABS.filter((tab) => !byokPresetProtocols.has(tab.id)).map((tab) => {
+      const fallback = defaultApiProtocolConfig(tab.id);
+      return {
+        id: `protocol-${tab.id}`,
+        title: tab.title,
+        protocol: tab.id,
+        baseUrl: fallback.baseUrl || DEFAULT_BASE_URL_BY_PROTOCOL[tab.id],
+        model: fallback.model || SUGGESTED_MODELS_BY_PROTOCOL[tab.id][0] || '',
+      };
+    }),
+    customByokProvider,
+  ];
   const selectedByokProvider =
     cfg.apiProviderBaseUrl === null
       ? customByokProvider
-      : byokProviderPresets.find(
+      : byokProviderOptions.find(
         (provider) =>
           !provider.custom &&
           provider.protocol === apiProtocol &&
@@ -3750,7 +3778,7 @@ export function SettingsDialog({
                 >
                   <div className="protocol-chip-group protocol-chip-group--providers">
                     <div className="protocol-chip-group-options">
-                      {byokProviderPresets.map((provider) => {
+                      {byokProviderOptions.map((provider) => {
                         const active = selectedByokProvider?.id === provider.id;
                         const configured = byokProviderConfigured(provider);
                         const statusLabel = configured
