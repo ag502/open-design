@@ -1,16 +1,24 @@
 import { describe, expect, test } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 
 import {
   HIDE_CHROME_SELECTOR,
   activeSlideCaptureOffsetTransform,
   measureAuthoredSlideBox,
   paginateViewportBand,
+  readDomToPptxBundleFile,
   scrollStitchGeometry,
   scrollStitchRowOffset,
   shouldCapturePageAsJpeg,
   shouldCaptureAsDeck,
   solidBgraBuffer,
 } from '../../src/main/deck-capture.js';
+
+const gzipAsync = promisify(gzip);
 
 // Full-page scroll-stitch geometry must use the REAL captured device width and
 // its true (possibly fractional) pixel ratio. A previous version rounded the
@@ -90,6 +98,19 @@ describe('deck capture DOM prep', () => {
     expect(activeSlideCaptureOffsetTransform({ x: 3840, y: -120 })).toBe(
       'translate(-3840px, 120px)',
     );
+  });
+});
+
+describe('readDomToPptxBundleFile', () => {
+  test('reads the checked-in gzip bundle format directly', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'open-design-dom-to-pptx-'));
+    try {
+      const file = join(root, 'dom-to-pptx.bundle.js.gz');
+      await writeFile(file, await gzipAsync('window.domToPptx = {};'));
+      await expect(readDomToPptxBundleFile(file)).resolves.toBe('window.domToPptx = {};');
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
   });
 });
 

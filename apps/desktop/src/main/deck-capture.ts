@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzip } from "node:zlib";
+import { promisify } from "node:util";
 
 import { BrowserWindow, nativeImage } from "electron";
 import type { DesktopRenderSlidesInput, DesktopRenderSlidesResult } from "@open-design/sidecar-proto";
@@ -12,25 +14,41 @@ import { waitForPrintableContent } from "./pdf-export.js";
 // app ships it via electron-builder `extraResources` next to the app under
 // Resources/ (`process.resourcesPath`); dev resolves it from apps/desktop/vendor.
 let cachedDomToPptxBundle: string | null = null;
+const gunzipAsync = promisify(gunzip);
+
 async function loadDomToPptxBundle(): Promise<string> {
   if (cachedDomToPptxBundle != null) return cachedDomToPptxBundle;
   const here = path.dirname(fileURLToPath(import.meta.url));
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
   const candidates = [
-    ...(resourcesPath ? [path.join(resourcesPath, "dom-to-pptx.bundle.js")] : []),
+    ...(resourcesPath
+      ? [
+          path.join(resourcesPath, "dom-to-pptx.bundle.js"),
+          path.join(resourcesPath, "dom-to-pptx.bundle.js.gz"),
+        ]
+      : []),
     path.resolve(here, "../../vendor/dom-to-pptx/dom-to-pptx.bundle.js"),
+    path.resolve(here, "../../vendor/dom-to-pptx/dom-to-pptx.bundle.js.gz"),
     path.resolve(here, "../../../vendor/dom-to-pptx/dom-to-pptx.bundle.js"),
+    path.resolve(here, "../../../vendor/dom-to-pptx/dom-to-pptx.bundle.js.gz"),
     path.resolve(here, "dom-to-pptx.bundle.js"),
+    path.resolve(here, "dom-to-pptx.bundle.js.gz"),
   ];
   for (const candidate of candidates) {
     try {
-      cachedDomToPptxBundle = await readFile(candidate, "utf8");
+      cachedDomToPptxBundle = await readDomToPptxBundleFile(candidate);
       return cachedDomToPptxBundle;
     } catch {
       // Try the next candidate.
     }
   }
   throw new Error("dom-to-pptx vendor bundle not found");
+}
+
+export async function readDomToPptxBundleFile(candidate: string): Promise<string> {
+  const bytes = await readFile(candidate);
+  if (candidate.endsWith(".gz")) return (await gunzipAsync(bytes)).toString("utf8");
+  return bytes.toString("utf8");
 }
 
 // Returns the rendered images either as on-disk files (when the daemon provided

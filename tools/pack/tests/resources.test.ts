@@ -42,8 +42,8 @@ describe("domToPptxBundleResource", () => {
       process.chdir(callerCwd);
 
       expect(domToPptxBundleResource({ workspaceRoot })).toEqual({
-        from: join(workspaceRoot, "apps", "desktop", "vendor", "dom-to-pptx", "dom-to-pptx.bundle.js"),
-        to: "dom-to-pptx.bundle.js",
+        from: join(workspaceRoot, "apps", "desktop", "vendor", "dom-to-pptx", "dom-to-pptx.bundle.js.gz"),
+        to: "dom-to-pptx.bundle.js.gz",
       });
     } finally {
       process.chdir(previousCwd);
