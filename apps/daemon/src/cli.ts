@@ -17,7 +17,7 @@ import { resolveDaemonUrl } from './daemon-url.js';
 import { requestJsonIpc } from '@open-design/sidecar';
 import { SIDECAR_ENV, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
 import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS } from '@open-design/contracts';
-import { buildExportCliRequestBody } from './export-cli-request.js';
+import { buildExportCliRequestBody, resolveExportCliDeckMode } from './export-cli-request.js';
 import { exportRoutePath } from './export-cli-routing.js';
 import {
   AGENT_SLUGS,
@@ -340,7 +340,7 @@ const SUBCOMMAND_MAP = {
 const EXPORT_STRING_FLAGS = new Set([
   'daemon-url', 'project', 'format', 'out', 'output', 'image-format', 'title', 'file',
 ]);
-const EXPORT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'deck']);
+const EXPORT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'deck', 'page', 'no-deck']);
 // EXPORT_FORMATS / EXPORT_IMAGE_FORMATS are the shared contract DTO (single
 // source of truth for the web/daemon/CLI export surface), imported above.
 
@@ -361,6 +361,7 @@ Options:
   --out <path>             Write the file here (defaults to the suggested name)
   --image-format <fmt>     png | jpeg (for --format image)
   --deck                   Treat the artifact as a multi-slide deck
+  --page, --no-deck        Treat the artifact as a normal scrollable page
   --title <title>          Title used for metadata / default filename
   --json                   Print a machine-readable result envelope
   --daemon-url <url>       Override daemon URL
@@ -410,10 +411,22 @@ async function runExport(args) {
   // `/export` vector `printToPDF` path, which drops CJK glyphs in the packaged
   // runtime and is the bug this feature exists to avoid.
   const exportPath = exportRoutePath(format);
+  let deckMode;
+  try {
+    deckMode = resolveExportCliDeckMode({
+      format,
+      deck: flags.deck === true,
+      page: flags.page === true,
+      noDeck: flags['no-deck'] === true,
+    });
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(2);
+  }
   const requestBody = buildExportCliRequestBody({
     fileName: file,
     format,
-    deck: flags.deck === true,
+    deck: deckMode,
     ...(format === 'image' && flags['image-format'] ? { imageFormat: flags['image-format'] } : {}),
     ...(flags.title ? { title: flags.title } : {}),
   });

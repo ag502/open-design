@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { EXPORT_FORMATS } from '@open-design/contracts';
 
-import { buildExportCliRequestBody } from '../src/export-cli-request.js';
+import {
+  buildExportCliRequestBody,
+  resolveExportCliDeckMode,
+} from '../src/export-cli-request.js';
 import { exportRoutePath } from '../src/export-cli-routing.js';
 
 describe('exportRoutePath', () => {
@@ -50,5 +53,41 @@ describe('buildExportCliRequestBody', () => {
       fileName: 'deck.html',
       deck: true,
     });
+  });
+
+  it('serializes explicit page mode for non-deck .slide pages', () => {
+    const pageMode = resolveExportCliDeckMode({ format: 'pdf', page: true });
+    expect(pageMode).toBe(false);
+    if (pageMode !== false) throw new Error('expected explicit page mode');
+    const noDeckMode = resolveExportCliDeckMode({ format: 'image', noDeck: true });
+    expect(noDeckMode).toBe(false);
+    if (noDeckMode !== false) throw new Error('expected explicit no-deck mode');
+    expect(
+      buildExportCliRequestBody({ fileName: 'landing-with-carousel.html', format: 'pdf', deck: pageMode }),
+    ).toEqual({
+      fileName: 'landing-with-carousel.html',
+      deck: false,
+    });
+    expect(
+      buildExportCliRequestBody({
+        fileName: 'landing-with-testimonials.html',
+        format: 'image',
+        deck: noDeckMode,
+        imageFormat: 'jpeg',
+      }),
+    ).toEqual({
+      fileName: 'landing-with-testimonials.html',
+      deck: false,
+      imageFormat: 'jpeg',
+    });
+  });
+
+  it('rejects conflicting or impossible CLI deck/page modes', () => {
+    expect(() => resolveExportCliDeckMode({ format: 'pdf', deck: true, page: true })).toThrow(
+      /cannot be combined/,
+    );
+    expect(() => resolveExportCliDeckMode({ format: 'pptx', page: true })).toThrow(
+      /not valid with --format pptx/,
+    );
   });
 });
