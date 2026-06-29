@@ -874,9 +874,18 @@ export function ChatPane({
   const handleToolboxAction = useCallback((id: DesignToolboxActionId) => {
     composerRef.current?.applyDesignToolboxAction(id);
   }, []);
-  const handleNextStepPromptAction = useCallback((prompt: string) => {
-    composerRef.current?.setDraft(prompt);
-  }, []);
+  const handleNextStepPromptAction = useCallback((
+    prompt: string,
+    options?: { sessionMode?: ChatSessionMode },
+  ) => {
+    if (options?.sessionMode && options.sessionMode !== sessionMode) {
+      onSessionModeChange?.(options.sessionMode);
+    }
+    composerRef.current?.setDraft(prompt, {
+      entryFrom: 'next_step',
+      sessionMode: options?.sessionMode,
+    });
+  }, [onSessionModeChange, sessionMode]);
   const handlePickSkill = useCallback((skillId: string) => {
     composerRef.current?.applyDesignToolboxSkill(skillId);
   }, []);
@@ -920,11 +929,13 @@ export function ChatPane({
           id: 'plan-generate-from-doc',
           text: t('nextStep.planGeneratePrompt'),
           chipId: 'plan',
+          sessionMode: 'design',
         },
         {
           id: 'plan-improve-doc',
           text: t('nextStep.planImprovePrompt'),
           chipId: 'plan',
+          sessionMode: 'plan',
         },
       ];
     }
@@ -2616,7 +2627,10 @@ function ChatRows({
   onBrandBrowserAssistConfirm?: BrandBrowserAssistConfirm;
   onArtifactShare?: (fileName: string) => void;
   onToolboxAction?: (id: DesignToolboxActionId) => void;
-  onNextStepPromptAction?: (prompt: string) => void;
+  onNextStepPromptAction?: (
+    prompt: string,
+    options?: { sessionMode?: ChatSessionMode },
+  ) => void;
   onNextStepAiOptimize?: () => void;
   nextStepAiOptimizeBusy?: boolean;
   onNextStepCreateDesign?: () => void;

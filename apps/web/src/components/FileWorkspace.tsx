@@ -266,6 +266,7 @@ interface SketchState {
   persisted: boolean;
   loaded: boolean;
   saving: boolean;
+  savedAt?: number;
 }
 
 function defaultSketchState(name: string, scene: ExcalidrawSketchScene = emptySketchScene(name)): SketchState {
@@ -373,6 +374,12 @@ interface PendingSketchSave {
   revision: number;
   options: SaveSketchOptions;
   resolvers: Array<(value: boolean | undefined) => void>;
+}
+
+interface QueuedSketchAutosave {
+  scene: ExcalidrawSketchScene;
+  revision: number;
+  options: SaveSketchOptions;
 }
 
 function mergeSketchSaveOptions(a: SaveSketchOptions, b: SaveSketchOptions): SaveSketchOptions {
@@ -590,9 +597,11 @@ export function FileWorkspace({
   const activeProjectIdRef = useRef(projectId);
   activeProjectIdRef.current = projectId;
   const sketchAutosaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const sketchAutosaveDraftsRef = useRef<Map<string, QueuedSketchAutosave>>(new Map());
   const sketchSceneRevisionRef = useRef<Map<string, number>>(new Map());
   const sketchSaveInFlightRef = useRef<Set<string>>(new Set());
   const pendingSketchSavesRef = useRef<Map<string, PendingSketchSave>>(new Map());
+  const flushPendingSketchAutosavesRef = useRef<() => void>(() => {});
   const sketchPreloadInFlightRef = useRef<Map<string, Promise<boolean>>>(new Map());
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [projectFolders, setProjectFolders] = useState<ProjectFolder[]>(EMPTY_PROJECT_FOLDERS);
@@ -761,11 +770,18 @@ export function FileWorkspace({
 
   useEffect(() => {
     return () => {
-      for (const timer of sketchAutosaveTimersRef.current.values()) {
-        clearTimeout(timer);
-      }
-      sketchAutosaveTimersRef.current.clear();
+      flushPendingSketchAutosavesRef.current();
       sketchSceneRevisionRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const flush = () => flushPendingSketchAutosavesRef.current();
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('beforeunload', flush);
     };
   }, []);
 
@@ -1723,6 +1739,7 @@ export function FileWorkspace({
         const savedSourceKey = sketchFileSourceKey(projectId, file);
         const hasPendingSave = pendingSketchSavesRef.current.has(name);
         const savedRevisionIsCurrent = revision === (sketchSceneRevisionRef.current.get(name) ?? 0);
+        const savedAt = Date.now();
         setSketches((curr) => {
           const current = curr[name] ?? entry;
           return {
@@ -1746,6 +1763,7 @@ export function FileWorkspace({
                 dirty: false,
                 persisted: true,
                 saving: false,
+                savedAt,
               },
           };
         });
@@ -1808,8 +1826,10 @@ export function FileWorkspace({
       });
       return;
     }
+    sketchAutosaveDraftsRef.current.set(name, { scene, revision, options });
     const timer = setTimeout(() => {
       sketchAutosaveTimersRef.current.delete(name);
+      sketchAutosaveDraftsRef.current.delete(name);
       void saveSketch(name, scene, options, revision);
     }, SKETCH_AUTOSAVE_DELAY_MS);
     sketchAutosaveTimersRef.current.set(name, timer);
@@ -1817,10 +1837,23 @@ export function FileWorkspace({
 
   function clearSketchAutosave(name: string) {
     const timer = sketchAutosaveTimersRef.current.get(name);
-    if (!timer) return;
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     sketchAutosaveTimersRef.current.delete(name);
+    sketchAutosaveDraftsRef.current.delete(name);
   }
+
+  function flushPendingSketchAutosaves() {
+    const queued = Array.from(sketchAutosaveDraftsRef.current.entries());
+    if (queued.length === 0) return;
+    for (const [name, draft] of queued) {
+      const timer = sketchAutosaveTimersRef.current.get(name);
+      if (timer) clearTimeout(timer);
+      sketchAutosaveTimersRef.current.delete(name);
+      sketchAutosaveDraftsRef.current.delete(name);
+      void saveSketch(name, draft.scene, draft.options, draft.revision);
+    }
+  }
+  flushPendingSketchAutosavesRef.current = flushPendingSketchAutosaves;
 
   async function exportSketchImage(
     sketchName: string,
@@ -2639,6 +2672,7 @@ export function FileWorkspace({
               onOpenExportedImage={openFile}
               saving={activeSketch.saving}
               dirty={activeSketch.dirty || !activeSketch.persisted}
+              savedAt={activeSketch.savedAt}
             />
           ) : (
             <div className="viewer-empty">{t('workspace.loadingSketch')}</div>

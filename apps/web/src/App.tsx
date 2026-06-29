@@ -118,6 +118,20 @@ import type {
   SkillSummary,
 } from './types';
 
+type AppCreateProjectInput = Omit<CreateInput, 'metadata'> & {
+  metadata?: CreateInput['metadata'];
+  pendingPrompt?: string;
+  pluginId?: string;
+  pluginType?: string;
+  appliedPluginSnapshotId?: string;
+  pluginInputs?: Record<string, unknown>;
+  conversationMode?: ChatSessionMode;
+  autoSendFirstMessage?: boolean;
+  requestId?: string;
+  pendingFiles?: File[];
+  userWorkingDirToken?: string;
+};
+
 const APP_CONFIG_CHANGED_EVENT = 'open-design:app-config-changed';
 const AMR_AGENT_ID = 'amr';
 const AMR_PROFILE_ENV_KEY = 'OPEN_DESIGN_AMR_PROFILE';
@@ -1342,18 +1356,7 @@ function AppInner() {
 
   const handleCreateProject = useCallback(
     async (
-      input: CreateInput & {
-        pendingPrompt?: string;
-        pluginId?: string;
-        pluginType?: string;
-        appliedPluginSnapshotId?: string;
-        pluginInputs?: Record<string, unknown>;
-        conversationMode?: ChatSessionMode;
-        autoSendFirstMessage?: boolean;
-        requestId?: string;
-        pendingFiles?: File[];
-        userWorkingDirToken?: string;
-      },
+      input: AppCreateProjectInput,
     ): Promise<boolean> => {
       // Honor an explicit `null` design system — the create panel defaults
       // to "None" for every kind now, and the user expects that to land

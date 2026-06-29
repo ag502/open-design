@@ -99,6 +99,7 @@ vi.mock('@excalidraw/excalidraw', async () => {
           getSceneElementsIncludingDeleted: () => [{ id: 'workspace-element', type: 'freedraw', isDeleted: false }],
           getAppState: () => ({ viewBackgroundColor: '#ffffff' }),
           getFiles: () => ({}),
+          setOpenDialog: vi.fn(),
         });
       }, [props]);
       return React.createElement(
@@ -2012,6 +2013,137 @@ describe('FileWorkspace sketch save', () => {
     const secondSaved = JSON.parse(savedTexts[1]!) as { elements?: Array<{ id?: string }> };
     expect(firstSaved.elements?.[0]?.id).toBe('autosave-a');
     expect(secondSaved.elements?.[0]?.id).toBe('autosave-b');
+  });
+
+  it('autosaves Excalidraw library item changes into the sketch file', async () => {
+    const file: ProjectFile = {
+      name: 'test.sketch.json',
+      path: 'test.sketch.json',
+      type: 'file',
+      size: 100,
+      mtime: 1700000000,
+      kind: 'sketch',
+      mime: 'application/json',
+    };
+
+    mockedFetchProjectFileText.mockResolvedValue(
+      JSON.stringify({
+        type: 'excalidraw',
+        version: 2,
+        elements: [],
+        appState: { viewBackgroundColor: '#ffffff' },
+        files: {},
+        libraryItems: [],
+      }),
+    );
+    mockedWriteProjectTextFile.mockResolvedValue(file);
+
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[file]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: ['test.sketch.json'], active: 'test.sketch.json' }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('excalidraw')).toBeTruthy();
+    });
+
+    vi.useFakeTimers();
+    const props = excalidrawWorkspaceMock.lastProps;
+    if (!props?.onLibraryChange) throw new Error('expected Excalidraw onLibraryChange');
+
+    act(() => {
+      props.onLibraryChange([
+        {
+          id: 'lib-box',
+          status: 'unpublished',
+          created: 1710000000000,
+          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
+        },
+      ]);
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+      await Promise.resolve();
+    });
+
+    expect(mockedWriteProjectTextFile).toHaveBeenCalledTimes(1);
+    const savedText = mockedWriteProjectTextFile.mock.calls[0]?.[2];
+    if (typeof savedText !== 'string') throw new Error('expected saved sketch JSON');
+    const saved = JSON.parse(savedText) as { libraryItems?: Array<{ id?: string }> };
+    expect(saved.libraryItems?.map((item) => item.id)).toEqual(['lib-box']);
+  });
+
+  it('flushes pending sketch autosaves when the workspace unmounts before debounce', async () => {
+    const file: ProjectFile = {
+      name: 'test.sketch.json',
+      path: 'test.sketch.json',
+      type: 'file',
+      size: 100,
+      mtime: 1700000000,
+      kind: 'sketch',
+      mime: 'application/json',
+    };
+
+    mockedFetchProjectFileText.mockResolvedValue(
+      JSON.stringify({
+        type: 'excalidraw',
+        version: 2,
+        elements: [],
+        appState: { viewBackgroundColor: '#ffffff' },
+        files: {},
+        libraryItems: [],
+      }),
+    );
+    mockedWriteProjectTextFile.mockResolvedValue(file);
+
+    const { unmount } = render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[file]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: ['test.sketch.json'], active: 'test.sketch.json' }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('excalidraw')).toBeTruthy();
+    });
+
+    const props = excalidrawWorkspaceMock.lastProps;
+    if (!props?.onLibraryChange) throw new Error('expected Excalidraw onLibraryChange');
+
+    act(() => {
+      props.onLibraryChange([
+        {
+          id: 'lib-before-unmount',
+          status: 'unpublished',
+          created: 1710000000000,
+          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
+        },
+      ]);
+      unmount();
+    });
+
+    await waitFor(() => {
+      expect(mockedWriteProjectTextFile).toHaveBeenCalledTimes(1);
+    });
+    const savedText = mockedWriteProjectTextFile.mock.calls[0]?.[2];
+    if (typeof savedText !== 'string') throw new Error('expected saved sketch JSON');
+    const saved = JSON.parse(savedText) as { libraryItems?: Array<{ id?: string }> };
+    expect(saved.libraryItems?.map((item) => item.id)).toEqual(['lib-before-unmount']);
   });
 
   it('preserves a newer sketch scene while its autosave is still debouncing', async () => {

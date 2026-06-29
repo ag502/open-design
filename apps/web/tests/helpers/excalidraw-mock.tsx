@@ -4,6 +4,7 @@ interface ExcalidrawApi {
   getSceneElementsIncludingDeleted: () => unknown[];
   getAppState: () => Record<string, unknown>;
   getFiles: () => Record<string, unknown>;
+  setOpenDialog: (dialog: unknown) => void;
 }
 
 interface ExcalidrawMockProps {
@@ -16,6 +17,7 @@ interface ExcalidrawMockProps {
   };
   langCode?: string;
   theme?: string;
+  renderTopRightUI?: (isMobile: boolean, appState: Record<string, unknown>) => ReactNode;
 }
 
 export function Excalidraw({
@@ -23,6 +25,7 @@ export function Excalidraw({
   excalidrawAPI,
   initialData,
   langCode,
+  renderTopRightUI,
   theme,
 }: ExcalidrawMockProps) {
   useEffect(() => {
@@ -30,12 +33,14 @@ export function Excalidraw({
       getSceneElementsIncludingDeleted: () => initialData?.elements ?? [],
       getAppState: () => initialData?.appState ?? {},
       getFiles: () => initialData?.files ?? {},
+      setOpenDialog: () => {},
     });
   }, [excalidrawAPI, initialData]);
 
   return (
     <div data-testid="excalidraw" data-lang={langCode ?? ''} data-theme={theme ?? ''}>
       <canvas />
+      {renderTopRightUI?.(false, initialData?.appState ?? {})}
       {children}
     </div>
   );

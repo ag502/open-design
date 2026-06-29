@@ -245,6 +245,48 @@ describe('FileViewer markdown code block copy', () => {
     expect(editor.selectionEnd).toBe(7);
   });
 
+  it('keeps focus and selection while autosaving a newly created document', async () => {
+    mockedFetchProjectFileText.mockResolvedValue('# Document\n');
+    const onFileSaved = vi.fn();
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="document"
+        file={baseFile({
+          name: 'document.md',
+          path: 'document.md',
+          kind: 'document',
+          mime: 'text/markdown',
+          artifactManifest: undefined,
+        })}
+        onFileSaved={onFileSaved}
+      />,
+    );
+
+    const editor = await screen.findByRole('textbox') as HTMLTextAreaElement;
+    vi.useFakeTimers();
+    fireEvent.change(editor, { target: { value: '# Document\n\nDraft' } });
+    editor.focus();
+    editor.setSelectionRange(14, 14);
+
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockedWriteProjectTextFile).toHaveBeenCalledWith(
+      'project-1',
+      'document.md',
+      '# Document\n\nDraft',
+    );
+    expect(onFileSaved).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox')).toBe(editor);
+    expect(document.activeElement).toBe(editor);
+    expect(editor.selectionStart).toBe(14);
+    expect(editor.selectionEnd).toBe(14);
+  });
+
   it('keeps focus and selection when a clean markdown file receives a metadata refresh', async () => {
     mockedFetchProjectFileText
       .mockResolvedValueOnce('initial')

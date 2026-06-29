@@ -18,7 +18,8 @@ describe('SessionModeToggle', () => {
     fireEvent.click(screen.getByTestId('session-mode-trigger'));
 
     expect(screen.getByRole('menuitemradio', { name: /Design mode/i }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByRole('menuitemradio', { name: /Ask mode/i }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('menuitemradio', { name: /Plan mode/i }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByRole('menuitemradio', { name: /Ask mode/i })).toBeNull();
   });
 
   it('switches mode from the menu', () => {
@@ -26,16 +27,16 @@ describe('SessionModeToggle', () => {
     render(<SessionModeToggle mode="design" onChange={onChange} />);
 
     fireEvent.click(screen.getByTestId('session-mode-trigger'));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Ask mode/i }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Plan mode/i }));
 
-    expect(onChange).toHaveBeenCalledWith('chat');
+    expect(onChange).toHaveBeenCalledWith('plan');
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('shows localized guidance only after opening the menu', () => {
     render(
       <I18nProvider initial="zh-CN">
-        <SessionModeToggle mode="chat" onChange={vi.fn()} />
+        <SessionModeToggle mode="plan" onChange={vi.fn()} />
       </I18nProvider>,
     );
 
@@ -45,8 +46,8 @@ describe('SessionModeToggle', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
 
     fireEvent.click(trigger);
-    expect(screen.getByRole('tooltip').textContent).toContain('Ask 模式');
-    expect(screen.getByRole('tooltip').textContent).toContain('总结这份稿子，并指出还缺什么。');
+    expect(screen.getByRole('tooltip').textContent).toContain('规划模式');
+    expect(screen.getByRole('tooltip').textContent).toContain('先生成一份逐页 PPT 大纲。');
 
     const designOption = screen.getByRole('menuitemradio', { name: /设计模式/i });
     fireEvent.pointerEnter(designOption);

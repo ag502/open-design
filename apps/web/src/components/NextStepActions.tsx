@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { ChatSessionMode } from '@open-design/contracts';
 import { useI18n } from '../i18n';
 import { localizeSkillDescription, localizeSkillName } from '../i18n/content';
 import type { Dict } from '../i18n/types';
@@ -66,6 +67,8 @@ const PLAN_NEXT_STEP_ACTIONS = [
     titleKey: 'nextStep.planGenerateTitle' as keyof Dict,
     descriptionKey: 'nextStep.planGenerateBody' as keyof Dict,
     promptKey: 'nextStep.planGeneratePrompt' as keyof Dict,
+    sessionMode: 'design' as ChatSessionMode,
+    requires: 'plan' as const,
   },
   {
     id: 'plan-improve-doc',
@@ -73,8 +76,32 @@ const PLAN_NEXT_STEP_ACTIONS = [
     titleKey: 'nextStep.planImproveTitle' as keyof Dict,
     descriptionKey: 'nextStep.planImproveBody' as keyof Dict,
     promptKey: 'nextStep.planImprovePrompt' as keyof Dict,
+    sessionMode: 'plan' as ChatSessionMode,
+    requires: 'plan' as const,
+  },
+  {
+    id: 'plan-improve-artifact',
+    icon: 'sparkles' as IconName,
+    titleKey: 'nextStep.planImproveArtifactTitle' as keyof Dict,
+    descriptionKey: 'nextStep.planImproveArtifactBody' as keyof Dict,
+    promptKey: 'nextStep.planImproveArtifactPrompt' as keyof Dict,
+    sessionMode: 'design' as ChatSessionMode,
+    requires: 'artifact' as const,
+  },
+  {
+    id: 'plan-merge-doc-artifact',
+    icon: 'blocks' as IconName,
+    titleKey: 'nextStep.planMergeTitle' as keyof Dict,
+    descriptionKey: 'nextStep.planMergeBody' as keyof Dict,
+    promptKey: 'nextStep.planMergePrompt' as keyof Dict,
+    sessionMode: 'design' as ChatSessionMode,
+    requires: 'both' as const,
   },
 ] as const;
+const PLAN_GENERATE_ACTION = PLAN_NEXT_STEP_ACTIONS[0];
+const PLAN_IMPROVE_DOC_ACTION = PLAN_NEXT_STEP_ACTIONS[1];
+const PLAN_IMPROVE_ARTIFACT_ACTION = PLAN_NEXT_STEP_ACTIONS[2];
+const PLAN_MERGE_DOC_ARTIFACT_ACTION = PLAN_NEXT_STEP_ACTIONS[3];
 
 // Surfaced under More → Design toolbox. The two featured ids already have their
 // own rows at the top of the card, so we drop them here to avoid duplicating
@@ -87,6 +114,10 @@ interface Props {
   // The previewable artifact this affordance is anchored to. Passed back to
   // share/download so the parent can act on the right file.
   fileName?: string | null;
+  // Plan-mode actions need both sides of the handoff when available: the
+  // editable Markdown plan and the generated artifact it should govern.
+  planFileName?: string | null;
+  artifactFileName?: string | null;
   // Open the file's existing Share/Export menu in the preview workspace.
   onShare?: (fileName: string) => void;
   // Download the previewable artifact.
@@ -97,7 +128,10 @@ interface Props {
   // Seed the composer with a custom prompt. Used for design-system projects,
   // where the primary next steps are system optimization rather than generic
   // artifact polishing.
-  onPromptAction?: (prompt: string) => void;
+  onPromptAction?: (
+    prompt: string,
+    options?: { sessionMode?: ChatSessionMode },
+  ) => void;
   // Run the deeper AI extraction pass for a programmatically-created brand
   // design system.
   onAiOptimize?: () => void;
@@ -162,8 +196,18 @@ type Detail =
   | ({ kind: 'toolbox'; id: DesignToolboxActionId } & Anchor)
   | ({ kind: 'brand'; id: BrandExtractionActionId } & Anchor);
 
+function isPlanFileName(fileName: string | null | undefined): boolean {
+  return !!fileName && /\.mdx?$/i.test(fileName);
+}
+
+function isArtifactFileName(fileName: string | null | undefined): boolean {
+  return !!fileName && /\.html?$/i.test(fileName);
+}
+
 export function NextStepActions({
   fileName,
+  planFileName,
+  artifactFileName,
   onShare,
   onDownload,
   onToolboxAction,
@@ -318,14 +362,34 @@ export function NextStepActions({
     },
     [closeAll, onPromptAction, track],
   );
+  const resolvedPlanFileName =
+    planFileName ?? (variant === 'plan' && isPlanFileName(fileName) ? fileName : null);
+  const resolvedArtifactFileName =
+    artifactFileName ?? (variant === 'plan' && isArtifactFileName(fileName) ? fileName : null);
   const handlePlanPromptAction = useCallback(
     (action: PlanAction) => {
-      if (!fileName) return;
+      if (action.requires === 'plan' && !resolvedPlanFileName) return;
+      if (action.requires === 'artifact' && !resolvedArtifactFileName) return;
+      if (action.requires === 'both' && (!resolvedPlanFileName || !resolvedArtifactFileName)) return;
+      const primaryFile =
+        action.requires === 'artifact'
+          ? resolvedArtifactFileName
+          : resolvedPlanFileName ?? resolvedArtifactFileName;
+      if (!primaryFile) return;
       track('toolbox_action', action.id);
-      onPromptAction?.(t(action.promptKey, { file: fileName }));
+      onPromptAction?.(
+        t(action.promptKey, {
+          file: primaryFile,
+          document: resolvedPlanFileName ?? primaryFile,
+          artifact: resolvedArtifactFileName ?? primaryFile,
+        }),
+        {
+          sessionMode: action.sessionMode,
+        },
+      );
       closeAll();
     },
-    [closeAll, fileName, onPromptAction, t, track],
+    [closeAll, onPromptAction, resolvedArtifactFileName, resolvedPlanFileName, t, track],
   );
 
   const handleAiOptimize = useCallback(() => {
@@ -378,6 +442,19 @@ export function NextStepActions({
     return source.slice(0, toolboxQuery ? 14 : 8);
   }, [skills, toolboxQuery, locale]);
 
+  const visiblePlanActions = useMemo(() => {
+    if (resolvedPlanFileName && resolvedArtifactFileName) {
+      return [PLAN_MERGE_DOC_ARTIFACT_ACTION, PLAN_IMPROVE_ARTIFACT_ACTION];
+    }
+    if (resolvedPlanFileName) {
+      return [PLAN_GENERATE_ACTION, PLAN_IMPROVE_DOC_ACTION];
+    }
+    if (resolvedArtifactFileName) {
+      return [PLAN_IMPROVE_ARTIFACT_ACTION];
+    }
+    return [];
+  }, [resolvedArtifactFileName, resolvedPlanFileName]);
+
   // Share group is available whenever any of its three actions can fire.
   const canShare = !!(fileName && onShare);
   const canDownload = !!(fileName && onDownload);
@@ -385,7 +462,7 @@ export function NextStepActions({
   const hasShareGroup = canShare || canDownload || canContribute;
   const hasMore = !!onToolboxAction || hasShareGroup;
   const showToolbox = !!onToolboxAction;
-  const showPlanRows = variant === 'plan' && !!fileName && !!onPromptAction;
+  const showPlanRows = variant === 'plan' && visiblePlanActions.length > 0 && !!onPromptAction;
   const showDesignSystemRows = variant === 'design-system' && !!onPromptAction;
   const showBrandRows = variant === 'brand-extraction' && (!!onAiOptimize || !!onCreateDesign);
 
@@ -398,7 +475,7 @@ export function NextStepActions({
       {showBrandRows || showPlanRows || showDesignSystemRows || showToolbox || hasMore ? (
         <div className={styles.toolboxList} data-testid="next-step-toolbox">
           {showPlanRows
-            ? PLAN_NEXT_STEP_ACTIONS.map((action) => {
+            ? visiblePlanActions.map((action) => {
                 const title = t(action.titleKey);
                 const description = t(action.descriptionKey);
                 return (

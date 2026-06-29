@@ -35,6 +35,7 @@ import {
 import {
   splitOnOdCards,
   stripTrailingOpenOdCard,
+  type ChatSessionMode,
   type OdCard,
 } from "@open-design/contracts";
 import { OdCardView, type BrandBrowserAssistConfirm } from "./OdCard";
@@ -320,7 +321,10 @@ interface Props {
   // composer with an action / opening the toolbox both route through the
   // composer; see ChatPane's composer ref wiring.
   onToolboxAction?: (id: DesignToolboxActionId) => void;
-  onNextStepPromptAction?: (prompt: string) => void;
+  onNextStepPromptAction?: (
+    prompt: string,
+    options?: { sessionMode?: ChatSessionMode },
+  ) => void;
   onNextStepAiOptimize?: () => void;
   nextStepAiOptimizeBusy?: boolean;
   onNextStepCreateDesign?: () => void;
@@ -843,6 +847,8 @@ function AssistantMessageImpl({
         {showNextStepActions ? (
           <NextStepActions
             fileName={isLast ? nextStepFileName : null}
+            planFileName={isLast ? planNextStepName : null}
+            artifactFileName={isLast ? nextStepArtifactName : null}
             onShare={isLast && nextStepArtifactName && !isPlanNextStep ? onArtifactShare : undefined}
             onToolboxAction={isLast ? onToolboxAction : undefined}
             onPromptAction={isLast ? onNextStepPromptAction : undefined}

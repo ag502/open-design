@@ -8,13 +8,18 @@ import { emptySketchScene, type ExcalidrawSketchScene } from '../../src/componen
 
 const mockData = vi.hoisted<{
   excalidrawScene: ExcalidrawSketchScene;
+  excalidrawToast: string | null;
+  updateScene: ReturnType<typeof vi.fn>;
   lastProps: Record<string, any> | null;
 }>(() => ({
   excalidrawScene: {
     elements: [{ id: 'api-element', type: 'rectangle', isDeleted: false }],
     appState: { viewBackgroundColor: '#ffffff' },
     files: {},
+    libraryItems: [],
   },
+  excalidrawToast: null,
+  updateScene: vi.fn(),
   lastProps: null,
 }));
 
@@ -41,6 +46,7 @@ vi.mock('@excalidraw/excalidraw', async () => {
           getSceneElementsIncludingDeleted: () => mockData.excalidrawScene.elements,
           getAppState: () => mockData.excalidrawScene.appState,
           getFiles: () => mockData.excalidrawScene.files,
+          updateScene: mockData.updateScene,
         });
       }, [props.excalidrawAPI]);
       return React.createElement(
@@ -50,6 +56,49 @@ vi.mock('@excalidraw/excalidraw', async () => {
           'data-lang': props.langCode,
           'data-theme': props.theme,
         },
+        React.createElement('button', {
+          type: 'button',
+          'data-testid': 'main-menu-trigger',
+          className: 'main-menu-trigger',
+        }),
+        React.createElement(
+          'label',
+          { title: 'Selection — V or 1' },
+          React.createElement('input', {
+            type: 'radio',
+            'data-testid': 'toolbar-selection',
+            'aria-label': 'Selection',
+          }),
+        ),
+        React.createElement(
+          'label',
+          { title: 'Text — T or 8' },
+          React.createElement('input', {
+            type: 'radio',
+            'data-testid': 'toolbar-text',
+            'aria-label': 'Text',
+          }),
+        ),
+        React.createElement('button', {
+          type: 'button',
+          'data-testid': 'toolbar-extra',
+          className: 'App-toolbar__extra-tools-trigger',
+          title: 'More tools',
+        }),
+        React.createElement('button', {
+          type: 'button',
+          'data-testid': 'default-sidebar-trigger',
+          className: 'default-sidebar-trigger',
+          title: 'Library',
+        }),
+        mockData.excalidrawToast
+          ? React.createElement(
+            'div',
+            { className: 'Toast' },
+            React.createElement('p', { className: 'Toast__message' }, mockData.excalidrawToast),
+          )
+          : null,
+        props.renderTopRightUI?.(false, {}),
         props.children,
       );
     },
@@ -75,12 +124,17 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
+  document.querySelectorAll('.excalidraw-modal-container').forEach((node) => node.remove());
   mockData.lastProps = null;
   mockData.excalidrawScene = {
     elements: [{ id: 'api-element', type: 'rectangle', isDeleted: false }],
     appState: { viewBackgroundColor: '#ffffff' },
     files: {},
+    libraryItems: [],
   };
+  mockData.excalidrawToast = null;
+  mockData.updateScene.mockClear();
+  document.querySelectorAll('.excalidraw-modal-container').forEach((portal) => portal.remove());
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -117,6 +171,157 @@ describe('SketchEditor save', () => {
     expect(document.querySelector('[data-testid="excalidraw"]')?.getAttribute('data-lang')).toBe('zh-CN');
   });
 
+  it('drives one shared tooltip per Excalidraw control without the duplicate native/black bubbles', async () => {
+    renderEditor({ dirty: true });
+
+    const mainMenu = screen.getByTestId('main-menu-trigger');
+    await waitFor(() => expect(mainMenu.getAttribute('data-tooltip')).toBe('sketch.tooltipMainMenu'));
+    expect(mainMenu.classList.contains('od-tooltip')).toBe(true);
+    expect(mainMenu.getAttribute('data-tooltip-placement')).toBe('bottom');
+    expect(mainMenu.getAttribute('aria-label')).toBe('sketch.tooltipMainMenu');
+    // Only the shared TooltipLayer drives the bubble now: no second
+    // sketch-specific ::after tooltip and no redundant native `title` — that
+    // pairing is exactly what rendered the duplicate white + black popups.
+    expect(mainMenu.getAttribute('data-od-sketch-tooltip')).toBeNull();
+    expect(mainMenu.getAttribute('title')).toBeNull();
+
+    const selection = screen.getByTestId('toolbar-selection');
+    const selectionLabel = selection.closest('label');
+    expect(selectionLabel?.getAttribute('data-tooltip')).toBe('sketch.tooltipSelection');
+    expect(selectionLabel?.classList.contains('od-tooltip')).toBe(true);
+    expect(selectionLabel?.getAttribute('data-od-sketch-tooltip')).toBeNull();
+    // The element's native Excalidraw title is left untouched so the shared
+    // TooltipLayer can suppress it on hover; we no longer overwrite it.
+    expect(selectionLabel?.getAttribute('title')).toBe('Selection — V or 1');
+    expect(selection.getAttribute('aria-label')).toBe('sketch.tooltipSelection');
+
+    const text = screen.getByTestId('toolbar-text');
+    const textLabel = text.closest('label');
+    expect(textLabel?.getAttribute('data-tooltip')).toBe('sketch.tooltipText');
+
+    // The library is disabled in the sketch editor, so its trigger is no longer
+    // part of the tooltip set.
+    const library = screen.getByTestId('default-sidebar-trigger');
+    expect(library.getAttribute('data-tooltip')).toBeNull();
+    expect(library.classList.contains('od-tooltip')).toBe(false);
+  });
+
+  it('adds close controls and localizes Excalidraw portal dialogs', async () => {
+    renderEditor({ dirty: true });
+
+    const portal = document.createElement('div');
+    portal.className = 'excalidraw-modal-container';
+    portal.innerHTML = `
+      <div class="Modal">
+        <div class="Modal__content">
+          <div class="HelpDialog__header"><button>Documentation</button></div>
+          <button title="Wrap selection in frame">Wrap selection in frame</button>
+          <button aria-label="Generate">Generate</button>
+          <textarea placeholder="Write Mermaid diagram definition here..."></textarea>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(portal);
+
+    const close = await waitFor(() => {
+      const button = portal.querySelector<HTMLButtonElement>('.od-sketch-dialog-close');
+      expect(button).toBeTruthy();
+      return button!;
+    });
+
+    expect(portal.textContent).toContain('将选区包裹为画框');
+    expect(portal.textContent).toContain('生成');
+    expect(portal.querySelector('button[title="将选区包裹为画框"]')).toBeTruthy();
+    expect(portal.querySelector('button[aria-label="生成"]')).toBeTruthy();
+    expect(portal.querySelector('textarea')?.getAttribute('placeholder')).toBe('在这里输入 Mermaid 图表定义...');
+    expect(close.getAttribute('aria-label')).toBe('关闭');
+
+    fireEvent.click(close);
+    expect(mockData.updateScene).toHaveBeenCalledWith({ appState: { openDialog: null } });
+
+    mockData.updateScene.mockClear();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockData.updateScene).toHaveBeenCalledWith({ appState: { openDialog: null } });
+  });
+
+  it('passes saved library items into Excalidraw initial data', () => {
+    renderEditor({
+      scene: {
+        ...emptySketchScene('test.sketch.json'),
+        libraryItems: [
+          {
+            id: 'lib-box',
+            status: 'unpublished',
+            created: 1710000000000,
+            elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
+          },
+        ],
+      },
+    });
+
+    expect(mockData.lastProps?.initialData?.libraryItems).toEqual([
+      {
+        id: 'lib-box',
+        status: 'unpublished',
+        created: 1710000000000,
+        elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
+      },
+    ]);
+  });
+
+  it('reports library changes as dirty scene changes for autosave', () => {
+    const onSceneChange = vi.fn();
+    renderEditor({ onSceneChange });
+
+    act(() => {
+      mockData.lastProps?.onLibraryChange?.([
+        {
+          id: 'lib-box',
+          status: 'unpublished',
+          created: 1710000000000,
+          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
+        },
+      ]);
+    });
+
+    expect(onSceneChange).toHaveBeenCalledTimes(1);
+    expect(onSceneChange.mock.calls[0]?.[0]).toMatchObject({
+      elements: mockData.excalidrawScene.elements,
+      libraryItems: [
+        {
+          id: 'lib-box',
+          status: 'unpublished',
+          created: 1710000000000,
+          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
+        },
+      ],
+    });
+    expect(onSceneChange.mock.calls[0]?.[1]).toEqual({
+      markDirty: true,
+      discardLegacyItems: true,
+    });
+  });
+
+  it('allows explicit http and https web embeds while rejecting missing or unsafe protocols', () => {
+    renderEditor({ dirty: true });
+
+    const validate = mockData.lastProps?.validateEmbeddable as ((link: string) => boolean) | undefined;
+    expect(validate?.('https://open-design.ai')).toBe(true);
+    expect(validate?.('http://localhost:3000')).toBe(true);
+    expect(validate?.('open-design.ai')).toBe(false);
+    expect(validate?.('   ')).toBe(false);
+    expect(validate?.('javascript:alert(1)')).toBe(false);
+  });
+
+  it('rewrites Excalidraw web embed whitelist toast to the local validation message', async () => {
+    mockData.excalidrawToast = '目前不允许嵌入此网址。请在 GitHub 上提交 issue 请求将此网址加入白名单';
+    renderEditor({ dirty: true });
+
+    await waitFor(() => expect(screen.getByText('sketch.tooltipEmbeddable')).toBeTruthy());
+    expect(screen.queryByText(/GitHub|白名单/)).toBeNull();
+    expect(document.querySelector('.Toast')?.getAttribute('data-od-embed-toast-rewritten')).toBe('true');
+  });
+
   it('strips Excalidraw runtime app state before passing initial data back to Excalidraw', () => {
     renderEditor({
       scene: {
@@ -151,6 +356,16 @@ describe('SketchEditor save', () => {
   it('shows the saving label when saving', () => {
     renderEditor({ saving: true, dirty: true });
     expect(saveButton().textContent).toBe('sketch.saving');
+  });
+
+  it('shows the Excalidraw top-right saved state from autosave props', () => {
+    renderEditor({ scene: sceneWithElement(), dirty: false, savedAt: 1710000000000 });
+    expect(screen.getByTestId('sketch-save-state').textContent).toContain('sketch.saved');
+  });
+
+  it('shows dirty state in the Excalidraw top-right save status', () => {
+    renderEditor({ scene: sceneWithElement(), dirty: true });
+    expect(screen.getByTestId('sketch-save-state').textContent).toContain('sketch.tooltipDirty');
   });
 
   it('disables the button while saving', () => {
@@ -267,7 +482,7 @@ describe('SketchEditor save', () => {
     await act(async () => {
       fireEvent.click(saveButton());
     });
-    expect(screen.getByRole('status').textContent).toContain('sketch.saved');
+    expect(document.querySelector('.od-toast')?.textContent).toContain('sketch.saved');
   });
 
   it('shows a clickable toast after exporting an image', async () => {
@@ -285,8 +500,8 @@ describe('SketchEditor save', () => {
 
     await waitFor(() => expect(onExportImage).toHaveBeenCalledTimes(1));
     expect(onExportImage.mock.calls[0]?.[1]).toBe('test.png');
-    expect(screen.getByRole('status').textContent).toContain('fileViewer.exportImageSaved');
-    expect(screen.getByRole('status').textContent).toContain('exports/test.png');
+    expect(document.querySelector('.od-toast')?.textContent).toContain('fileViewer.exportImageSaved');
+    expect(document.querySelector('.od-toast')?.textContent).toContain('exports/test.png');
 
     fireEvent.click(screen.getByRole('button', { name: 'workspace.openFile' }));
     expect(onOpenExportedImage).toHaveBeenCalledWith('exports/test.png');

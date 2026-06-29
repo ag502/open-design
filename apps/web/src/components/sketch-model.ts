@@ -50,6 +50,7 @@ export interface ExcalidrawSketchScene {
   elements: readonly unknown[];
   appState: Record<string, unknown> | null;
   files: Record<string, unknown>;
+  libraryItems?: readonly unknown[];
 }
 
 export interface ParsedSketchWorkspaceDocument {
@@ -167,11 +168,12 @@ export function emptySketchScene(name?: string): ExcalidrawSketchScene {
       gridSize: null,
     },
     files: {},
+    libraryItems: [],
   };
 }
 
 export function sketchSceneHasContent(scene: ExcalidrawSketchScene | null | undefined): boolean {
-  return Boolean(scene?.elements.some((element) => {
+  return Boolean(scene?.libraryItems?.length) || Boolean(scene?.elements.some((element) => {
     if (!isSketchRecord(element)) return false;
     return element.isDeleted !== true;
   }));
@@ -197,6 +199,7 @@ export function buildExcalidrawSketchDocument(
     elements: cloneJsonArray(scene.elements),
     appState,
     files: cloneJsonRecord(scene.files),
+    libraryItems: cloneJsonArray(scene.libraryItems ?? []),
   };
 }
 
@@ -268,6 +271,7 @@ function normalizeExcalidrawSketchScene(value: unknown): ExcalidrawSketchScene |
     elements: cloneJsonArray(value.elements),
     appState: isSketchRecord(value.appState) ? sanitizeExcalidrawAppState(value.appState) : null,
     files: isSketchRecord(value.files) ? cloneJsonRecord(value.files) : {},
+    libraryItems: Array.isArray(value.libraryItems) ? cloneJsonArray(value.libraryItems) : [],
   };
 }
 
@@ -283,6 +287,10 @@ export function sanitizeExcalidrawAppState(value: Record<string, unknown> | null
   delete appState.openDialog;
   delete appState.openMenu;
   delete appState.openPopup;
+  // The library is disabled in the sketch editor; never persist or rehydrate an
+  // open sidebar so a saved scene cannot re-open the (now hidden) library panel.
+  delete appState.openSidebar;
+  delete appState.defaultSidebarDockedPreference;
   delete appState.pendingImageElementId;
   delete appState.resizingElement;
   delete appState.selectionElement;

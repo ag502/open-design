@@ -267,8 +267,13 @@ interface Props {
 
 // Imperative handle so ancestors (e.g. example chips in ChatPane) can
 // push text into the composer without owning its draft state.
+export interface ChatComposerDraftOptions {
+  entryFrom?: ChatAnalyticsEntryFrom;
+  sessionMode?: ChatSessionMode;
+}
+
 export interface ChatComposerHandle {
-  setDraft: (text: string) => void;
+  setDraft: (text: string, options?: ChatComposerDraftOptions) => void;
   restoreDraft: (draft: {
     text: string;
     attachments?: ChatAttachment[];
@@ -319,6 +324,8 @@ export interface ChatSendMeta {
    *  this send (e.g. 'mark' when the turn is sent from the Mark draw overlay).
    *  Behavior never depends on it; it only shapes PostHog props. */
   entryFrom?: ChatAnalyticsEntryFrom;
+  /** One-shot run mode override for seeded follow-ups before parent state catches up. */
+  sessionMode?: ChatSessionMode;
 }
 
 /**
@@ -393,6 +400,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [draft, setDraft] = useState(() => initialDraft ?? loadComposerDraft(draftStorageKey) ?? "");
     const [placeholderScenario, setPlaceholderScenario] = useState<PlaceholderScenario | null>(null);
     const composerRootRef = useRef<HTMLDivElement | null>(null);
+    const pendingSessionModeRef = useRef<ChatSessionMode | null>(null);
     // Synchronous mirror of `draft`. Event handlers that mutate the draft off
     // a captured render closure (notably the annotation listener, where two
     // uploads can resolve concurrently) read/write this ref so their edits
@@ -400,6 +408,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // by handleEditorChange (the editor is the single source for typing) and by
     // the programmatic-set paths below.
     const draftRef = useRef(draft);
+    const previousSessionModeRef = useRef(sessionMode);
+
+    useEffect(() => {
+      if (previousSessionModeRef.current === sessionMode) return;
+      if (pendingSessionModeRef.current && pendingSessionModeRef.current !== sessionMode) {
+        pendingSessionModeRef.current = null;
+      }
+      previousSessionModeRef.current = sessionMode;
+    }, [sessionMode]);
 
     // chat_panel page_view fires from ProjectView (which outlives
     // conversation switches) so the event measures real chat-panel
@@ -900,7 +917,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     useImperativeHandle(
       ref,
       () => ({
-        setDraft: (text: string) => {
+        setDraft: (text: string, options?: ChatComposerDraftOptions) => {
+          pendingEntryFromRef.current = options?.entryFrom ?? null;
+          pendingSessionModeRef.current = options?.sessionMode ?? null;
           setDraft(text);
           editorRef.current?.setText(text);
           editorRef.current?.focus();
@@ -977,6 +996,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     );
 
     function reset() {
+      pendingEntryFromRef.current = null;
+      pendingSessionModeRef.current = null;
       setDraft("");
       setStaged([]);
       nextAttachmentOrderRef.current = 0;
@@ -1057,14 +1078,19 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               ...attachments,
             ]
           : attachments;
-      // Apply a pending Next-step tag if the caller didn't set its own
-      // entry_from, then clear it so it only colours the immediate next send.
+      // Apply pending Next-step metadata if the caller didn't set its own
+      // fields, then clear it so it only colors the immediate next send.
       const pendingEntryFrom = pendingEntryFromRef.current;
+      const pendingSessionMode = pendingSessionModeRef.current;
       pendingEntryFromRef.current = null;
-      const effectiveMeta: ChatSendMeta | undefined =
-        pendingEntryFrom && !meta?.entryFrom
-          ? { ...(meta ?? {}), entryFrom: pendingEntryFrom }
-          : meta;
+      pendingSessionModeRef.current = null;
+      const effectiveMetaShape: ChatSendMeta = {
+        ...(meta ?? {}),
+        ...(pendingEntryFrom && !meta?.entryFrom ? { entryFrom: pendingEntryFrom } : {}),
+        ...(pendingSessionMode && !meta?.sessionMode ? { sessionMode: pendingSessionMode } : {}),
+      };
+      const effectiveMeta =
+        Object.keys(effectiveMetaShape).length > 0 ? effectiveMetaShape : undefined;
       onSend(prompt, nextAttachments, nextCommentAttachments, effectiveMeta);
       reset();
       return true;
@@ -2059,7 +2085,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           ? placeholderScenario.text.trim()
           : '';
         if (!placeholderPrompt) return;
-        sendComposedTurn(placeholderPrompt, [], [], contextMeta);
+        const placeholderMeta: ChatSendMeta | undefined = placeholderScenario?.sessionMode
+          ? {
+              ...(contextMeta ?? {}),
+              sessionMode: placeholderScenario.sessionMode,
+              entryFrom: contextMeta?.entryFrom ?? 'next_step',
+            }
+          : contextMeta;
+        sendComposedTurn(placeholderPrompt, [], [], placeholderMeta);
         return;
       }
       sendComposedTurn(prompt, staged, nextCommentAttachments, contextMeta);

@@ -220,6 +220,20 @@ type OnboardingProfileState = {
   email: string;
 };
 
+type EntryCreateProjectInput = Omit<CreateInput, 'metadata'> & {
+  metadata?: CreateInput['metadata'];
+  pendingPrompt?: string;
+  pluginId?: string;
+  pluginType?: string;
+  appliedPluginSnapshotId?: string;
+  pluginInputs?: Record<string, unknown>;
+  conversationMode?: ChatSessionMode;
+  autoSendFirstMessage?: boolean;
+  requestId?: string;
+  pendingFiles?: File[];
+  userWorkingDirToken?: string;
+};
+
 function defaultPluginIdForMetadata(metadata: ProjectMetadata): string | null {
   return defaultScenarioPluginIdForProjectMetadata(metadata);
 }
@@ -341,17 +355,7 @@ interface Props {
   // flip between system / light / dark without opening the full Settings
   // dialog. App owns persistence; this component just calls the callback.
   onThemeChange: (theme: AppTheme) => void;
-  onCreateProject: (
-    input: CreateInput & {
-      pendingPrompt?: string;
-      pluginId?: string;
-      appliedPluginSnapshotId?: string;
-      pluginInputs?: Record<string, unknown>;
-      conversationMode?: ChatSessionMode;
-      autoSendFirstMessage?: boolean;
-      pendingFiles?: File[];
-    },
-  ) => Promise<boolean> | boolean | void;
+  onCreateProject: (input: EntryCreateProjectInput) => Promise<boolean> | boolean | void;
   onCreatePluginShareProject: (
     pluginId: string,
     action: PluginShareAction,
@@ -576,6 +580,19 @@ export function EntryShell({
     setNewProjectOpen(true);
   }
 
+  async function startBlankProjectFromRail() {
+    setNewProjectOpen(false);
+    try {
+      await onCreateProject({
+        name: t('common.untitled'),
+        skillId: null,
+        designSystemId: null,
+      });
+    } catch (err) {
+      console.warn('Could not create blank project from entry rail', err);
+    }
+  }
+
   function handleCreate(input: CreateInput) {
     // The NewProjectModal no longer asks the user to pick a plugin.
     // Each project kind is silently bound to its default scenario
@@ -757,7 +774,7 @@ export function EntryShell({
         <EntryNavRail
           view={view}
           onViewChange={changeView}
-          onNewProject={() => openNewProject()}
+          onNewProject={() => void startBlankProjectFromRail()}
           open={railOpen}
           onClose={() => setRailOpen(false)}
         />

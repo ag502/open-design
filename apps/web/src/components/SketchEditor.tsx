@@ -47,6 +47,28 @@ interface SketchToastState {
   actionFileName?: string;
 }
 
+type SketchTooltipLabelKey =
+  | 'mainMenu'
+  | 'lock'
+  | 'hand'
+  | 'selection'
+  | 'rectangle'
+  | 'diamond'
+  | 'ellipse'
+  | 'arrow'
+  | 'line'
+  | 'freedraw'
+  | 'text'
+  | 'image'
+  | 'eraser'
+  | 'frame'
+  | 'embeddable'
+  | 'laser'
+  | 'moreTools'
+  | 'library';
+
+type SketchTooltipLabels = Record<SketchTooltipLabelKey, string>;
+
 interface Props {
   scene: ExcalidrawSketchScene;
   legacyItems?: SketchItem[];
@@ -62,6 +84,7 @@ interface Props {
   onOpenExportedImage?: (fileName: string) => void;
   saving?: boolean;
   dirty?: boolean;
+  savedAt?: number;
   fileName: string;
 }
 
@@ -76,6 +99,7 @@ export function SketchEditor({
   onOpenExportedImage,
   saving = false,
   dirty = false,
+  savedAt,
   fileName,
 }: Props) {
   const { t, locale } = useI18n();
@@ -93,6 +117,9 @@ export function SketchEditor({
   const onOpenExportedImageRef = useLatestRef(onOpenExportedImage);
   const sceneRef = useLatestRef(scene);
   const fileNameRef = useLatestRef(fileName);
+  const canvasWrapRef = useRef<HTMLDivElement | null>(null);
+  const latestLibraryItemsRef = useRef<readonly unknown[]>(scene.libraryItems ?? []);
+  const lastLibrarySignatureRef = useRef<string | null>(stableJsonStringify(scene.libraryItems ?? []));
   const skipHydrationChangeRef = useRef(true);
   const lastContentSignatureRef = useRef<string | null>(null);
   const editorInstanceKey = `${fileName}:${resetNonce}`;
@@ -106,6 +133,8 @@ export function SketchEditor({
     previousEditorInstanceKeyRef.current = editorInstanceKey;
     skipHydrationChangeRef.current = true;
     lastContentSignatureRef.current = null;
+    latestLibraryItemsRef.current = scene.libraryItems ?? [];
+    lastLibrarySignatureRef.current = stableJsonStringify(scene.libraryItems ?? []);
   }
 
   let initialDataEntry = initialDataRef.current;
@@ -122,7 +151,13 @@ export function SketchEditor({
     const root = document.documentElement;
     const observer = new MutationObserver(() => setTheme(readExcalidrawTheme()));
     observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = () => setTheme(readExcalidrawTheme());
+    media?.addEventListener('change', handleSystemThemeChange);
+    return () => {
+      observer.disconnect();
+      media?.removeEventListener('change', handleSystemThemeChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -135,6 +170,80 @@ export function SketchEditor({
       setShowSaved(false);
     }
   }, [dirty]);
+
+  useEffect(() => {
+    if (!savedAt || dirty || saving) return;
+    setShowSaved(true);
+    clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
+  }, [dirty, savedAt, saving]);
+
+  useEffect(() => {
+    latestLibraryItemsRef.current = scene.libraryItems ?? [];
+    lastLibrarySignatureRef.current = stableJsonStringify(scene.libraryItems ?? []);
+  }, [scene.libraryItems]);
+
+  const sketchTooltipLabels = useMemo<SketchTooltipLabels>(() => ({
+    mainMenu: t('sketch.tooltipMainMenu'),
+    lock: t('sketch.tooltipLock'),
+    hand: t('sketch.tooltipHand'),
+    selection: t('sketch.tooltipSelection'),
+    rectangle: t('sketch.tooltipRectangle'),
+    diamond: t('sketch.tooltipDiamond'),
+    ellipse: t('sketch.tooltipEllipse'),
+    arrow: t('sketch.tooltipArrow'),
+    line: t('sketch.tooltipLine'),
+    freedraw: t('sketch.tooltipFreedraw'),
+    text: t('sketch.tooltipText'),
+    image: t('sketch.tooltipImage'),
+    eraser: t('sketch.tooltipEraser'),
+    frame: t('sketch.tooltipFrame'),
+    embeddable: t('sketch.tooltipEmbeddable'),
+    laser: t('sketch.tooltipLaser'),
+    moreTools: t('sketch.tooltipMoreTools'),
+    library: t('sketch.tooltipLibrary'),
+  }), [t]);
+
+  const closeActiveSketchDialog = useCallback(() => {
+    apiRef.current?.updateScene({ appState: { openDialog: null } });
+  }, []);
+
+  useEffect(() => {
+    const root = canvasWrapRef.current;
+    if (!root) return;
+
+    let frame: number | null = null;
+    const applyEnhancements = () => {
+      frame = null;
+      applySketchEditorTooltips(root, sketchTooltipLabels);
+      applySketchDomI18nOverrides(root, locale);
+      rewriteExcalidrawUnableToEmbedToasts(root, sketchTooltipLabels.embeddable);
+      rewriteExcalidrawUnableToEmbedToasts(document.body, sketchTooltipLabels.embeddable);
+      enhanceSketchExcalidrawPortals(locale, closeActiveSketchDialog);
+    };
+    const scheduleEnhancements = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(applyEnhancements);
+    };
+    scheduleEnhancements();
+
+    const observer = new MutationObserver(scheduleEnhancements);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (!document.querySelector('.od-sketch-modal .Modal')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeActiveSketchDialog();
+    };
+    document.addEventListener('keydown', handleEscape, true);
+    return () => {
+      observer.disconnect();
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
+  }, [closeActiveSketchDialog, locale, sketchTooltipLabels]);
 
   const handleChange = useCallback<NonNullable<ExcalidrawProps['onChange']>>((elements, appState, files) => {
     const contentSignature = sceneContentSignature(elements, appState, files);
@@ -154,13 +263,42 @@ export function SketchEditor({
 
   const currentScene = useCallback((): ExcalidrawSketchScene => {
     const api = apiRef.current;
-    if (!api) return sceneRef.current;
+    if (!api) return {
+      ...sceneRef.current,
+      libraryItems: cloneJson<unknown[]>(latestLibraryItemsRef.current, []),
+    };
     return sceneFromExcalidraw(
       api.getSceneElementsIncludingDeleted(),
       api.getAppState(),
       api.getFiles(),
+      latestLibraryItemsRef.current,
     );
   }, [sceneRef]);
+
+  const handleLibraryChange = useCallback<NonNullable<ExcalidrawProps['onLibraryChange']>>((libraryItems) => {
+    const nextLibraryItems = cloneJson<unknown[]>(libraryItems, []);
+    const nextSignature = stableJsonStringify(nextLibraryItems);
+    if (lastLibrarySignatureRef.current === nextSignature) return;
+    latestLibraryItemsRef.current = nextLibraryItems;
+    lastLibrarySignatureRef.current = nextSignature;
+
+    const api = apiRef.current;
+    const nextScene = api
+      ? sceneFromExcalidraw(
+        api.getSceneElementsIncludingDeleted(),
+        api.getAppState(),
+        api.getFiles(),
+        nextLibraryItems,
+      )
+      : {
+        ...sceneRef.current,
+        libraryItems: nextLibraryItems,
+      };
+    onSceneChangeRef.current(nextScene, {
+      markDirty: true,
+      discardLegacyItems: true,
+    });
+  }, [onSceneChangeRef, sceneRef]);
 
   const handleClear = useCallback(() => {
     if (onClearRef.current) {
@@ -234,6 +372,27 @@ export function SketchEditor({
     apiRef.current = api;
   }, []);
 
+  const renderTopRightUI = useCallback<NonNullable<ExcalidrawProps['renderTopRightUI']>>(() => {
+    const state = saving ? 'saving' : dirty ? 'dirty' : 'saved';
+    const label = saving
+      ? t('sketch.saving')
+      : dirty
+        ? t('sketch.tooltipDirty')
+        : t('sketch.saved');
+    return (
+      <div className="sketch-excalidraw-actions" data-testid="sketch-save-state">
+        <span className={`sketch-save-state is-${state}`} role="status" aria-live="polite">
+          <Icon
+            name={saving ? 'spinner' : dirty ? 'alert-triangle' : 'check'}
+            size={13}
+            className={saving ? 'icon-spin' : undefined}
+          />
+          <span>{label}</span>
+        </span>
+      </div>
+    );
+  }, [dirty, saving, t]);
+
   const excalidrawUIOptions = useMemo<ExcalidrawProps['UIOptions']>(() => ({
     canvasActions: {
       saveToActiveFile: false,
@@ -302,7 +461,7 @@ export function SketchEditor({
 
   return (
     <div className="sketch-editor">
-      <div className="sketch-canvas-wrap sketch-excalidraw-wrap" data-testid="sketch-excalidraw-editor">
+      <div ref={canvasWrapRef} className="sketch-canvas-wrap sketch-excalidraw-wrap" data-testid="sketch-excalidraw-editor">
         <Excalidraw
           key={editorInstanceKey}
           initialData={initialData}
@@ -315,6 +474,9 @@ export function SketchEditor({
           autoFocus
           name={fileName}
           UIOptions={excalidrawUIOptions}
+          renderTopRightUI={renderTopRightUI}
+          validateEmbeddable={validateSketchEmbeddableUrl}
+          onLibraryChange={handleLibraryChange}
         >
           {renderMainMenu()}
         </Excalidraw>
@@ -359,6 +521,7 @@ function buildInitialData(
         : '#ffffff',
     } as ExcalidrawInitialDataState['appState'],
     files: scene.files as ExcalidrawInitialDataState['files'],
+    libraryItems: cloneJson<unknown[]>(scene.libraryItems ?? [], []) as ExcalidrawInitialDataState['libraryItems'],
     scrollToContent: initialElements.length > 0,
   };
 }
@@ -367,11 +530,13 @@ function sceneFromExcalidraw(
   elements: readonly OrderedExcalidrawElement[],
   appState: AppState,
   files: BinaryFiles,
+  libraryItems: readonly unknown[] = [],
 ): ExcalidrawSketchScene {
   return {
     elements: cloneJson<unknown[]>(elements, []),
     appState: sanitizeExcalidrawAppState(cloneJson<Record<string, unknown> | null>(appState as unknown, null)),
     files: cloneJson<Record<string, unknown>>(files, {}),
+    libraryItems: cloneJson<unknown[]>(libraryItems, []),
   };
 }
 
@@ -553,10 +718,281 @@ function excalidrawLangCode(locale: Locale): string {
     'fr': 'fr-FR',
     'uk': 'uk-UA',
     'tr': 'tr-TR',
-    'th': 'en',
+    'th': 'th-TH',
     'it': 'it-IT',
   };
   return map[locale] ?? 'en';
+}
+
+const SKETCH_TOOLTIP_TARGETS: Array<{
+  selector: string;
+  target?: 'closest-label';
+  label: SketchTooltipLabelKey;
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+}> = [
+  { selector: '[data-testid="main-menu-trigger"]', label: 'mainMenu', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-lock"]', target: 'closest-label', label: 'lock', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-hand"]', target: 'closest-label', label: 'hand', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-selection"]', target: 'closest-label', label: 'selection', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-rectangle"]', target: 'closest-label', label: 'rectangle', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-diamond"]', target: 'closest-label', label: 'diamond', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-ellipse"]', target: 'closest-label', label: 'ellipse', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-arrow"]', target: 'closest-label', label: 'arrow', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-line"]', target: 'closest-label', label: 'line', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-freedraw"]', target: 'closest-label', label: 'freedraw', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-text"]', target: 'closest-label', label: 'text', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-image"]', target: 'closest-label', label: 'image', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-eraser"]', target: 'closest-label', label: 'eraser', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-frame"]', target: 'closest-label', label: 'frame', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-embeddable"]', target: 'closest-label', label: 'embeddable', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-laser"]', target: 'closest-label', label: 'laser', placement: 'bottom' },
+  { selector: '.App-toolbar__extra-tools-trigger', label: 'moreTools', placement: 'bottom' },
+];
+
+export function applySketchEditorTooltips(root: HTMLElement, labels: SketchTooltipLabels): void {
+  const decorated = new Set<HTMLElement>();
+  for (const entry of SKETCH_TOOLTIP_TARGETS) {
+    for (const trigger of Array.from(root.querySelectorAll<HTMLElement>(entry.selector))) {
+      const target = entry.target === 'closest-label'
+        ? trigger.closest<HTMLElement>('label')
+        : trigger;
+      if (!target || decorated.has(target)) continue;
+
+      const label = normalizeTooltipLabel(labels[entry.label]);
+      if (!label) continue;
+
+      // Drive ONLY the shared TooltipLayer (`.od-tooltip[data-tooltip]`): it
+      // renders a single styled, viewport-aware bubble and suppresses the
+      // native browser `title` on hover. Painting our own
+      // `data-od-sketch-tooltip` ::after or a redundant `title` on top of it is
+      // what produced the duplicate white + black tooltips.
+      setTooltipAttribute(target, 'data-tooltip', label);
+      setTooltipAttribute(target, 'data-tooltip-placement', entry.placement ?? 'bottom');
+      if (!target.classList.contains('od-tooltip')) target.classList.add('od-tooltip');
+      setTooltipAttribute(trigger, 'aria-label', label);
+      decorated.add(target);
+    }
+  }
+}
+
+function normalizeTooltipLabel(value: string | null | undefined): string | null {
+  const normalized = value?.replace(/\s+/g, ' ').trim();
+  return normalized ? normalized : null;
+}
+
+function setTooltipAttribute(target: HTMLElement, name: string, value: string): void {
+  if (target.getAttribute(name) === value) return;
+  target.setAttribute(name, value);
+}
+
+const SKETCH_TEXT_OVERRIDE_ATTRS = ['title', 'aria-label', 'placeholder'] as const;
+
+const ZH_CN_SKETCH_TEXT_OVERRIDES: Record<string, string> = {
+  Close: '关闭',
+  Generate: '生成',
+  'Wrap selection in frame': '将选区包裹为画框',
+  'Copy to clipboard as PNG': '复制为 PNG 到剪贴板',
+  'Copy to clipboard as SVG': '复制为 SVG 到剪贴板',
+  'Copy link to object': '复制对象链接',
+  'Link to object': '链接到对象',
+  'Add link': '新建链接',
+  'Edit link': '编辑链接',
+  'Edit embeddable link': '编辑嵌入链接',
+  'Copy link': '复制链接',
+  'Add to library': '添加到素材库中',
+  'Remove from library': '从素材库移除',
+  'Added to library': '已添加到素材库',
+  'Reset library': '重置素材库',
+  'Personal Library': '个人素材库',
+  'Excalidraw Library': 'Excalidraw 素材库',
+  'Browse libraries': '浏览素材库',
+  'No items added yet...': '还没有添加任何素材...',
+  'Select an item on canvas to add it here.': '选择画布上的项目即可添加到这里。',
+  'Select an item on canvas to add it here, or install a library from the public repository, below.': '选择画布上的项目即可添加到这里。',
+  'Select an item on canvas to add it here, or install a library from the public repository below.': '选择画布上的项目即可添加到这里。',
+  'Copy styles': '复制样式',
+  'Paste styles': '粘贴样式',
+  'Bring forward': '上移一层',
+  'Send backward': '下移一层',
+  'Send to back': '置于底层',
+  'Bring to front': '置于顶层',
+  Duplicate: '复制',
+  Lock: '锁定',
+  Unlock: '解锁',
+  'Lock all': '全部锁定',
+  'Unlock all': '全部解锁',
+  'Flip horizontal': '水平翻转',
+  'Flip vertical': '垂直翻转',
+  'Select all elements in frame': '选择画框内所有元素',
+  'Remove all elements from frame': '从画框中移除所有元素',
+  'Frame tool': '画框工具',
+  'Web Embed': '嵌入网页',
+  'Mermaid to Excalidraw': 'Mermaid 转 Excalidraw',
+  'Mermaid To Excalidraw': 'Mermaid 转 Excalidraw',
+  'Mermaid syntax': 'Mermaid 语法',
+  Preview: '预览',
+  Mermaid: 'Mermaid',
+  'Text to diagram': '文本转图表',
+  'Currently we use Mermaid as a middle step, so you\'ll get best results if you describe a diagram, workflow, flow chart, and similar.': '当前会先通过 Mermaid 中间步骤生成；描述图表、工作流、流程图等内容时效果最好。',
+  'View as Mermaid': '以 Mermaid 查看',
+  'Write Mermaid diagram defintion here...': '在这里输入 Mermaid 图表定义...',
+  'Write Mermaid diagram definition here...': '在这里输入 Mermaid 图表定义...',
+  Insert: '插入',
+};
+
+const ZH_TW_SKETCH_TEXT_OVERRIDES: Record<string, string> = {
+  ...ZH_CN_SKETCH_TEXT_OVERRIDES,
+  Close: '關閉',
+  Generate: '生成',
+  'Wrap selection in frame': '將選取範圍包裹為畫框',
+  'Copy to clipboard as PNG': '複製為 PNG 到剪貼簿',
+  'Copy to clipboard as SVG': '複製為 SVG 到剪貼簿',
+  'Copy link to object': '複製物件連結',
+  'Link to object': '連結到物件',
+  'Add link': '新增連結',
+  'Edit link': '編輯連結',
+  'Edit embeddable link': '編輯嵌入連結',
+  'Copy link': '複製連結',
+  'Add to library': '新增到素材庫',
+  'Remove from library': '從素材庫移除',
+  'Added to library': '已新增到素材庫',
+  'Reset library': '重設素材庫',
+  'Personal Library': '個人素材庫',
+  'Excalidraw Library': 'Excalidraw 素材庫',
+  'Browse libraries': '瀏覽素材庫',
+  'No items added yet...': '還沒有新增任何素材...',
+  'Select an item on canvas to add it here.': '選取畫布上的項目即可新增到這裡。',
+  'Select an item on canvas to add it here, or install a library from the public repository, below.': '選取畫布上的項目即可新增到這裡。',
+  'Select an item on canvas to add it here, or install a library from the public repository below.': '選取畫布上的項目即可新增到這裡。',
+  'Copy styles': '複製樣式',
+  'Paste styles': '貼上樣式',
+  'Bring forward': '上移一層',
+  'Send backward': '下移一層',
+  'Send to back': '置於底層',
+  'Bring to front': '置於頂層',
+  Duplicate: '複製',
+  Lock: '鎖定',
+  Unlock: '解鎖',
+  'Lock all': '全部鎖定',
+  'Unlock all': '全部解鎖',
+  'Flip horizontal': '水平翻轉',
+  'Flip vertical': '垂直翻轉',
+  'Select all elements in frame': '選取畫框內所有元素',
+  'Remove all elements from frame': '從畫框中移除所有元素',
+  'Frame tool': '畫框工具',
+  'Web Embed': '嵌入網頁',
+  'Mermaid to Excalidraw': 'Mermaid 轉 Excalidraw',
+  'Mermaid To Excalidraw': 'Mermaid 轉 Excalidraw',
+  'Mermaid syntax': 'Mermaid 語法',
+  Preview: '預覽',
+  'Text to diagram': '文字轉圖表',
+  'Currently we use Mermaid as a middle step, so you\'ll get best results if you describe a diagram, workflow, flow chart, and similar.': '目前會先透過 Mermaid 中間步驟生成；描述圖表、工作流程、流程圖等內容時效果最好。',
+  'View as Mermaid': '以 Mermaid 檢視',
+  'Write Mermaid diagram defintion here...': '在這裡輸入 Mermaid 圖表定義...',
+  'Write Mermaid diagram definition here...': '在這裡輸入 Mermaid 圖表定義...',
+  Insert: '插入',
+};
+
+function sketchTextOverrides(locale: Locale): Record<string, string> | null {
+  if (locale === 'zh-CN') return ZH_CN_SKETCH_TEXT_OVERRIDES;
+  if (locale === 'zh-TW') return ZH_TW_SKETCH_TEXT_OVERRIDES;
+  return null;
+}
+
+function applySketchDomI18nOverrides(root: ParentNode, locale: Locale): void {
+  const overrides = sketchTextOverrides(locale);
+  if (!overrides || typeof document === 'undefined') return;
+  const textWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node = textWalker.nextNode();
+  while (node) {
+    const next = translateSketchTextValue(node.nodeValue ?? '', overrides);
+    if (next !== null && next !== node.nodeValue) node.nodeValue = next;
+    node = textWalker.nextNode();
+  }
+  const elements = root instanceof Element
+    ? [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))]
+    : Array.from(root.querySelectorAll<HTMLElement>('*'));
+  for (const element of elements) {
+    for (const attr of SKETCH_TEXT_OVERRIDE_ATTRS) {
+      const value = element.getAttribute(attr);
+      if (!value) continue;
+      const next = translateSketchTextValue(value, overrides);
+      if (next !== null && next !== value) element.setAttribute(attr, next);
+    }
+  }
+}
+
+function translateSketchTextValue(value: string, overrides: Record<string, string>): string | null {
+  const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  const leading = match?.[1] ?? '';
+  const core = match?.[2] ?? value;
+  const trailing = match?.[3] ?? '';
+  const normalized = core.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  const exact = overrides[normalized];
+  if (exact) return `${leading}${exact}${trailing}`;
+  for (const [source, replacement] of Object.entries(overrides)) {
+    for (const separator of [' — ', ' - ', ': ']) {
+      if (normalized.startsWith(`${source}${separator}`)) {
+        return `${leading}${replacement}${normalized.slice(source.length)}${trailing}`;
+      }
+    }
+  }
+  return null;
+}
+
+function rewriteExcalidrawUnableToEmbedToasts(root: HTMLElement, replacement: string): void {
+  const normalizedReplacement = normalizeTooltipLabel(replacement);
+  if (!normalizedReplacement) return;
+  for (const messageNode of Array.from(root.querySelectorAll<HTMLElement>('.Toast__message'))) {
+    const current = normalizeTooltipLabel(messageNode.textContent);
+    if (!current || current === normalizedReplacement || !isExcalidrawUnableToEmbedToast(current)) continue;
+    messageNode.textContent = normalizedReplacement;
+    messageNode.closest<HTMLElement>('.Toast')?.setAttribute('data-od-embed-toast-rewritten', 'true');
+  }
+}
+
+function isExcalidrawUnableToEmbedToast(message: string): boolean {
+  const lower = message.toLowerCase();
+  if (lower.includes('embedding this url is currently not allowed')) return true;
+  if (message.includes('目前不允许嵌入此网址') || message.includes('目前不允許嵌入此網址')) return true;
+  return lower.includes('github')
+    && (lower.includes('issue') || lower.includes('whitelist') || message.includes('白名单') || message.includes('白名單'));
+}
+
+function enhanceSketchExcalidrawPortals(locale: Locale, onClose: () => void): void {
+  for (const portal of Array.from(document.querySelectorAll<HTMLElement>('.excalidraw-modal-container'))) {
+    portal.classList.add('od-sketch-modal');
+    applySketchDomI18nOverrides(portal, locale);
+    for (const content of Array.from(portal.querySelectorAll<HTMLElement>('.Modal__content'))) {
+      let close = content.querySelector<HTMLButtonElement>(':scope > .od-sketch-dialog-close');
+      if (!close) {
+        close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'od-sketch-dialog-close';
+        close.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        });
+        content.appendChild(close);
+      }
+      const label = sketchTextOverrides(locale)?.Close ?? 'Close';
+      close.setAttribute('aria-label', label);
+      close.setAttribute('title', label);
+    }
+  }
+}
+
+function validateSketchEmbeddableUrl(link: string): boolean {
+  const trimmed = link.trim();
+  if (!trimmed) return false;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 function readExcalidrawTheme(): 'light' | 'dark' {
