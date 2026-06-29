@@ -862,17 +862,6 @@ const ZH_CN_SKETCH_TEXT_OVERRIDES: Record<string, string> = {
   'Edit link': '编辑链接',
   'Edit embeddable link': '编辑嵌入链接',
   'Copy link': '复制链接',
-  'Add to library': '添加到素材库中',
-  'Remove from library': '从素材库移除',
-  'Added to library': '已添加到素材库',
-  'Reset library': '重置素材库',
-  'Personal Library': '个人素材库',
-  'Excalidraw Library': 'Excalidraw 素材库',
-  'Browse libraries': '浏览素材库',
-  'No items added yet...': '还没有添加任何素材...',
-  'Select an item on canvas to add it here.': '选择画布上的项目即可添加到这里。',
-  'Select an item on canvas to add it here, or install a library from the public repository, below.': '选择画布上的项目即可添加到这里。',
-  'Select an item on canvas to add it here, or install a library from the public repository below.': '选择画布上的项目即可添加到这里。',
   'Copy styles': '复制样式',
   'Paste styles': '粘贴样式',
   'Bring forward': '上移一层',
@@ -916,17 +905,6 @@ const ZH_TW_SKETCH_TEXT_OVERRIDES: Record<string, string> = {
   'Edit link': '編輯連結',
   'Edit embeddable link': '編輯嵌入連結',
   'Copy link': '複製連結',
-  'Add to library': '新增到素材庫',
-  'Remove from library': '從素材庫移除',
-  'Added to library': '已新增到素材庫',
-  'Reset library': '重設素材庫',
-  'Personal Library': '個人素材庫',
-  'Excalidraw Library': 'Excalidraw 素材庫',
-  'Browse libraries': '瀏覽素材庫',
-  'No items added yet...': '還沒有新增任何素材...',
-  'Select an item on canvas to add it here.': '選取畫布上的項目即可新增到這裡。',
-  'Select an item on canvas to add it here, or install a library from the public repository, below.': '選取畫布上的項目即可新增到這裡。',
-  'Select an item on canvas to add it here, or install a library from the public repository below.': '選取畫布上的項目即可新增到這裡。',
   'Copy styles': '複製樣式',
   'Paste styles': '貼上樣式',
   'Bring forward': '上移一層',
@@ -1026,6 +1004,7 @@ function isExcalidrawUnableToEmbedToast(message: string): boolean {
 function enhanceSketchExcalidrawPortals(locale: Locale, onClose: () => void): void {
   for (const portal of Array.from(document.querySelectorAll<HTMLElement>('.excalidraw-modal-container'))) {
     portal.classList.add('od-sketch-modal');
+    portal.classList.toggle('od-sketch-help-modal', Boolean(portal.querySelector('.HelpDialog__header')));
     applySketchDomI18nOverrides(portal, locale);
     for (const content of Array.from(portal.querySelectorAll<HTMLElement>('.Modal__content'))) {
       let close = content.querySelector<HTMLButtonElement>(':scope > .od-sketch-dialog-close');

@@ -521,14 +521,9 @@
   --color-primary-darker: var(--accent-strong);
 }
 
-/* The sketch editor disables Excalidraw's element LIBRARY but keeps the
-   "search canvas elements" sidebar (Find on canvas / Cmd-F). Library and search
-   are two Radix tabs in the same default sidebar, so hide ONLY the library: its
-   top-right toolbar trigger, its in-sidebar tab trigger, and its tab content.
-   Radix gives each tab a stable `…-trigger-<tab>` / `…-content-<tab>` id suffix,
-   so match by suffix and leave the search tab and the sidebar shell intact.
-   sanitizeExcalidrawAppState also strips `openSidebar` so a persisted scene can
-   never auto-open the (now content-less) library tab. */
+/* Sketch is a lightweight AI-consumption surface, not a full Excalidraw
+   workspace. Hide the library surfaces entirely while leaving the rest of the
+   canvas shell intact. */
 .sketch-excalidraw-wrap .default-sidebar-trigger,
 .sketch-excalidraw-wrap .sidebar-trigger[data-testid="default-sidebar-trigger"],
 .sketch-excalidraw-wrap [data-testid="default-sidebar-trigger"],
@@ -587,6 +582,36 @@
 .sketch-save-state.is-saving {
   color: var(--text-muted);
 }
+.sketch-excalidraw-wrap .od-sketch-context-popover,
+.od-sketch-context-popover {
+  z-index: 30;
+}
+.sketch-excalidraw-wrap .od-sketch-context-menu,
+.od-sketch-context-menu {
+  min-width: 168px;
+  max-width: min(240px, calc(100vw - 24px));
+  max-height: min(240px, calc(100vh - 24px));
+  padding: 5px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-elevated) 94%, black);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 30%);
+}
+.sketch-excalidraw-wrap .od-sketch-context-menu .context-menu-item,
+.od-sketch-context-menu .context-menu-item {
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.25;
+}
+.sketch-excalidraw-wrap .od-sketch-context-menu .context-menu-item__shortcut,
+.od-sketch-context-menu .context-menu-item__shortcut {
+  margin-left: 18px;
+  opacity: 0.58;
+  font-size: 11px;
+}
 .sketch-name {
   flex: 1 1 0;
   min-width: 48px;
@@ -608,6 +633,18 @@
 .od-sketch-modal .Modal__content {
   position: relative;
   color: var(--text);
+}
+.od-sketch-modal .Modal {
+  overflow: hidden;
+}
+.od-sketch-modal.od-sketch-help-modal .Modal {
+  max-height: min(82vh, calc(100vh - 80px));
+}
+.od-sketch-modal.od-sketch-help-modal .Modal__content {
+  max-height: inherit;
+  overflow: auto;
+  padding-right: 48px;
+  scrollbar-gutter: stable;
 }
 .od-sketch-modal .HelpDialog__header {
   display: none !important;
