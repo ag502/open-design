@@ -5,6 +5,7 @@ import {
   paginateViewportBand,
   scrollStitchGeometry,
   scrollStitchRowOffset,
+  shouldCapturePageAsJpeg,
   shouldCaptureAsDeck,
   solidBgraBuffer,
 } from '../../src/main/deck-capture.js';
@@ -60,6 +61,17 @@ describe('shouldCaptureAsDeck', () => {
   });
   test('no signal falls back to the slide-count heuristic', () => {
     expect(shouldCaptureAsDeck(true, undefined)).toBe(true);
+  });
+});
+
+describe('shouldCapturePageAsJpeg', () => {
+  test('paginated page-mode PDF defaults to JPEG after deck detection', () => {
+    expect(shouldCapturePageAsJpeg(undefined, true)).toBe(true);
+  });
+
+  test('non-paginated captures stay PNG unless explicitly requested', () => {
+    expect(shouldCapturePageAsJpeg(undefined, false)).toBe(false);
+    expect(shouldCapturePageAsJpeg('jpeg', false)).toBe(true);
   });
 });
 

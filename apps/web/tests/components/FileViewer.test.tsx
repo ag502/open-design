@@ -2563,7 +2563,7 @@ describe('FileViewer SVG artifacts', () => {
     expect(downloadItems).not.toContain('Export as Markdown');
   });
 
-  it('shows PPTX export for freeform .slide decks the viewer already treats as decks', () => {
+  it('keeps plain .slide pages on page-mode export routing', async () => {
     const file = baseFile({
       name: 'slides.html',
       path: 'slides.html',
@@ -2578,20 +2578,55 @@ describe('FileViewer SVG artifacts', () => {
         exports: ['html'],
       },
     });
+    const restoreHost = installMockOpenDesignHost();
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.pathname
+          : typeof (input as { url?: unknown })?.url === 'string'
+            ? (input as { url: string }).url
+            : '';
+      if (url === '/api/projects/project-1/export/pdf-image') {
+        return new Response('PDF', { status: 200 });
+      }
+      return new Response(JSON.stringify({ deployments: [] }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
-    render(
-      <FileViewer
-        projectId="project-1"
-        projectKind="prototype"
-        file={file}
-        liveHtml='<html><body><section class="slide">One</section><section class="slide">Two</section></body></html>'
-      />,
-    );
+    try {
+      render(
+        <FileViewer
+          projectId="project-1"
+          projectKind="prototype"
+          file={file}
+          liveHtml='<html><body><section class="slide">Testimonial</section><section class="slide">Carousel</section></body></html>'
+        />,
+      );
 
-    fireEvent.click(screen.getByRole('button', { name: /download/i }));
+      fireEvent.click(screen.getByRole('button', { name: /download/i }));
 
-    const downloadItems = screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
-    expect(downloadItems).toContain('Export as PPTX');
+      const downloadItems = screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
+      expect(downloadItems).not.toContain('Export as PPTX');
+
+      fireEvent.click(screen.getByRole('menuitem', { name: /Export as PDF/i }));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          '/api/projects/project-1/export/pdf-image',
+          expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+              fileName: 'slides.html',
+              title: 'slides',
+              deck: false,
+            }),
+          }),
+        );
+      });
+    } finally {
+      restoreHost();
+    }
   });
 
   it('opens a PPTX mode dialog in a browser and defaults to editable export', async () => {
@@ -2629,7 +2664,7 @@ describe('FileViewer SVG artifacts', () => {
           projectId="project-1"
           projectKind="prototype"
           file={file}
-          liveHtml='<html><body><section class="slide">One</section><section class="slide">Two</section></body></html>'
+          liveHtml='<html><body><section data-screen-label="One">One</section><section data-screen-label="Two">Two</section></body></html>'
         />,
       );
 

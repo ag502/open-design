@@ -939,13 +939,22 @@ export async function exportProjectAsPptx(opts: {
 // slides through a custom element (e.g. `<deck-stage>` with slotted
 // `<section data-screen-label="...">` children toggled via `data-deck-active`)
 // and can carry no literal `class="slide"`, so metadata-only checks can miss
-// them. Deliberately DO NOT treat a plain `.slide` class as proof of a deck:
-// ordinary pages often use that token for carousels/testimonials and still need
-// full-page/scroll-stitch capture.
+// them. Older html-ppt templates use `.slide` together with deck-specific
+// structure such as `data-title` or a `.deck` wrapper. Deliberately DO NOT treat
+// a plain `.slide` class as proof of a deck: ordinary pages often use that token
+// for carousels/testimonials and still need full-page/scroll-stitch capture.
 export function sourceLooksLikeExportableDeck(source: string | null | undefined): boolean {
   if (!source) return false;
-  return /<deck-stage[\s/>]|\bdata-screen-label\s*=|class\s*=\s*['"](?:[^'"]*\s)?(?:deck-slide|ppt-slide)(?:\s|['"])/i.test(
-    source,
+  return (
+    /<deck-stage[\s/>]|\bdata-screen-label\s*=|class\s*=\s*['"](?:[^'"]*\s)?(?:deck-slide|ppt-slide)(?:\s|['"])/i.test(
+      source,
+    ) ||
+    /<[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?slide(?:\s|['"])[^>]*\bdata-title\s*=|<[^>]*\bdata-title\s*=[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?slide(?:\s|['"])/i.test(
+      source,
+    ) ||
+    /<[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?deck(?:\s|['"])[^>]*>\s*<[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?slide(?:\s|['"])/i.test(
+      source,
+    )
   );
 }
 

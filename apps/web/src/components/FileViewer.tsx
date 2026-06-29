@@ -5314,8 +5314,8 @@ function HtmlViewer({
   const showDeckNavigation = effectiveDeck && (slideState === null || slideState.count > 0);
   // Extra deck signal for EXPORT only. Runtime-managed decks (`<deck-stage>` /
   // `data-screen-label`) need deck capture even when the viewer's nav bridge
-  // cannot drive them. Plain `.slide` remains covered by `effectiveDeck` below,
-  // preserving the viewer's existing freeform deck behavior.
+  // cannot drive them. Plain `.slide` is intentionally excluded: ordinary pages
+  // use it for carousels/testimonials and must export as full pages.
   const structuredDeckExportSignal = sourceLooksLikeExportableDeck(source);
   const livePreviewSource = inlinedSource ?? source;
   // Annotation modes that should hold the preview still while open. Manual
@@ -7746,7 +7746,7 @@ function HtmlViewer({
     artifactKind === 'deck' ||
     rendererId === 'deck-html' ||
     file.kind === 'presentation';
-  const deckExportSignal = effectiveDeck || isDeckArtifact || structuredDeckExportSignal;
+  const deckExportSignal = isDeckArtifact || structuredDeckExportSignal;
   const isMarkdownArtifact =
     artifactKind === 'markdown-document' ||
     rendererId === 'markdown' ||

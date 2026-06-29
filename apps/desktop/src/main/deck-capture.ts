@@ -180,8 +180,9 @@ export async function renderDeckSlides(
     if (!wantsDeck) {
       // Page mode: capture the original, unmodified document. `paginate` (set by
       // the PDF path) splits a long page into one image per viewport.
+      const pageJpeg = shouldCapturePageAsJpeg(input.pageImageFormat, input.paginate);
       return finish(
-        await capturePage(window, input.pageImageFormat === "jpeg", input.outputDir, input.paginate === true),
+        await capturePage(window, pageJpeg, input.outputDir, input.paginate === true),
       );
     }
 
@@ -859,6 +860,13 @@ function escapeHtmlAttribute(value: string): string {
 // omits the signal, the `.slide` count heuristic decides (CLI back-compat).
 export function shouldCaptureAsDeck(hasSlides: boolean, deckSignal: boolean | undefined): boolean {
   return hasSlides && deckSignal !== false;
+}
+
+export function shouldCapturePageAsJpeg(
+  pageImageFormat: "png" | "jpeg" | undefined,
+  paginate: boolean | undefined,
+): boolean {
+  return pageImageFormat === "jpeg" || paginate === true;
 }
 
 // Non-mutating: count the real slide surfaces (presenter clones excluded). Used

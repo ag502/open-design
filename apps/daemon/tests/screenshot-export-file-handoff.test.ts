@@ -187,6 +187,20 @@ describe('screenshot export desktop renderer file handoff', () => {
     expect(bytes.subarray(0, 4).toString('latin1')).toBe('%PDF'); // raster PDF assembled from the screenshots
   });
 
+  it('omits page JPEG hints for omitted-deck PDF exports so detected decks stay PNG', async () => {
+    const before = seenInputs.length;
+    const res = await fetch(`${baseUrl}/api/projects/${projectId}/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: 'index.html', format: 'pdf' }),
+    });
+    expect(res.status).toBe(200);
+    expect(seenInputs.length).toBe(before + 1);
+    expect(seenInputs.at(-1)?.deck).toBeUndefined();
+    expect(seenInputs.at(-1)?.paginate).toBe(true);
+    expect(seenInputs.at(-1)?.pageImageFormat).toBeUndefined();
+  });
+
   it('streams editable PPTX files written by the desktop renderer', async () => {
     const before = seenInputs.length;
     const res = await fetch(`${baseUrl}/api/projects/${projectId}/export/pptx`, {

@@ -488,14 +488,13 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
           renderOptions.stitch = true;
         }
       }
-      // Full pages render as JPEG for PDF (small files). Image export defaults
-      // to PNG unless the caller explicitly asks for JPEG (CLI --image-format).
-      if (format === 'pdf' && body?.deck !== true) renderOptions.pageImageFormat = 'jpeg';
       // A non-deck page exported to PDF paginates into one PDF page per viewport
       // (a long scrolling site becomes a readable multi-page PDF instead of one
-      // giant page). Decks already paginate per slide, so this is page-mode only;
-      // the renderer ignores it when the artifact captures as a deck.
+      // giant page). The desktop renderer uses JPEG only after it has decided
+      // page mode; auto-detected decks stay PNG for crisp slide text.
       if (format === 'pdf' && body?.deck !== true) renderOptions.paginate = true;
+      // Image export defaults to PNG unless the caller explicitly asks for JPEG
+      // (CLI --image-format).
       if (format === 'image' && imageFormat === 'jpeg') renderOptions.pageImageFormat = 'jpeg';
       const tStart = Date.now();
       const { input, title: resolvedTitle, defaultFilename } =

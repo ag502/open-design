@@ -97,6 +97,18 @@ describe('sourceLooksLikeExportableDeck (#4604 horizontal deck export)', () => {
     expect(sourceLooksLikeExportableDeck('<div class="ppt-slide">x</div>')).toBe(true);
   });
 
+  it('detects legacy html-ppt slide structure without treating every .slide as a deck', () => {
+    expect(
+      sourceLooksLikeExportableDeck('<section class="slide" data-title="Cover">x</section>'),
+    ).toBe(true);
+    expect(
+      sourceLooksLikeExportableDeck('<section data-title="Cover" class="slide is-active">x</section>'),
+    ).toBe(true);
+    expect(
+      sourceLooksLikeExportableDeck('<div class="deck"><section class="slide">x</section></div>'),
+    ).toBe(true);
+  });
+
   it('does NOT treat an ordinary page as a deck', () => {
     expect(
       sourceLooksLikeExportableDeck('<main><h1>Landing</h1><p>Hello</p></main>'),
