@@ -1684,6 +1684,8 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
           ) : null}
           {onPickWorkingDir ? (
             <WorkingDirPicker
+              className="home-hero__working-dir-picker"
+              emptyLabel="工作目录"
               workingDir={workingDir}
               recentDirs={recentDirs}
               onPickDirectory={() => {

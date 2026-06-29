@@ -122,6 +122,7 @@ import { resolveCommunityTemplatePreset } from './community-template-presets';
 import { ContentPlanView } from './ContentPlanView';
 import { MembersView } from './MembersView';
 import { TeamDashboardView } from './TeamDashboardView';
+import { WorkspaceSettingsView } from './WorkspaceSettingsView';
 import { RecentProjectsStrip } from './RecentProjectsStrip';
 import { EntryBlankState } from './EntryBlankState';
 import type { CreateInput, CreateTab, ImportClaudeDesignOutcome } from './NewProjectPanel';
@@ -158,7 +159,7 @@ import { closeAmrActivationWindowBestEffort } from './AmrLoginPill';
 import { smoothScrollToTop } from '../utils/smoothScrollToTop';
 import { summarizeProjectNameFromPrompt } from '../utils/projectName';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
-import { DemoControlBar, isInviteScenario, isSoloPlan, isViewerScenario, type DemoScenario, type DemoPage, type DemoPlan, type DemoUseMode, type InviteRole } from './DemoControlBar';
+import { DemoControlBar, canManageWorkspaceScenario, isInviteScenario, isSoloPlan, type DemoScenario, type DemoPage, type DemoPlan, type DemoUseMode, type InviteRole } from './DemoControlBar';
 import { InsufficientCreditsDialog } from './InsufficientCreditsDialog';
 import { InviteAcceptanceFlow } from './InviteAcceptanceFlow';
 import { Confetti } from './Confetti';
@@ -551,21 +552,29 @@ export function EntryShell({
     }
   })();
   const cloudWorkspace = demoUseMode === 'cloud';
-  const canManageWorkspace = cloudWorkspace && !isViewerScenario(demoScenario);
+  const canManageWorkspace = cloudWorkspace && canManageWorkspaceScenario(demoScenario);
+  const canOwnWorkspace = cloudWorkspace && (demoScenario === 'home' || demoScenario === 'owner');
 
   useEffect(() => {
     if (cloudWorkspace) return;
-    if (view === 'drafts' || view === 'all-projects' || view === 'members' || view === 'dashboard') {
+    if (view === 'drafts' || view === 'all-projects' || view === 'members' || view === 'dashboard' || view === 'workspace-settings') {
       navigate({ kind: 'home', view: 'home' });
     }
   }, [cloudWorkspace, navigate, view]);
 
   useEffect(() => {
     if (canManageWorkspace) return;
-    if (view === 'members' || view === 'dashboard') {
+    if (view === 'members' || view === 'dashboard' || view === 'workspace-settings') {
       navigate({ kind: 'home', view: 'home' });
     }
   }, [canManageWorkspace, navigate, view]);
+
+  useEffect(() => {
+    if (canOwnWorkspace) return;
+    if (view === 'workspace-settings') {
+      navigate({ kind: 'home', view: 'home' });
+    }
+  }, [canOwnWorkspace, navigate, view]);
   useEffect(() => {
     writeStoredRailOpen(railOpen);
   }, [railOpen]);
@@ -858,6 +867,19 @@ export function EntryShell({
           </>
         ) : null}
       </a>
+      <a
+        className="entry-x-badge od-tooltip"
+        href={X_URL}
+        target="_blank"
+        rel="noreferrer noopener"
+        aria-label="在 X 上关注 Open Design"
+        data-tooltip="在 X 上关注 Open Design"
+        data-tooltip-placement="right"
+        data-testid="entry-x-badge"
+      >
+        <span className="entry-x-badge__icon" aria-hidden>X</span>
+        <span className="entry-x-badge__label">@OpenDesignHQ</span>
+      </a>
       <button
         type="button"
         className="entry-settings-chip od-tooltip"
@@ -948,7 +970,7 @@ export function EntryShell({
         if (mode === 'local' && demoPlan === 'team') {
           setDemoPlan('max');
         }
-        if (mode === 'local' && (view === 'drafts' || view === 'all-projects' || view === 'members' || view === 'dashboard')) {
+        if (mode === 'local' && (view === 'drafts' || view === 'all-projects' || view === 'members' || view === 'dashboard' || view === 'workspace-settings')) {
           navigate({ kind: 'home', view: 'home' });
         }
       }}
@@ -1024,13 +1046,9 @@ export function EntryShell({
         <main className="entry-onboarding-modal" aria-label={t('settings.welcomeTitle')}>
           {inviteScenario ? (
             <WorkspaceInviteFlow
-              key={inviteScenario}
+              key={`${inviteScenario}-${demoUseMode}-${demoPlan}`}
               scenario={inviteScenario}
-              onStartCollaborating={() => {
-                onCompleteOnboarding();
-                fireCelebration('已加入 Nexu 团队，席位 2 / 3');
-                navigate({ kind: 'home', view: 'home' });
-              }}
+              initiallySignedIn={demoUseMode === 'cloud' && demoPlan === 'team'}
             />
           ) : (
             <OnboardingView
@@ -1111,6 +1129,7 @@ export function EntryShell({
           onUpgrade={() => setLowCreditsOpen(true)}
           onOpenSettings={() => onOpenSettings()}
           canManageWorkspace={canManageWorkspace}
+          canOwnWorkspace={canOwnWorkspace}
           cloudWorkspace={cloudWorkspace}
         />
         <main className="entry-main entry-main--scroll" ref={entryMainScrollRef}>
@@ -1236,6 +1255,7 @@ export function EntryShell({
                   onOpen={onOpenProject}
                   onDelete={onDeleteProject}
                   onRename={onRenameProject}
+                  canAssignInviteRoles={canManageWorkspace}
                 />
               )}
             </div>
@@ -1247,6 +1267,9 @@ export function EntryShell({
             </div>
             <div data-testid="entry-view-dashboard" data-active={view === 'dashboard' ? 'true' : 'false'} {...inactiveViewProps(view === 'dashboard')}>
               <TeamDashboardView />
+            </div>
+            <div data-testid="entry-view-workspace-settings" data-active={view === 'workspace-settings' ? 'true' : 'false'} {...inactiveViewProps(view === 'workspace-settings')}>
+              <WorkspaceSettingsView />
             </div>
             <div data-testid="entry-view-design-systems" data-active={view === 'design-systems' ? 'true' : 'false'} {...inactiveViewProps(view === 'design-systems')}>
               {designSystemsLoading ? (

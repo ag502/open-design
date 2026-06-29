@@ -7,6 +7,10 @@ import { createPortal } from 'react-dom';
 
 export type DemoScenario =
   | 'home'
+  | 'owner'
+  | 'manager'
+  | 'editor'
+  | 'viewer'
   | 'onboarding-new'
   | 'invite-editor'
   | 'invite-admin'
@@ -19,7 +23,11 @@ export function isInviteScenario(
 }
 
 export function isViewerScenario(s: DemoScenario): boolean {
-  return s === 'invite-viewer';
+  return s === 'viewer' || s === 'invite-viewer';
+}
+
+export function canManageWorkspaceScenario(s: DemoScenario): boolean {
+  return s === 'home' || s === 'owner' || s === 'manager' || s === 'invite-admin';
 }
 
 // Membership tier — an axis independent of the scenario. Free + the three
@@ -68,6 +76,13 @@ const ROLE_CHIPS: Array<{ id: DemoScenario; label: string; invite?: boolean }> =
   { id: 'invite-viewer', label: '接受邀请客户端', invite: true },
 ];
 
+const VIEW_CHIPS: Array<{ id: DemoScenario; label: string }> = [
+  { id: 'owner', label: 'Owner' },
+  { id: 'manager', label: 'Manager' },
+  { id: 'editor', label: 'Editor' },
+  { id: 'viewer', label: 'Viewer' },
+];
+
 const PLAN_CHIPS: Array<{ id: DemoPlan; label: string }> = [
   { id: 'free', label: 'free' },
   { id: 'plus', label: 'Plus' },
@@ -102,7 +117,7 @@ function writeCollapsedState(collapsed: boolean): void {
 }
 
 function labelForScenario(scenario: DemoScenario): string {
-  return [...SCENARIO_CHIPS, ...ROLE_CHIPS].find((chip) => chip.id === scenario)?.label ?? '主页';
+  return [...SCENARIO_CHIPS, ...ROLE_CHIPS, ...VIEW_CHIPS].find((chip) => chip.id === scenario)?.label ?? '主页';
 }
 
 function labelForPage(page: DemoPage): string {
@@ -187,6 +202,26 @@ function Bar({ page, onPage, scenario, onScenario, plan, onPlan, useMode, onUseM
                 type="button"
                 className={`demo-bar__chip${page === c.id ? ' is-active' : ''}`}
                 onClick={() => onPage(c.id)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="demo-bar__group">
+          <span className="demo-bar__label">视角</span>
+          <div className="demo-bar__chips">
+            {VIEW_CHIPS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={`demo-bar__chip${
+                  (scenario === 'home' && c.id === 'owner') || scenario === c.id
+                    ? ' is-active'
+                    : ''
+                }`}
+                onClick={() => onScenario(c.id)}
               >
                 {c.label}
               </button>

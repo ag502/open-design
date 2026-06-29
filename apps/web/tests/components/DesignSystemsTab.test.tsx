@@ -205,7 +205,7 @@ describe('DesignSystemsTab', () => {
     expect(onOpenSystem).toHaveBeenCalledWith('user:acme');
   });
 
-  it('lets a team design system return to the personal scope from the overflow menu', async () => {
+  it('lets a design system move to team scope and return to personal scope', async () => {
     render(
       <DesignSystemsTab
         systems={systems}
@@ -216,8 +216,7 @@ describe('DesignSystemsTab', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByTestId('design-kit-more-actions'));
-    fireEvent.click(screen.getByRole('menuitem', { name: '转为团队设计系统' }));
+    fireEvent.click(await screen.findByRole('button', { name: '转为团队' }));
 
     expect(screen.getByRole('tab', { name: 'Team' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByTestId('design-system-card-user:acme')).toBeTruthy();

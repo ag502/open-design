@@ -167,6 +167,7 @@ export interface LexicalComposerInputProps {
   // mention row (id lives in the portaled listbox) without moving DOM focus.
   comboboxAria?: { activeId: string | null; expanded: boolean };
   title?: string;
+  readOnly?: boolean;
   // Test hook for the contenteditable host. Defaults to the project
   // composer's id; HomeHero overrides it so its own tests/selectors keep
   // resolving the editor element after the textarea→Lexical migration.
@@ -642,6 +643,14 @@ function SeedingPlugin({
   return null;
 }
 
+function EditableStatePlugin({ readOnly }: { readOnly: boolean }) {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => {
+    editor.setEditable(!readOnly);
+  }, [editor, readOnly]);
+  return null;
+}
+
 export const LexicalComposerInput = forwardRef<
   LexicalComposerInputHandle,
   LexicalComposerInputProps & { draft: string }
@@ -658,6 +667,7 @@ export const LexicalComposerInput = forwardRef<
     comboboxAria,
     draft,
     title,
+    readOnly = false,
     testId = 'chat-composer-input',
   } = props;
   const editorRef = useRef<LexicalEditor | null>(null);
@@ -773,6 +783,7 @@ export const LexicalComposerInput = forwardRef<
             <ContentEditable
               data-testid={testId}
               className="ph-no-capture composer-editable"
+              aria-readonly={readOnly ? 'true' : undefined}
               aria-placeholder={placeholder}
               title={title ?? placeholder}
               role="combobox"
@@ -794,6 +805,7 @@ export const LexicalComposerInput = forwardRef<
       </div>
       <HistoryPlugin />
       <EditorRefPlugin editorRef={editorRef} />
+      <EditableStatePlugin readOnly={readOnly} />
       <OnChangePlugin onChange={onChange} knownEntities={knownEntities} />
       <TriggerPlugin onTrigger={onTrigger} />
       <MentionAtomicNavigationPlugin />

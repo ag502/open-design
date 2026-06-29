@@ -2188,7 +2188,9 @@ function AppInner() {
         if (scenario === 'onboarding-new') setProjectDemoPlan('free');
         else if (scenario !== 'home') setProjectDemoPlan(projectDemoUseMode === 'local' ? 'max' : 'team');
         if (scenario === 'home') {
-          navigate({ kind: 'home', view: 'home' });
+          if (route.kind === 'home') {
+            navigate({ kind: 'home', view: 'home' });
+          }
         } else if (scenario === 'onboarding-new' || isInviteScenario(scenario)) {
           window.history.replaceState(null, '', isInviteScenario(scenario) ? '/onboarding#invite' : '/onboarding');
           navigate({ kind: 'home', view: 'onboarding' });
@@ -2345,7 +2347,9 @@ function AppInner() {
             if (scenario === 'onboarding-new') setProjectDemoPlan('free');
             else if (scenario !== 'home') setProjectDemoPlan(projectDemoUseMode === 'local' ? 'max' : 'team');
             if (scenario === 'home') {
-              navigate({ kind: 'home', view: 'home' });
+              if (route.kind === 'home') {
+                navigate({ kind: 'home', view: 'home' });
+              }
             } else if (scenario === 'onboarding-new' || isInviteScenario(scenario)) {
               window.history.replaceState(null, '', isInviteScenario(scenario) ? '/onboarding#invite' : '/onboarding');
               navigate({ kind: 'home', view: 'onboarding' });

@@ -755,11 +755,33 @@
   max-width: 760px;
   margin: 0 0 12px;
 }
+.protocol-chips--providers .protocol-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .media-provider-tabs .protocol-chip-group {
   align-items: flex-start;
 }
 .media-provider-tabs .protocol-chip-group-label {
   padding-top: 5px;
+}
+.media-provider-chip-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: var(--text-disabled);
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+}
+.media-provider-chip-status.is-connected {
+  background: #16a36a;
+}
+.media-provider-chip-status.is-disconnected {
+  background: #c7c7c7;
+}
+.protocol-chip.active .media-provider-chip-status {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #fff 38%, transparent);
 }
 .media-provider-docs-callout {
   display: flex;

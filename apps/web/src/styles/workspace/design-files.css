@@ -300,6 +300,10 @@
   border-radius: 2px;
 }
 .df-row-openable { cursor: pointer; }
+.df-row-menu-disabled {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 .df-row {
   display: grid;

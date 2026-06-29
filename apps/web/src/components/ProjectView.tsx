@@ -675,13 +675,13 @@ type DemoAttributedComment = PreviewComment & {
 };
 
 function demoCommentAuthorForScenario(scenario: DemoScenario): DemoCommentAuthor {
-  if (scenario === 'invite-viewer') {
+  if (isViewerScenario(scenario)) {
     return { name: '李娜', role: 'Viewer', avatar: '/team-avatars/a3.png', color: '#6366f1', initials: '李' };
   }
-  if (scenario === 'invite-admin') {
+  if (scenario === 'manager' || scenario === 'invite-admin') {
     return { name: '王芳', role: 'Manager', avatar: '/team-avatars/a4.png', color: '#10b981', initials: '王' };
   }
-  if (scenario === 'invite-editor') {
+  if (scenario === 'editor' || scenario === 'invite-editor') {
     return { name: '张伟', role: 'Editor', avatar: '/team-avatars/a1.png', color: '#f97316', initials: '张' };
   }
   return { name: '琼羽', role: 'Owner', color: '#c85f3d', initials: '琼' };
@@ -6670,7 +6670,8 @@ export function ProjectView({
               streaming={currentConversationControlStreaming}
               liveToolInput={liveToolInput}
               loading={currentConversationLoading}
-              sendDisabled={currentConversationSendDisabled}
+              sendDisabled={currentConversationSendDisabled || demoViewerOnly}
+              inputDisabled={demoViewerOnly}
               queuedItems={currentConversationQueuedItems}
               error={conversationLoadError ?? error ?? audioVoiceOptionsError}
               projectId={project.id}

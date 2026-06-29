@@ -3,8 +3,8 @@
 // Mirrors the Lovart-style "?" affordance shown in the bottom-left
 // corner of the workspace: a single round button that opens a small
 // popover with the four external help links we want every user to be
-// one click away from — GitHub issues for help, GitHub PRs for feature
-// requests, releases for the changelog, and the desktop download.
+// one click away from — releases for the changelog, the desktop download,
+// and social/community links.
 //
 // The links open in a new tab (with safe `noopener` rel) and are
 // labeled via the i18n dictionary so locale switching keeps the menu
@@ -23,8 +23,6 @@ import { Icon } from './Icon';
 import { useT } from '../i18n';
 
 const REPO = 'https://github.com/nexu-io/open-design';
-const ISSUES_URL = `${REPO}/issues/new`;
-const PRS_URL = `${REPO}/pulls`;
 const RELEASES_URL = `${REPO}/releases`;
 const LATEST_RELEASE_URL = `${REPO}/releases/latest`;
 const X_URL = 'https://x.com/OpenDesignHQ';
@@ -109,46 +107,6 @@ export function EntryHelpMenu() {
         >
           <a
             className="entry-help-popover__item"
-            href={ISSUES_URL}
-            {...ext}
-            role="menuitem"
-            onClick={() => {
-              trackHelpPopoverClick(analytics.track, {
-                page_name: 'home',
-                area: 'help_resources_popover',
-                element: 'get_help_on_github',
-                surface: 'popover',
-              });
-              setOpen(false);
-            }}
-          >
-            <span className="entry-help-popover__icon" aria-hidden>
-              <Icon name="comment" size={14} />
-            </span>
-            <span>{t('entry.helpGetHelp')}</span>
-          </a>
-          <a
-            className="entry-help-popover__item"
-            href={PRS_URL}
-            {...ext}
-            role="menuitem"
-            onClick={() => {
-              trackHelpPopoverClick(analytics.track, {
-                page_name: 'home',
-                area: 'help_resources_popover',
-                element: 'submit_a_feature_request',
-                surface: 'popover',
-              });
-              setOpen(false);
-            }}
-          >
-            <span className="entry-help-popover__icon" aria-hidden>
-              <Icon name="sparkles" size={14} />
-            </span>
-            <span>{t('entry.helpSubmitFeature')}</span>
-          </a>
-          <a
-            className="entry-help-popover__item"
             href={LATEST_RELEASE_URL}
             {...ext}
             role="menuitem"
@@ -189,30 +147,32 @@ export function EntryHelpMenu() {
             <span>{t('entry.helpDownloadDesktop')}</span>
           </a>
           <div className="entry-help-popover__divider" aria-hidden />
-          <a
-            className="entry-help-popover__item"
-            href={X_URL}
-            {...ext}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span className="entry-help-popover__icon" aria-hidden>
-              <Icon name="external-link" size={14} />
-            </span>
-            <span>{t('entry.followXLabel')}</span>
-          </a>
-          <a
-            className="entry-help-popover__item"
-            href={DISCORD_URL}
-            {...ext}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span className="entry-help-popover__icon" aria-hidden>
-              <Icon name="discord" size={14} />
-            </span>
-            <span>{t('entry.discordLabel')}</span>
-          </a>
+          <div className="entry-help-popover__social-row" role="group" aria-label="Social links">
+            <a
+              className="entry-help-popover__item entry-help-popover__item--social"
+              href={DISCORD_URL}
+              {...ext}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              <span className="entry-help-popover__icon" aria-hidden>
+                <Icon name="discord" size={14} />
+              </span>
+              <span>{t('entry.discordLabel')}</span>
+            </a>
+            <a
+              className="entry-help-popover__item entry-help-popover__item--social"
+              href={X_URL}
+              {...ext}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              <span className="entry-help-popover__icon" aria-hidden>
+                <Icon name="external-link" size={14} />
+              </span>
+              <span>X</span>
+            </a>
+          </div>
         </motion.div>
       ) : null}
       </AnimatePresence>

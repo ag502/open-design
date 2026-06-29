@@ -1355,15 +1355,6 @@ function DesignSystemDetail({
           loading: actionBusy === 'default',
         }]
       : []),
-    ...(isUser && !isTeamSystem && onConvertToTeam
-      ? [{
-          id: 'convert-team',
-          label: '转为团队设计系统',
-          icon: 'share' as const,
-          onClick: () => onConvertToTeam(system),
-          disabled: busy,
-        }]
-      : []),
     ...(isUser && isTeamSystem && onMoveBackToPersonal
       ? [{
           id: 'remove-team-sharing',
@@ -1401,6 +1392,18 @@ function DesignSystemDetail({
         >
           <Icon name={actionBusy === 'edit' ? 'spinner' : 'sparkles'} />
           {t('dsManager.editWithAgent')}
+        </Button>
+      ) : null}
+      {isUser && !isTeamSystem && onConvertToTeam ? (
+        <Button
+          variant="ghost"
+          className={`${styles.actionButton} ${styles.teamActionButton}`}
+          onClick={() => onConvertToTeam(system)}
+          disabled={busy}
+          title="转为团队设计系统"
+        >
+          <Icon name="share" />
+          转为团队
         </Button>
       ) : null}
       {isUser ? (

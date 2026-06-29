@@ -1169,6 +1169,17 @@
   background: var(--border);
   opacity: 0.7;
 }
+.home-hero__working-dir-picker [data-testid='working-dir-trigger'] {
+  min-height: 26px;
+  padding: 4px 5px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+.home-hero__working-dir-picker [data-testid='working-dir-trigger']:hover,
+.home-hero__working-dir-picker [data-testid='working-dir-trigger']:focus-visible {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text-strong);
+}
 /* Persistent design-system picker — borderless trigger mirroring the
    working-directory picker so the two read as one row of leading accessories
    below the composer. The shared popover (search + preview) is unchanged. */

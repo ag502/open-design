@@ -76,6 +76,7 @@ interface Props {
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
+  viewerOnly?: boolean;
   navState?: DesignFilesNavState;
   onNavStateChange?: (state: DesignFilesNavState) => void;
 }
@@ -298,6 +299,7 @@ export function DesignFilesPanel({
   onPluginFolderAgentAction,
   activePluginActionPaths = new Set(),
   hiddenPluginActionPaths = new Set(),
+  viewerOnly = false,
   navState,
   onNavStateChange,
 }: Props) {
@@ -466,6 +468,15 @@ export function DesignFilesPanel({
   }, [files, preview]);
 
   useEffect(() => {
+    if (!viewerOnly) return;
+    setSelected(new Set());
+    setMenuPos(null);
+    setRenaming(null);
+    setDraggingFiles(false);
+    dragDepthRef.current = 0;
+  }, [viewerOnly]);
+
+  useEffect(() => {
     if (!menuPos) return;
     const close = () => setMenuPos(null);
     const onKey = (e: KeyboardEvent) => {
@@ -481,6 +492,7 @@ export function DesignFilesPanel({
 
 
   function toggleSelect(name: string) {
+    if (viewerOnly) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
@@ -497,6 +509,7 @@ export function DesignFilesPanel({
   }
 
   function openMenuFor(name: string, el: HTMLElement) {
+    if (viewerOnly) return;
     const rect = el.closest('.df-row-menu')?.getBoundingClientRect();
     if (!rect) return;
 
@@ -522,6 +535,7 @@ export function DesignFilesPanel({
   }
 
   function startRename(name: string) {
+    if (viewerOnly) return;
     setMenuPos(null);
     setPreview(name);
     const draft = currentDir === '' ? name : name.slice(currentDir.length + 1);
@@ -559,6 +573,7 @@ export function DesignFilesPanel({
   }
 
   async function handleBatchDelete() {
+    if (viewerOnly) return;
     if (deleting) return;
     const fileList = [...selected];
     if (fileList.length === 0) return;
@@ -591,12 +606,15 @@ export function DesignFilesPanel({
           className="df-row-check"
           onClick={(e) => {
             e.stopPropagation();
+            if (viewerOnly) return;
             toggleSelect(f.name);
           }}
-          role="checkbox"
-          aria-checked={isSelected}
-          tabIndex={0}
+          role={viewerOnly ? undefined : 'checkbox'}
+          aria-checked={viewerOnly ? undefined : isSelected}
+          aria-disabled={viewerOnly ? 'true' : undefined}
+          tabIndex={viewerOnly ? -1 : 0}
           onKeyDown={(e) => {
+            if (viewerOnly) return;
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               e.stopPropagation();
@@ -604,7 +622,7 @@ export function DesignFilesPanel({
             }
           }}
         >
-          {isSelected ? '☑' : '☐'}
+          {viewerOnly ? '' : isSelected ? '☑' : '☐'}
         </span>
         <span
           className="df-row-icon df-row-openable"
@@ -683,16 +701,19 @@ export function DesignFilesPanel({
         </span>
         <span
           data-testid={`design-file-menu-${f.name}`}
-          className="df-row-menu"
+          className={`df-row-menu ${viewerOnly ? 'df-row-menu-disabled' : ''}`}
           style={isHovered || active ? { opacity: 1 } : undefined}
-          role="button"
-          tabIndex={0}
+          role={viewerOnly ? undefined : 'button'}
+          tabIndex={viewerOnly ? -1 : 0}
+          aria-hidden={viewerOnly ? true : undefined}
           aria-label={t('designFiles.rowMenu')}
           onClick={(e) => {
             e.stopPropagation();
+            if (viewerOnly) return;
             openMenuFor(f.name, e.target as HTMLElement);
           }}
           onKeyDown={(e) => {
+            if (viewerOnly) return;
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               e.stopPropagation();
@@ -731,6 +752,7 @@ export function DesignFilesPanel({
   }
 
   async function handleBatchDownload() {
+    if (viewerOnly) return;
     const fileList = [...selected];
     if (fileList.length === 0) return;
     try {
@@ -769,6 +791,7 @@ export function DesignFilesPanel({
 
   async function handleDrop(ev: React.DragEvent<HTMLDivElement>) {
     ev.preventDefault();
+    if (viewerOnly) return;
     dragDepthRef.current = 0;
     setDraggingFiles(false);
     setDropReadError(null);
@@ -811,7 +834,7 @@ export function DesignFilesPanel({
 
   const fileActions = (
     <div className="df-actions">
-      {LIBRARY_UI_VISIBLE && onSelectFromLibrary ? (
+      {!viewerOnly && LIBRARY_UI_VISIBLE && onSelectFromLibrary ? (
         <button
           type="button"
           data-testid="design-files-library-trigger"
@@ -822,23 +845,27 @@ export function DesignFilesPanel({
           <span>{t('designFiles.library.label')}</span>
         </button>
       ) : null}
-      <button type="button" onClick={onNewSketch} title={t('designFiles.newSketch')}>
-        <Icon name="pencil" size={13} />
-        <span>{t('designFiles.newSketch')}</span>
-      </button>
-      <button type="button" onClick={onPaste} title={t('designFiles.paste.title')}>
-        <Icon name="copy" size={13} />
-        <span>{t('designFiles.paste.label')}</span>
-      </button>
-      <button
-        type="button"
-        data-testid="design-files-upload-trigger"
-        onClick={onUpload}
-        title={t('designFiles.upload.title')}
-      >
-        <Icon name="upload" size={13} />
-        <span>{t('designFiles.upload.label')}</span>
-      </button>
+      {!viewerOnly ? (
+        <>
+          <button type="button" onClick={onNewSketch} title={t('designFiles.newSketch')}>
+            <Icon name="pencil" size={13} />
+            <span>{t('designFiles.newSketch')}</span>
+          </button>
+          <button type="button" onClick={onPaste} title={t('designFiles.paste.title')}>
+            <Icon name="copy" size={13} />
+            <span>{t('designFiles.paste.label')}</span>
+          </button>
+          <button
+            type="button"
+            data-testid="design-files-upload-trigger"
+            onClick={onUpload}
+            title={t('designFiles.upload.title')}
+          >
+            <Icon name="upload" size={13} />
+            <span>{t('designFiles.upload.label')}</span>
+          </button>
+        </>
+      ) : null}
     </div>
   );
 
@@ -881,7 +908,7 @@ export function DesignFilesPanel({
   );
 
   const visibleUploadError = uploadError ?? dropReadError;
-  const hasSelection = selected.size > 0;
+  const hasSelection = !viewerOnly && selected.size > 0;
 
   return (
     <div className={`df-panel ${previewFile ? '' : 'no-preview'} ${hasSelection ? 'has-selection' : ''}`}>
@@ -902,14 +929,17 @@ export function DesignFilesPanel({
           className="df-body"
           onDragEnter={(ev) => {
             ev.preventDefault();
+            if (viewerOnly) return;
             dragDepthRef.current += 1;
             setDraggingFiles(true);
           }}
           onDragOver={(ev) => {
             ev.preventDefault();
+            if (viewerOnly) return;
             ev.dataTransfer.dropEffect = 'copy';
           }}
           onDragLeave={(ev) => {
+            if (viewerOnly) return;
             if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) {
               dragDepthRef.current = 0;
               setDraggingFiles(false);
@@ -980,43 +1010,45 @@ export function DesignFilesPanel({
                 <span className="df-empty-title">
                   {t('designFiles.empty')}
                 </span>
-                <div className="df-empty-actions">
-                  <button
-                    type="button"
-                    className="df-empty-cta df-empty-cta-primary"
-                    data-testid="design-files-empty-new-sketch"
-                    onClick={onNewSketch}
-                    title={t('designFiles.newSketch')}
-                  >
-                    <Icon name="pencil" size={13} />
-                    <span>{t('designFiles.newSketch')}</span>
-                  </button>
-                  {onOpenBrowser ? (
+                {!viewerOnly ? (
+                  <div className="df-empty-actions">
                     <button
                       type="button"
-                      className="df-empty-cta df-empty-cta-secondary"
-                      data-testid="design-files-empty-open-browser"
-                      onClick={onOpenBrowser}
-                      aria-label={t('workspace.newBrowserDescription')}
-                      title={t('workspace.newBrowserDescription')}
+                      className="df-empty-cta df-empty-cta-primary"
+                      data-testid="design-files-empty-new-sketch"
+                      onClick={onNewSketch}
+                      title={t('designFiles.newSketch')}
                     >
-                      <Icon name="globe" size={13} />
-                      <span>{t('workspace.newBrowser')}</span>
+                      <Icon name="pencil" size={13} />
+                      <span>{t('designFiles.newSketch')}</span>
                     </button>
-                  ) : null}
-                  {onCreateDesignSystem ? (
-                    <button
-                      type="button"
-                      className="df-empty-cta df-empty-cta-tertiary"
-                      data-testid="design-files-empty-create-design-system"
-                      onClick={onCreateDesignSystem}
-                      title={t('dsManager.createTitle')}
-                    >
-                      <Icon name="blocks" size={13} />
-                      <span>{t('dsManager.createTitle')}</span>
-                    </button>
-                  ) : null}
-                </div>
+                    {onOpenBrowser ? (
+                      <button
+                        type="button"
+                        className="df-empty-cta df-empty-cta-secondary"
+                        data-testid="design-files-empty-open-browser"
+                        onClick={onOpenBrowser}
+                        aria-label={t('workspace.newBrowserDescription')}
+                        title={t('workspace.newBrowserDescription')}
+                      >
+                        <Icon name="globe" size={13} />
+                        <span>{t('workspace.newBrowser')}</span>
+                      </button>
+                    ) : null}
+                    {onCreateDesignSystem ? (
+                      <button
+                        type="button"
+                        className="df-empty-cta df-empty-cta-tertiary"
+                        data-testid="design-files-empty-create-design-system"
+                        onClick={onCreateDesignSystem}
+                        title={t('dsManager.createTitle')}
+                      >
+                        <Icon name="blocks" size={13} />
+                        <span>{t('dsManager.createTitle')}</span>
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -1091,7 +1123,7 @@ export function DesignFilesPanel({
                         </span>
                       </button>
                       <span className="df-row-time">{relativeTime(folder.updatedAt, t)}</span>
-                      {onPluginFolderAgentAction ? (
+                      {!viewerOnly && onPluginFolderAgentAction ? (
                         <div className="df-plugin-actions">
                           <button
                             type="button"
@@ -1191,7 +1223,7 @@ export function DesignFilesPanel({
           onClose={() => setPreview(null)}
         />
       ) : null}
-      {menuPos ? (
+      {!viewerOnly && menuPos ? (
         <div
           data-testid="design-file-menu-popover"
           className="df-row-popover"

@@ -168,6 +168,7 @@ interface Props {
   sessionMode?: ChatSessionMode;
   onSessionModeChange?: (mode: ChatSessionMode) => void;
   sendDisabled?: boolean;
+  inputDisabled?: boolean;
   initialDraft?: string;
   composerPlaceholder?: string;
   placeholderScenarios?: ReadonlyArray<PlaceholderScenario>;
@@ -339,6 +340,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       sessionMode = 'design',
       onSessionModeChange,
       sendDisabled = false,
+      inputDisabled = false,
       initialDraft,
       composerPlaceholder,
       placeholderScenarios = [],
@@ -1678,6 +1680,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // async Clipboard API to recover pasted screenshots that some browsers
     // only surface through `navigator.clipboard.read()`.
     function handlePasteFiles(files: File[]) {
+      if (inputDisabled) return;
       if (files.length > 0) {
         void uploadFiles(files);
         return;
@@ -2023,6 +2026,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
 
     async function submit() {
       const prompt = draft.trim();
+      if (inputDisabled) return;
       if (sendDisabled) return;
       // Intercept `/pet …` and `/mcp` before sending so the slash command
       // never hits the agent — these are local UX hooks, not model prompts.
@@ -2200,15 +2204,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           'composer',
           dragActive ? 'drag-active' : '',
           activeFileContext ? 'composer-active-file-mode' : '',
+          inputDisabled ? 'composer-readonly' : '',
         ].filter(Boolean).join(' ')}
         data-testid="chat-composer"
         ref={composerRootRef}
         onDragOver={(e) => {
+          if (inputDisabled) return;
           e.preventDefault();
           setDragActive(true);
         }}
         onDragLeave={() => setDragActive(false)}
-        onDrop={handleDrop}
+        onDrop={inputDisabled ? undefined : handleDrop}
       >
         <div className="composer-shell">
           {/*
@@ -2323,7 +2329,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               onChange={handleEditorChange}
               onTrigger={handleEditorTrigger}
               onEnterSend={() => void submit()}
-              onPasteFiles={handlePasteFiles}
+              onPasteFiles={inputDisabled ? undefined : handlePasteFiles}
+              readOnly={inputDisabled}
               popoverOpen={Boolean(mention) || Boolean(slash && filteredSlash.length > 0)}
               onPopoverKey={handlePopoverKey}
               comboboxAria={{

@@ -4,78 +4,109 @@ import { useState, type CSSProperties } from 'react';
 type TemplateDemo = {
   id: string;
   title: string;
-  description: string;
   tags: string[];
   accent: string;
   meta: string;
-  type: 'Prototype' | 'Slide' | 'Website' | 'Document' | 'Dashboard' | 'App';
+  type: 'Prototype' | 'Live Artifact' | 'Slides' | 'Image' | 'Video' | 'HyperFrames' | 'Audio';
   subtype: string;
 };
 
 const COMMUNITY_TEMPLATES: TemplateDemo[] = [
   {
     id: 'electric-studio',
-    title: 'Electric Studio',
-    description: 'A crisp agency deck starter with hero slide, capabilities, and brand-forward layout.',
-    tags: ['Slide', 'Pitch deck', 'Brand'],
+    title: 'Open Design Landing',
+    tags: ['Landing', 'Brand'],
     accent: '#4164f4',
-    meta: '7 slides · HTML',
-    type: 'Slide',
-    subtype: 'Pitch deck',
+    meta: 'Live Artifact · Landing',
+    type: 'Live Artifact',
+    subtype: 'Landing',
   },
   {
     id: 'launch-landing',
-    title: 'Product Launch Landing',
-    description: 'A polished launch page template with hero, feature proof, pricing, and FAQ sections.',
-    tags: ['Website', 'Landing page'],
+    title: 'Kanban Board',
+    tags: ['Prototype', 'Board'],
     accent: '#d46342',
-    meta: '1 page · Responsive',
-    type: 'Website',
-    subtype: 'Landing page',
+    meta: 'Prototype · Product',
+    type: 'Prototype',
+    subtype: 'Product',
   },
   {
     id: 'founder-memo',
-    title: 'Founder Memo',
-    description: 'A narrative investor memo layout for market, product, traction, and ask.',
-    tags: ['Document', 'Narrative'],
+    title: 'Social Carousel',
+    tags: ['Image', 'Social'],
     accent: '#111827',
-    meta: 'Long form · Editorial',
-    type: 'Document',
-    subtype: 'Narrative',
+    meta: 'Image · Carousel',
+    type: 'Image',
+    subtype: 'Social',
   },
   {
     id: 'growth-dashboard',
-    title: 'Growth Dashboard',
-    description: 'A compact metrics dashboard for acquisition, activation, usage, and revenue reviews.',
-    tags: ['Dashboard', 'Analytics'],
+    title: 'Blog Post',
+    tags: ['Live Artifact', 'Editorial'],
     accent: '#0f9f6e',
-    meta: 'Dashboard · KPI',
-    type: 'Dashboard',
-    subtype: 'Analytics',
+    meta: 'Live Artifact · Article',
+    type: 'Live Artifact',
+    subtype: 'Editorial',
   },
-  { id: 'ai-product-site', title: 'AI Product Site', description: 'A polished SaaS website for AI tools with product proof and workflow sections.', tags: ['Website', 'AI', 'SaaS'], accent: '#7c3aed', meta: '5 sections · Responsive', type: 'Website', subtype: 'SaaS' },
-  { id: 'commerce-home', title: 'Commerce Home', description: 'A retail homepage with campaign hero, category tiles, product rails, and offer blocks.', tags: ['Website', 'Commerce'], accent: '#ea580c', meta: 'Homepage · Storefront', type: 'Website', subtype: 'Commerce' },
-  { id: 'mobile-app-launch', title: 'Mobile App Launch', description: 'Launch narrative for consumer apps with feature walkthrough and app-store CTAs.', tags: ['Website', 'Mobile'], accent: '#0284c7', meta: 'Landing · Mobile', type: 'Website', subtype: 'Landing page' },
-  { id: 'portfolio-case-study', title: 'Portfolio Case Study', description: 'A designer case-study template with challenge, process, decisions, and outcomes.', tags: ['Portfolio', 'Editorial'], accent: '#111827', meta: 'Long form · Case study', type: 'Document', subtype: 'Case study' },
-  { id: 'design-system-docs', title: 'Design System Docs', description: 'Documentation starter for tokens, components, examples, and contribution rules.', tags: ['Docs', 'Design system'], accent: '#4f46e5', meta: 'Docs · Components', type: 'Document', subtype: 'Docs' },
-  { id: 'event-microsite', title: 'Event Microsite', description: 'Conference page with agenda, speakers, location, sponsors, and registration CTA.', tags: ['Website', 'Event'], accent: '#db2777', meta: '1 page · Event', type: 'Website', subtype: 'Event' },
-  { id: 'agency-services', title: 'Agency Services', description: 'Service studio website with positioning, case modules, process, and inquiry form.', tags: ['Website', 'Agency'], accent: '#d46a3c', meta: 'Website · Studio', type: 'Website', subtype: 'Agency' },
-  { id: 'fintech-dashboard', title: 'Fintech Dashboard', description: 'Finance dashboard shell with balance cards, risk states, charts, and activity feed.', tags: ['Dashboard', 'Fintech'], accent: '#16a34a', meta: 'Dashboard · Finance', type: 'Dashboard', subtype: 'Fintech' },
-  { id: 'healthcare-intake', title: 'Healthcare Intake', description: 'Patient intake flow for symptoms, insurance, appointments, and care guidance.', tags: ['App', 'Healthcare'], accent: '#0f9f6e', meta: 'Flow · Form', type: 'Prototype', subtype: 'Healthcare' },
-  { id: 'developer-docs', title: 'Developer Docs', description: 'Docs landing page with quickstart, API examples, status cards, and navigation.', tags: ['Docs', 'Developer'], accent: '#475569', meta: 'Docs · API', type: 'Document', subtype: 'Docs' },
-  { id: 'pricing-test', title: 'Pricing Test', description: 'Pricing page variant with plan comparison, objection handling, and FAQs.', tags: ['Growth', 'Pricing'], accent: '#f59e0b', meta: 'Page · Experiment', type: 'Website', subtype: 'Pricing' },
-  { id: 'admin-console', title: 'Admin Console', description: 'Dense operations console with tables, filters, permissions, and status surfaces.', tags: ['Dashboard', 'Admin'], accent: '#0f172a', meta: 'Console · Ops', type: 'Dashboard', subtype: 'Admin' },
-  { id: 'education-course', title: 'Education Course', description: 'Course landing page with curriculum, outcomes, instructor proof, and enrollment.', tags: ['Website', 'Education'], accent: '#2563eb', meta: 'Landing · Course', type: 'Website', subtype: 'Education' },
-  { id: 'restaurant-booking', title: 'Restaurant Booking', description: 'Hospitality booking flow with menu highlights, reservation states, and local flavor.', tags: ['Website', 'Hospitality'], accent: '#be123c', meta: 'Flow · Booking', type: 'Prototype', subtype: 'Booking' },
-  { id: 'real-estate-listing', title: 'Real Estate Listing', description: 'Property listing page with gallery, neighborhood details, pricing, and agent CTA.', tags: ['Website', 'Real estate'], accent: '#0d9488', meta: 'Listing · Responsive', type: 'Website', subtype: 'Real estate' },
-  { id: 'support-center', title: 'Support Center', description: 'Help center template with search, popular topics, ticket CTA, and article cards.', tags: ['Website', 'Support'], accent: '#0891b2', meta: 'Help center · Docs', type: 'Website', subtype: 'Support' },
-  { id: 'social-campaign', title: 'Social Campaign', description: 'Campaign landing page with story blocks, UGC modules, and social proof.', tags: ['Campaign', 'Marketing'], accent: '#ec4899', meta: 'Campaign · Landing', type: 'Website', subtype: 'Campaign' },
-  { id: 'newsletter-brief', title: 'Newsletter Brief', description: 'Editorial newsletter layout with issue intro, feature stories, and sponsor slots.', tags: ['Document', 'Editorial'], accent: '#64748b', meta: 'Email · Editorial', type: 'Document', subtype: 'Editorial' },
-  { id: 'roadmap-board', title: 'Roadmap Board', description: 'Product roadmap view with themes, priorities, owners, and progress summaries.', tags: ['Dashboard', 'Product'], accent: '#8b5cf6', meta: 'Board · Product', type: 'Dashboard', subtype: 'Product' },
-  { id: 'app-settings', title: 'App Settings', description: 'Settings IA template with account, workspace, billing, and integrations sections.', tags: ['App', 'Settings'], accent: '#334155', meta: 'App · IA', type: 'Prototype', subtype: 'Settings' },
+  { id: 'ai-product-site', title: 'Wireframe Sketch', tags: ['Prototype', 'Wireframe'], accent: '#7c3aed', meta: 'Prototype · Wireframe', type: 'Prototype', subtype: 'Wireframe' },
+  { id: 'commerce-home', title: 'Wireframe Greybox', tags: ['Prototype', 'Wireframe'], accent: '#ea580c', meta: 'Prototype · Greybox', type: 'Prototype', subtype: 'Wireframe' },
+  { id: 'mobile-app-launch', title: 'Mobile Flow', tags: ['Prototype', 'Mobile'], accent: '#0284c7', meta: 'Prototype · Mobile', type: 'Prototype', subtype: 'Mobile' },
+  { id: 'portfolio-case-study', title: 'Pitch Deck', tags: ['Slides', 'Pitch'], accent: '#111827', meta: 'Slides · Pitch deck', type: 'Slides', subtype: 'Pitch deck' },
+  { id: 'design-system-docs', title: 'Design System Slides', tags: ['Slides', 'Design system'], accent: '#4f46e5', meta: 'Slides · System', type: 'Slides', subtype: 'Design system' },
+  { id: 'event-microsite', title: 'Product Demo Video', tags: ['Video', 'Demo'], accent: '#db2777', meta: 'Video · Demo', type: 'Video', subtype: 'Demo' },
+  { id: 'agency-services', title: 'Launch Motion', tags: ['Video', 'Launch'], accent: '#d46a3c', meta: 'Video · Launch', type: 'Video', subtype: 'Launch' },
+  { id: 'fintech-dashboard', title: 'Analytics Console', tags: ['Live Artifact', 'Dashboard'], accent: '#16a34a', meta: 'Live Artifact · Dashboard', type: 'Live Artifact', subtype: 'Dashboard' },
+  { id: 'healthcare-intake', title: 'Intake Prototype', tags: ['Prototype', 'Healthcare'], accent: '#0f9f6e', meta: 'Prototype · Healthcare', type: 'Prototype', subtype: 'Healthcare' },
+  { id: 'developer-docs', title: 'API Docs', tags: ['Live Artifact', 'Docs'], accent: '#475569', meta: 'Live Artifact · Docs', type: 'Live Artifact', subtype: 'Docs' },
+  { id: 'pricing-test', title: 'Pricing Experiment', tags: ['Live Artifact', 'Growth'], accent: '#f59e0b', meta: 'Live Artifact · Pricing', type: 'Live Artifact', subtype: 'Growth' },
+  { id: 'admin-console', title: 'Admin Console', tags: ['Prototype', 'Admin'], accent: '#0f172a', meta: 'Prototype · Admin', type: 'Prototype', subtype: 'Admin' },
+  { id: 'education-course', title: 'Course Landing', tags: ['Live Artifact', 'Education'], accent: '#2563eb', meta: 'Live Artifact · Course', type: 'Live Artifact', subtype: 'Education' },
+  { id: 'restaurant-booking', title: 'Booking Flow', tags: ['Prototype', 'Booking'], accent: '#be123c', meta: 'Prototype · Booking', type: 'Prototype', subtype: 'Booking' },
+  { id: 'real-estate-listing', title: 'Listing Page', tags: ['Live Artifact', 'Real estate'], accent: '#0d9488', meta: 'Live Artifact · Listing', type: 'Live Artifact', subtype: 'Real estate' },
+  { id: 'support-center', title: 'Support Center', tags: ['Live Artifact', 'Support'], accent: '#0891b2', meta: 'Live Artifact · Support', type: 'Live Artifact', subtype: 'Support' },
+  { id: 'social-campaign', title: 'Campaign Pack', tags: ['Image', 'Campaign'], accent: '#ec4899', meta: 'Image · Campaign', type: 'Image', subtype: 'Campaign' },
+  { id: 'newsletter-brief', title: 'Voice Brief', tags: ['Audio', 'Brief'], accent: '#64748b', meta: 'Audio · Brief', type: 'Audio', subtype: 'Brief' },
+  { id: 'roadmap-board', title: 'Scene Timeline', tags: ['HyperFrames', 'Timeline'], accent: '#8b5cf6', meta: 'HyperFrames · Timeline', type: 'HyperFrames', subtype: 'Timeline' },
+  { id: 'app-settings', title: 'Interactive Story', tags: ['HyperFrames', 'Story'], accent: '#334155', meta: 'HyperFrames · Story', type: 'HyperFrames', subtype: 'Story' },
 ];
 
-const TEMPLATE_TYPE_ORDER: TemplateDemo['type'][] = ['Prototype', 'Slide', 'Website', 'Document', 'Dashboard', 'App'];
+const TEMPLATE_TYPE_ORDER: TemplateDemo['type'][] = ['Slides', 'Prototype', 'Live Artifact', 'Image', 'Video', 'HyperFrames', 'Audio'];
+const TEMPLATE_TYPE_COUNTS: Record<TemplateDemo['type'], number> = {
+  Prototype: 63,
+  'Live Artifact': 5,
+  Slides: 80,
+  Image: 46,
+  Video: 49,
+  HyperFrames: 25,
+  Audio: 1,
+};
+
+const TEMPLATE_PREVIEW_SRC: Record<string, string> = {
+  'electric-studio': '/community-templates/open-design-landing.png',
+  'launch-landing': '/community-templates/kanban-board.webp',
+  'founder-memo': '/community-templates/social-carousel.jpg',
+  'growth-dashboard': '/community-templates/blog-post.webp',
+  'ai-product-site': '/community-templates/wireframe-sketch.webp',
+  'commerce-home': '/community-templates/wireframe-greybox.webp',
+  'mobile-app-launch': '/community-templates/mobile-flow.webp',
+  'portfolio-case-study': '/community-templates/pitch-deck.webp',
+  'design-system-docs': '/community-templates/workspace-cover.webp',
+  'event-microsite': '/community-templates/hyperframes.webp',
+  'agency-services': '/community-templates/live-artifact.webp',
+  'fintech-dashboard': '/community-templates/dashboard.webp',
+  'healthcare-intake': '/community-templates/wireframe-sketch.webp',
+  'developer-docs': '/community-templates/blog-post.webp',
+  'pricing-test': '/community-templates/open-design-landing.png',
+  'admin-console': '/community-templates/kanban-board.webp',
+  'education-course': '/community-templates/workspace-cover.webp',
+  'restaurant-booking': '/community-templates/wireframe-greybox.webp',
+  'real-estate-listing': '/community-templates/live-artifact.webp',
+  'support-center': '/community-templates/blog-post.webp',
+  'social-campaign': '/community-templates/social-carousel.jpg',
+  'newsletter-brief': '/community-templates/pitch-deck.webp',
+  'roadmap-board': '/community-templates/hyperframes.webp',
+  'app-settings': '/community-templates/dashboard.webp',
+};
 
 interface CommunityViewProps {
   onRemixTemplate?: (templateId: string) => void;
@@ -83,51 +114,38 @@ interface CommunityViewProps {
 
 export function CommunityView({ onRemixTemplate }: CommunityViewProps) {
   const [previewTemplate, setPreviewTemplate] = useState<TemplateDemo | null>(null);
-  const [activeType, setActiveType] = useState<'All' | TemplateDemo['type']>('All');
+  const [activeType, setActiveType] = useState<TemplateDemo['type']>('Slides');
   const [activeSubtype, setActiveSubtype] = useState('All');
   const typeOptions = TEMPLATE_TYPE_ORDER.filter((type) =>
     COMMUNITY_TEMPLATES.some((template) => template.type === type),
   );
   const subtypeOptions = Array.from(new Set(
     COMMUNITY_TEMPLATES
-      .filter((template) => activeType === 'All' || template.type === activeType)
+      .filter((template) => template.type === activeType)
       .map((template) => template.subtype),
   ));
   const filteredTemplates = COMMUNITY_TEMPLATES.filter((template) => {
-    const typeMatches = activeType === 'All' || template.type === activeType;
+    const typeMatches = template.type === activeType;
     const subtypeMatches = activeSubtype === 'All' || template.subtype === activeSubtype;
     return typeMatches && subtypeMatches;
   });
+  const typeCount = (type: TemplateDemo['type']) => TEMPLATE_TYPE_COUNTS[type];
 
   return (
     <section className="community-template-view" aria-labelledby="community-template-title">
       <header className="community-template-view__hero">
         <div>
           <h1 id="community-template-title" className="entry-section__title">Community</h1>
-          <p>
-            Discover remixable templates. Remix opens a real project immediately — no plugin install,
-            no chat setup, just files ready to edit.
-          </p>
+        </div>
+        <div className="community-template-view__search" role="search">
+          <Icon name="search" size={16} />
+          <input type="search" placeholder="Search plugins..." aria-label="Search templates" readOnly />
         </div>
       </header>
 
-      <div className="community-template-view__section-head">
-        <h2>Featured templates</h2>
-      </div>
-
       <div className="community-template-view__filters" aria-label="Template filters">
         <div className="community-template-view__filter-main">
-          <div className="plugin-marketplace__filters">
-            <button
-              type="button"
-              className={activeType === 'All' ? 'is-active' : ''}
-              onClick={() => {
-                setActiveType('All');
-                setActiveSubtype('All');
-              }}
-            >
-              All
-            </button>
+          <div className="community-template-view__type-tabs">
             {typeOptions.map((type) => (
               <button
                 key={type}
@@ -138,16 +156,13 @@ export function CommunityView({ onRemixTemplate }: CommunityViewProps) {
                   setActiveSubtype('All');
                 }}
               >
-                {type}
+                <span>{type}</span>
+                <small>{typeCount(type)}</small>
               </button>
             ))}
           </div>
-          <div className="community-template-view__search" role="search">
-            <Icon name="search" size={16} />
-            <input type="search" placeholder="Search templates" aria-label="Search templates" readOnly />
-          </div>
         </div>
-        <div className="plugin-marketplace__filters">
+        <div className="community-template-view__subtabs">
           <button
             type="button"
             className={activeSubtype === 'All' ? 'is-active' : ''}
@@ -175,39 +190,16 @@ export function CommunityView({ onRemixTemplate }: CommunityViewProps) {
             className="community-template-card is-clickable"
             onClick={() => setPreviewTemplate(template)}
           >
+            <div className="community-template-card__head">
+              <span className="community-template-card__status" aria-hidden />
+              <h3>{template.title}</h3>
+            </div>
             <div
               className="community-template-card__preview"
               style={{ '--template-accent': template.accent } as CSSProperties}
               aria-hidden
             >
-              <div className="community-template-card__preview-paper">
-                <span />
-                <strong>{template.title.split(' ')[0]}</strong>
-                <em />
-              </div>
-            </div>
-            <div className="community-template-card__body">
-              <div>
-                <h3>{template.title}</h3>
-                <p>{template.description}</p>
-              </div>
-              <div className="community-template-card__tags">
-                {template.tags.map((tag) => (
-                  <span key={tag}>{tag}</span>
-                ))}
-              </div>
-              <div className="community-template-card__foot">
-                <span>{template.meta}</span>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRemixTemplate?.(template.id);
-                  }}
-                >
-                  Remix
-                </button>
-              </div>
+              <TemplateThumb template={template} />
             </div>
           </article>
         ))}
@@ -244,7 +236,7 @@ function TemplatePreviewModal({
         <header className="community-template-preview__head">
           <div>
             <h2 id="community-template-preview-title">{template.title}</h2>
-            <p>{template.description}</p>
+            <p>{template.meta}</p>
           </div>
           <button type="button" aria-label="Close preview" onClick={onClose}>
             <Icon name="close" size={17} />
@@ -260,6 +252,38 @@ function TemplatePreviewModal({
           <button type="button" onClick={onRemix}>Remix</button>
         </footer>
       </section>
+    </div>
+  );
+}
+
+function TemplateThumb({ template }: { template: TemplateDemo }) {
+  const previewSrc = TEMPLATE_PREVIEW_SRC[template.id];
+
+  if (previewSrc) {
+    return (
+      <img
+        className="community-template-thumb__image"
+        src={previewSrc}
+        alt=""
+        loading="lazy"
+        draggable={false}
+      />
+    );
+  }
+
+  return (
+    <div className={`community-template-thumb community-template-thumb--${template.type.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div className="community-template-thumb__paper">
+        <span className="community-template-thumb__line is-primary" />
+        <strong>{template.title.split(' ')[0]}</strong>
+        <span className="community-template-thumb__line is-short" />
+        <div className="community-template-thumb__grid">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
     </div>
   );
 }
@@ -296,7 +320,7 @@ function templatePreviewHtml(template: TemplateDemo): string {
     <section class="hero">
       <div>
         <h1>${template.title} template for polished product storytelling.</h1>
-        <p>${template.description}</p>
+        <p>${template.meta}</p>
         <span class="cta">Preview template</span>
       </div>
       <aside class="card">

@@ -47,6 +47,8 @@ interface Props {
   space?: SpaceKind;
   /** Demo-only: Cloud has team visibility, CLI/BYOK does not. */
   collaborationEnabled?: boolean;
+  /** Owner / Manager can choose invited roles; Editor / Viewer invite members. */
+  canAssignInviteRoles?: boolean;
 }
 
 type BrowseTab = 'projects' | 'design-systems' | 'templates';
@@ -195,6 +197,7 @@ export function RecentProjectsStrip({
   onRename,
   limit = 6,
   collaborationEnabled = true,
+  canAssignInviteRoles = true,
 }: Props) {
   const t = useT();
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -534,7 +537,7 @@ export function RecentProjectsStrip({
                   ) : (
                     <span className="recent-projects__card-glyph">{cover.initial}</span>
                   )}
-                  {collaborationEnabled && meta.badge === 'shared' ? (
+                  {collaborationEnabled && space !== 'team' && meta.badge === 'shared' ? (
                     <span className="recent-projects__card-badge recent-projects__card-badge--shared">
                       <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="9" cy="8" r="3" />
@@ -744,7 +747,11 @@ export function RecentProjectsStrip({
           </DialogFooter>
         </Dialog>
       ) : null}
-      <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
+      <InviteDialog
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        canAssignRoles={canAssignInviteRoles}
+      />
     </section>
   );
 }

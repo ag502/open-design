@@ -1381,6 +1381,18 @@
   font-weight: 560;
 }
 
+.teamActionButton {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-panel));
+  color: var(--accent);
+}
+
+.teamActionButton:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border-strong));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+  color: var(--accent);
+}
+
 .actionButton[aria-busy='true'] svg,
 .statusToggle[aria-busy='true'] svg {
   animation: designSystemsActionSpin 0.8s linear infinite;

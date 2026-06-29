@@ -452,6 +452,7 @@ interface Props {
   hasActiveDesignSystem?: boolean;
   activeDesignSystem?: DesignSystemSummary | null;
   sendDisabled?: boolean;
+  inputDisabled?: boolean;
   queuedItems?: QueuedSendItem[];
   onRemoveQueuedSend?: (id: string) => void;
   onUpdateQueuedSend?: (id: string, update: QueuedSendUpdate) => void;
@@ -678,6 +679,7 @@ export function ChatPane({
   streaming,
   loading = false,
   sendDisabled = false,
+  inputDisabled = false,
   queuedItems = [],
   error,
   projectId,
@@ -1809,6 +1811,7 @@ export function ChatPane({
       skills={skills}
       streaming={streaming}
       sendDisabled={sendDisabled}
+      inputDisabled={inputDisabled}
       initialDraft={initialDraft}
       composerPlaceholder={composerPlaceholder}
       placeholderScenarios={composerPlaceholderScenarios}

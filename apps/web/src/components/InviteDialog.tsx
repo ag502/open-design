@@ -4,7 +4,7 @@
 // header. Demo-only: all data is hard-coded Chinese mock content, no backend.
 // Canva-style two-column layout — form on the left, decorative art on the right.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 
 export interface InviteRow {
@@ -20,13 +20,21 @@ interface Props {
   /** Called with the entered rows when "确认并邀请" is pressed. The host
    *  decides whether to send invites directly or route through upgrade. */
   onSubmit?: (rows: InviteRow[]) => void;
+  /** Owner / Manager can choose roles; Editor / Viewer invite as members. */
+  canAssignRoles?: boolean;
 }
 
 const TEAM_SIZE = 3;
+const DEFAULT_ROLE = '团队成员';
 
-export function InviteDialog({ open, onClose, freePlan = false, onSubmit }: Props) {
-  const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: '团队成员' }]);
+export function InviteDialog({ open, onClose, freePlan = false, onSubmit, canAssignRoles = true }: Props) {
+  const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: DEFAULT_ROLE }]);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open || canAssignRoles) return;
+    setRows((prev) => prev.map((row) => ({ ...row, role: DEFAULT_ROLE })));
+  }, [canAssignRoles, open]);
 
   if (!open) return null;
 
@@ -34,7 +42,7 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit }: Prop
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   }
   function addRow() {
-    setRows((prev) => [...prev, { email: '', role: '团队成员' }]);
+    setRows((prev) => [...prev, { email: '', role: DEFAULT_ROLE }]);
   }
   function removeRow(index: number) {
     setRows((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
@@ -44,7 +52,7 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit }: Prop
     const valid = rows.filter((r) => r.email.trim().length > 0);
     onClose();
     onSubmit?.(valid);
-    setRows([{ email: '', role: '团队成员' }]);
+    setRows([{ email: '', role: DEFAULT_ROLE }]);
   }
 
   return (
@@ -72,7 +80,9 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit }: Prop
 
           <div className="entry-invite__field-labels">
             <span className="entry-invite__label">通过电子邮件邀请成员</span>
-            <span className="entry-invite__label entry-invite__label--role">分配角色</span>
+            <span className="entry-invite__label entry-invite__label--role">
+              {canAssignRoles ? '分配角色' : '默认身份'}
+            </span>
           </div>
           {rows.map((row, i) => (
             <div className="entry-invite__fields" key={i}>
@@ -84,12 +94,13 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit }: Prop
               />
               <select
                 className="entry-invite__role"
-                value={row.role}
+                value={canAssignRoles ? row.role : DEFAULT_ROLE}
                 onChange={(e) => updateRow(i, { role: e.target.value })}
-                aria-label="分配角色"
+                disabled={!canAssignRoles}
+                aria-label={canAssignRoles ? '分配角色' : '默认身份'}
               >
                 <option value="管理员">管理员</option>
-                <option value="团队成员">团队成员</option>
+                <option value={DEFAULT_ROLE}>团队成员</option>
                 <option value="查看者">查看者</option>
               </select>
               {rows.length > 1 ? (

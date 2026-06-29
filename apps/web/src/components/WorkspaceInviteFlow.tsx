@@ -3,7 +3,7 @@ import { Button, Input } from '@open-design/components';
 import { Icon } from './Icon';
 import type { DemoScenario } from './DemoControlBar';
 
-type InviteStage = 'invitation' | 'auth' | 'joining' | 'success';
+type InviteStage = 'auth' | 'confirm' | 'joining' | 'success';
 type LocalLaunchState = 'idle' | 'opening' | 'download' | 'downloaded';
 
 const INVITE_ROLES: Record<
@@ -23,6 +23,7 @@ const styles = {
   brand: 'workspace-invite-brand',
   brandMark: 'workspace-invite-brandMark',
   card: 'workspace-invite-card',
+  cardHeader: 'workspace-invite-cardHeader',
   divider: 'workspace-invite-divider',
   downloadButton: 'workspace-invite-downloadButton',
   downloadIcon: 'workspace-invite-downloadIcon',
@@ -50,19 +51,18 @@ const styles = {
   shell: 'workspace-invite-shell',
   socialAuth: 'workspace-invite-socialAuth',
   socialButton: 'workspace-invite-socialButton',
-  summary: 'workspace-invite-summary',
-  summaryIcon: 'workspace-invite-summaryIcon',
+  workspaceCopy: 'workspace-invite-workspaceCopy',
   workspaceIdentity: 'workspace-invite-workspaceIdentity',
   workspaceMark: 'workspace-invite-workspaceMark',
 } as const;
 
 interface Props {
   scenario: Extract<DemoScenario, 'invite-editor'>;
-  onStartCollaborating: () => void;
+  initiallySignedIn?: boolean;
 }
 
-export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
-  const [stage, setStage] = useState<InviteStage>('invitation');
+export function WorkspaceInviteFlow({ scenario, initiallySignedIn = false }: Props) {
+  const [stage, setStage] = useState<InviteStage>(initiallySignedIn ? 'confirm' : 'auth');
   const [emailLoginOpen, setEmailLoginOpen] = useState(false);
   const [email, setEmail] = useState('you@example.com');
   const [password, setPassword] = useState('');
@@ -70,8 +70,15 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
   const role = INVITE_ROLES[scenario];
 
   function completeWebSignIn() {
+    setStage('confirm');
+  }
+
+  function confirmJoinTeam() {
     setStage('joining');
-    window.setTimeout(() => setStage('success'), 720);
+    window.setTimeout(() => {
+      setStage('success');
+      tryOpenLocalWorkspace();
+    }, 720);
   }
 
   function tryOpenLocalWorkspace() {
@@ -89,57 +96,35 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
 
       <div className={styles.shell}>
         <header className={styles.brand}>
-          <span className={styles.brandMark}>OD</span>
-          <span>Open Design Web</span>
+          <span>
+            <span className={styles.brandMark}>OD</span>
+            <span>Open Design Web</span>
+          </span>
         </header>
 
         <div className={styles.card}>
-          <div className={styles.workspaceIdentity}>
-            <div className={styles.workspaceMark}>N</div>
-            <div className={styles.inviterAvatar}>
-              <img src="/team-avatars/a1.png" alt="" aria-hidden />
-              <span className={styles.inviterBadge}>
-                <Icon name="send" size={11} />
-              </span>
+          <div className={styles.cardHeader}>
+            <div className={styles.workspaceIdentity}>
+              <div className={styles.workspaceMark}>N</div>
+              <div className={styles.inviterAvatar}>
+                <img src="/team-avatars/a1.png" alt="" aria-hidden />
+                <span className={styles.inviterBadge}>
+                  <Icon name="send" size={11} />
+                </span>
+              </div>
+            </div>
+            <div className={styles.workspaceCopy}>
+              <span>Nexu 团队邀请</span>
+              <strong>加入团队协作</strong>
+              <p>角色：{role.label}</p>
             </div>
           </div>
 
-          {stage === 'invitation' ? (
-            <>
-              <div className={styles.heading}>
-                <span className={styles.eyebrow}>Workspace invitation</span>
-                <h1>张伟邀请你加入 Nexu 团队</h1>
-                <p>接受后将在浏览器中完成账号登录，并自动加入该 Workspace。</p>
-              </div>
-
-              <InviteSummary role={role} />
-
-              <Button
-                variant="primary"
-                className={styles.primaryAction}
-                onClick={() => setStage('auth')}
-              >
-                在 Web 端接受邀请
-                <Icon name="external-link" size={15} />
-              </Button>
-              <p className={styles.pendingHint}>邀请有效期为 7 天 · 接受前不会占用团队席位</p>
-            </>
-          ) : null}
-
           {stage === 'auth' ? (
             <>
-              <button
-                type="button"
-                className={styles.back}
-                onClick={() => setStage('invitation')}
-              >
-                <Icon name="arrow-left" size={14} />
-                返回邀请
-              </button>
               <div className={styles.heading}>
-                <span className={styles.eyebrow}>Continue on the web</span>
-                <h1>登录以加入 Nexu 团队</h1>
-                <p>登录即表示继续接受邀请。完成后将直接加入，无需再次确认。</p>
+                <h1>加入 Nexu 团队</h1>
+                <p>登录后即可加入团队，并在本地 Open Design 中继续协作。</p>
               </div>
 
               <div className={styles.socialAuth}>
@@ -193,7 +178,7 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
                     className={styles.primaryAction}
                     disabled={!email.trim() || !password.trim()}
                   >
-                    继续并加入 Workspace
+                    继续
                     <Icon name="chevron-right" size={15} />
                   </Button>
                 </form>
@@ -207,11 +192,26 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
                   使用邮箱登录
                 </Button>
               )}
-
-              <p className={styles.pendingHint}>
-                没有账号？使用 Google、GitHub 或邮箱继续时会自动完成注册。
-              </p>
             </>
+          ) : null}
+
+          {stage === 'confirm' ? (
+            <div className={styles.result}>
+              <span className={`${styles.resultIcon} ${styles.resultIconSuccess}`}>
+                <Icon name="check" size={28} />
+              </span>
+              <h1>加入团队，开始协作</h1>
+              <p>确认加入后，将尝试打开本地 Open Design。</p>
+
+              <Button
+                variant="primary"
+                className={styles.primaryAction}
+                onClick={confirmJoinTeam}
+              >
+                加入团队，开始协作
+                <Icon name="external-link" size={15} />
+              </Button>
+            </div>
           ) : null}
 
           {stage === 'joining' ? (
@@ -219,9 +219,8 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
               <span className={styles.joiningSpinner}>
                 <Icon name="spinner" size={25} />
               </span>
-              <span className={styles.eyebrow}>Account verified</span>
               <h1>正在加入 Nexu 团队</h1>
-              <p>正在应用 {role.label} 权限并占用 1 个团队席位…</p>
+              <p>正在为你打开协作空间…</p>
               <div className={styles.joiningTrack}>
                 <span />
               </div>
@@ -233,24 +232,8 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
               <span className={`${styles.resultIcon} ${styles.resultIconSuccess}`}>
                 <Icon name="check" size={28} />
               </span>
-              <span className={styles.eyebrow}>Workspace ready</span>
               <h1>开始协作</h1>
-              <p>你已加入 Nexu 团队。接下来将在本地 Open Design 中打开这个 Workspace。</p>
-
-              <div className={styles.seatReceipt}>
-                <span>
-                  <small>角色</small>
-                  <strong>{role.label}</strong>
-                </span>
-                <span>
-                  <small>席位</small>
-                  <strong>2 / 3 已用</strong>
-                </span>
-                <span>
-                  <small>状态</small>
-                  <strong className={styles.activeStatus}>已加入</strong>
-                </span>
-              </div>
+              <p>你已加入 Nexu 团队，正在打开本地 Open Design。</p>
 
               {localLaunchState === 'idle' ? (
                 <Button
@@ -290,8 +273,7 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
                     type="button"
                     className={styles.retryButton}
                     onClick={() => {
-                      setLocalLaunchState('idle');
-                      onStartCollaborating();
+                      tryOpenLocalWorkspace();
                     }}
                   >
                     已安装？再次尝试打开
@@ -304,35 +286,9 @@ export function WorkspaceInviteFlow({ scenario, onStartCollaborating }: Props) {
 
         <p className={styles.securityNote}>
           <Icon name="info" size={13} />
-          登录、加入和客户端唤起均在 Web 端完成
+          如果无法打开客户端，将显示下载入口
         </p>
       </div>
     </section>
-  );
-}
-
-function InviteSummary({ role }: { role: { label: string; description: string } }) {
-  return (
-    <div className={styles.summary}>
-      <div>
-        <span className={styles.summaryIcon}>
-          <Icon name="layers-filled" size={17} />
-        </span>
-        <span>
-          <small>Workspace</small>
-          <strong>Nexu 团队</strong>
-        </span>
-      </div>
-      <div>
-        <span className={styles.summaryIcon}>
-          <Icon name="share" size={17} />
-        </span>
-        <span>
-          <small>邀请角色</small>
-          <strong>{role.label}</strong>
-          <em>{role.description}</em>
-        </span>
-      </div>
-    </div>
   );
 }

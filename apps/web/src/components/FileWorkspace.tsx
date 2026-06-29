@@ -2222,8 +2222,10 @@ export function FileWorkspace({
             onNavStateChange={onDesignFilesNavStateChange}
             onOpenFile={openFile}
             onOpenLiveArtifact={(tabId) => openFile(tabId)}
-            onRenameFile={handleRename}
+            viewerOnly={viewerOnly}
+            onRenameFile={(from, to) => (viewerOnly ? null : handleRename(from, to))}
             onDeleteFile={(name) => {
+              if (viewerOnly) return;
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',
                 area: 'file_manager',
@@ -2232,6 +2234,7 @@ export function FileWorkspace({
               void handleDelete(name);
             }}
             onDeleteFiles={(names) => {
+              if (viewerOnly) return;
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',
                 area: 'file_manager',
@@ -2240,6 +2243,7 @@ export function FileWorkspace({
               return handleDeleteMany(names);
             }}
             onUpload={() => {
+              if (viewerOnly) return;
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',
                 area: 'file_manager',
@@ -2247,8 +2251,12 @@ export function FileWorkspace({
               });
               fileInputRef.current?.click();
             }}
-            onUploadFiles={(picked) => void uploadFiles(picked)}
+            onUploadFiles={(picked) => {
+              if (viewerOnly) return;
+              void uploadFiles(picked);
+            }}
             onPaste={() => {
+              if (viewerOnly) return;
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',
                 area: 'file_manager',
@@ -2257,6 +2265,7 @@ export function FileWorkspace({
               setShowPasteDialog(true);
             }}
             onNewSketch={() => {
+              if (viewerOnly) return;
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',
                 area: 'file_manager',

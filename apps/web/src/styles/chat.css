@@ -1135,6 +1135,21 @@
     0 1px 2px color-mix(in srgb, var(--text) 6%, transparent),
     0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent);
 }
+.composer.composer-readonly .composer-shell,
+.composer.composer-readonly .composer-input-wrap {
+  background: color-mix(in srgb, var(--bg-fill-tertiary) 86%, var(--bg-subtle));
+}
+.composer.composer-readonly .composer-input-wrap:focus-within {
+  border-color: transparent;
+}
+.composer.composer-readonly .composer-editable {
+  cursor: not-allowed;
+  color: var(--text-muted);
+  caret-color: transparent;
+}
+.composer.composer-readonly .composer-input-placeholder {
+  color: var(--text-soft);
+}
 /* Design-system picker row at the top of the composer card (moved out of
    the former chrome header). A full-bleed hairline divider separates it
    from the textarea, so the shell carries no padding and each inner row

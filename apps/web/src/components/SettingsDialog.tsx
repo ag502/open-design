@@ -63,7 +63,6 @@ import {
   isStoredMediaProviderEntryPresent,
   KNOWN_PROVIDERS,
   hasAnyConfiguredProvider,
-  mergeDaemonMediaProviders,
   saveConfig,
   syncComposioConfigToDaemon,
   syncConfigToDaemon,
@@ -217,6 +216,7 @@ function normalizeSettingsSection(section: SettingsSection): SettingsSection {
       return 'execution';
     case 'language':
     case 'appearance':
+    case 'critiqueTheater':
     case 'notifications':
     case 'pet':
     case 'projectLocations':
@@ -2416,6 +2416,15 @@ export function SettingsDialog({
         provider.protocol === apiProtocol &&
         provider.baseUrl === cfg.baseUrl,
     ) ?? byokProviderTabs[byokProviderTabs.length - 1];
+  const byokProviderConnected = (provider: DemoByokProviderTab): boolean => {
+    if (!selectedByokProvider) return false;
+    const entry = selectedByokProvider.id === provider.id
+      ? currentApiProtocolConfig(cfg)
+      : cfg.apiProtocolConfigs?.[provider.protocol];
+    if (!entry) return false;
+    if (!provider.custom && entry.baseUrl !== provider.baseUrl) return false;
+    return canRunProviderConnectionTest(entry) && isValidApiBaseUrl(entry.baseUrl);
+  };
   const baseUrlValid = isValidApiBaseUrl(cfg.baseUrl);
   const baseUrlInvalid = Boolean(cfg.baseUrl.trim() && !baseUrlValid);
   const byokRequiredLabel = (field: ByokRequiredField): string => {
@@ -3503,17 +3512,6 @@ export function SettingsDialog({
             </button>
             <button
               type="button"
-              className={`settings-nav-item${activeSection === 'critiqueTheater' ? ' active' : ''}`}
-              onClick={() => setActiveSection('critiqueTheater')}
-            >
-              <Icon name="comment" size={18} />
-              <span>
-                <strong>{t('critiqueTheater.settingsNav')}</strong>
-                <small>{t('critiqueTheater.settingsNavHint')}</small>
-              </span>
-            </button>
-            <button
-              type="button"
               className={`settings-nav-item${activeSection === 'privacy' ? ' active' : ''}`}
               onClick={() => setActiveSection('privacy')}
             >
@@ -3593,6 +3591,10 @@ export function SettingsDialog({
                 </div>
                 <ProjectLocationsSection cfg={cfg} setCfg={setCfg} onProjectsRefresh={onProjectsRefresh} />
               </div>
+
+              <div className="settings-general-block">
+                <CritiqueTheaterSection />
+              </div>
             </section>
           ) : null}
 
@@ -3671,6 +3673,8 @@ export function SettingsDialog({
                       <div className="protocol-chip-group-options">
                         {byokProviderTabs.map((provider) => {
                           const active = selectedByokProvider?.id === provider.id;
+                          const connected = byokProviderConnected(provider);
+                          const statusLabel = connected ? '已连接' : '未连接';
                           return (
                             <button
                               key={provider.id}
@@ -3678,6 +3682,7 @@ export function SettingsDialog({
                               role="tab"
                               aria-selected={active}
                               className={'protocol-chip' + (active ? ' active' : '')}
+                              title={`${provider.title} · ${statusLabel}`}
                               onClick={() => {
                                 const byokProviderId = byokProtocolToTracking(provider.protocol);
                                 if (byokProviderId) {
@@ -3693,7 +3698,12 @@ export function SettingsDialog({
                                 setByokProvider(provider);
                               }}
                             >
-                              {provider.title}
+                              <span
+                                className={`media-provider-chip-status${connected ? ' is-connected' : ' is-disconnected'}`}
+                                aria-hidden
+                              />
+                              <span>{provider.title}</span>
+                              <VisuallyHidden>{statusLabel}</VisuallyHidden>
                             </button>
                           );
                         })}
@@ -3789,6 +3799,23 @@ export function SettingsDialog({
                           const running =
                             active && agentTestState.status === 'running';
                           const isAmrAgent = a.id === 'amr';
+                          const isCodexAgent = a.id === 'codex';
+                          const effectiveAuthStatus =
+                            isCodexAgent && a.authStatus === 'unknown'
+                              ? 'ok'
+                              : a.authStatus;
+                          const effectiveAuthMessage =
+                            isCodexAgent && a.authStatus === 'unknown'
+                              ? ''
+                              : a.authMessage;
+                          const effectiveDiagnostics = isCodexAgent
+                            ? (a.diagnostics ?? []).filter(
+                                (diagnostic) =>
+                                  !/codex login status/i.test(
+                                    `${diagnostic.message} ${diagnostic.detail ?? ''}`,
+                                  ),
+                              )
+                            : (a.diagnostics ?? []);
                           const description = AGENT_SHORT_DESCRIPTIONS[a.id];
                           const agentName = displayAgentName(a);
                           const diagnosticHandlers = diagnosticHandlersForAgent(a);
@@ -3803,9 +3830,9 @@ export function SettingsDialog({
                               ? ''
                               : cleanAgentVersionLabel(a.name, a.version);
                           const metaLabel =
-                            a.authStatus === 'missing'
+                            effectiveAuthStatus === 'missing'
                               ? t('settings.agentAuthRequired')
-                              : a.authStatus === 'unknown'
+                              : effectiveAuthStatus === 'unknown'
                                 ? t('settings.agentAuthUnknown')
                                 : versionLabel
                                   ? versionLabel
@@ -3813,9 +3840,9 @@ export function SettingsDialog({
                                     ? ''
                                     : t('common.installed');
                           const metaTitle =
-                            a.authStatus === 'missing' ||
-                            a.authStatus === 'unknown'
-                              ? (a.authMessage ?? a.path ?? '')
+                            effectiveAuthStatus === 'missing' ||
+                            effectiveAuthStatus === 'unknown'
+                              ? (effectiveAuthMessage ?? a.path ?? '')
                               : (a.path ?? '');
                           const amrHighlighted = isAmrAgent && amrHighlightActive;
                           const amrCardEmail =
@@ -4077,7 +4104,7 @@ export function SettingsDialog({
                                   </button>
                                 ) : null}
                               </div>
-                              {(a.diagnostics ?? []).map((diagnostic, i) => (
+                              {effectiveDiagnostics.map((diagnostic, i) => (
                                 <AgentDiagnosticRow
                                   key={`${diagnostic.reason}-${i}`}
                                   diagnostic={diagnostic}
@@ -4867,10 +4894,6 @@ export function SettingsDialog({
 
           {activeSection === 'appearance' ? (
             <AppearanceSection cfg={cfg} setCfg={setCfg} />
-          ) : null}
-
-          {activeSection === 'critiqueTheater' ? (
-            <CritiqueTheaterSection />
           ) : null}
 
           {activeSection === 'notifications' ? (
@@ -6435,7 +6458,6 @@ function MediaProvidersSection({
   setCfg,
   demoUseMode,
   mediaProvidersNotice,
-  onReloadMediaProviders,
   providerModelsCache: sharedProviderModelsCache,
   onProviderModelsCacheChange,
   pendingLocalProviderIds,
@@ -6453,8 +6475,6 @@ function MediaProvidersSection({
 }) {
   const { t } = useI18n();
   const analytics = useAnalytics();
-  const [reloadRunning, setReloadRunning] = useState(false);
-  const [reloadNotice, setReloadNotice] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -6532,36 +6552,6 @@ function MediaProvidersSection({
       return { ...curr, mediaProviders: map };
     });
   };
-  const handleReload = async () => {
-    if (!onReloadMediaProviders || reloadRunning) return;
-    setReloadRunning(true);
-    setReloadNotice(null);
-    try {
-      const next = await onReloadMediaProviders();
-      if (!next) {
-        setReloadNotice({ kind: 'error', message: t('settings.mediaProviderReloadError') });
-        return;
-      }
-      setCfg((curr) => mergeDaemonMediaProviders(curr, next, {
-        preserveLocalProviderIds: pendingLocalProviderIds,
-      }));
-      setReloadNotice({ kind: 'success', message: t('settings.mediaProviderReloadSuccess') });
-    } finally {
-      setReloadRunning(false);
-    }
-  };
-  // Successful reload acknowledgement lives on the button (✓ Reloaded)
-  // for ~2s then disappears. Keeping it as a permanent paragraph under
-  // the section header was noise — the user just clicked a button and
-  // got a visible state change, an extra "we did the thing" line is
-  // redundant. Errors stay sticky because they actually require user
-  // attention.
-  useEffect(() => {
-    if (reloadNotice?.kind !== 'success') return;
-    const handle = window.setTimeout(() => setReloadNotice(null), 2000);
-    return () => window.clearTimeout(handle);
-  }, [reloadNotice]);
-
   const toggleApiKeyVisibility = (providerId: string) => {
     setVisibleApiKeys((current) => {
       const next = new Set(current);
@@ -6590,58 +6580,11 @@ function MediaProvidersSection({
       {mediaProvidersNotice ? (
         <p className="hint" role="alert">{mediaProvidersNotice}</p>
       ) : null}
-      {reloadNotice && reloadNotice.kind === 'error' ? (
-        // Errors only — successful reload feedback now rides on the
-        // button (see is-success-flash above) and clears itself after
-        // 2s, so the section header doesn't get colonised by a
-        // permanent "yes I did the thing" paragraph.
-        <p className="hint" role="alert">{reloadNotice.message}</p>
-      ) : null}
-      {reloadNotice && reloadNotice.kind === 'success' ? (
-        // Off-screen announcement so assistive tech still hears the
-        // success state even though the visible feedback collapses
-        // into a transient button label change.
-        <VisuallyHidden role="status">
-          {reloadNotice.message}
-        </VisuallyHidden>
-      ) : null}
       <div className="media-provider-page-head">
         <div>
           <h3>Media providers</h3>
           <p>Connect image, video, voice, and research providers for generation tasks.</p>
         </div>
-        {onReloadMediaProviders ? (
-          <button
-            type="button"
-            className={`ghost media-provider-reload-btn${
-              reloadNotice?.kind === 'success' ? ' is-success-flash' : ''
-            }`}
-            onClick={() => {
-              trackSettingsMediaProvidersClick(analytics.track, {
-                page_name: 'settings',
-                area: 'media_providers',
-                element: 'reload',
-              });
-              void handleReload();
-            }}
-            disabled={reloadRunning}
-            aria-live="polite"
-          >
-            {reloadRunning ? (
-              t('common.loading')
-            ) : reloadNotice?.kind === 'success' ? (
-              <>
-                <Icon name="check" size={13} />
-                <span style={{ marginLeft: 4 }}>Reloaded</span>
-              </>
-            ) : (
-              <>
-                <Icon name="refresh" size={13} />
-                <span style={{ marginLeft: 4 }}>{t('settings.mediaProviderReload')}</span>
-              </>
-            )}
-          </button>
-        ) : null}
       </div>
       {demoUseMode === 'local' ? (
         <div className="settings-cloud-signin-callout media-provider-cloud-callout">
@@ -6664,6 +6607,10 @@ function MediaProvidersSection({
           <div className="protocol-chip-group-options">
             {availableProviders.map((provider) => {
               const active = activeProvider?.id === provider.id;
+              const entry = cfg.mediaProviders?.[provider.id];
+              const connected = provider.credentialsRequired === false
+                || isStoredMediaProviderEntryPresent(entry);
+              const statusLabel = connected ? '已连接' : '未连接';
               return (
                 <button
                   key={provider.id}
@@ -6671,9 +6618,15 @@ function MediaProvidersSection({
                   role="tab"
                   aria-selected={active}
                   className={'protocol-chip' + (active ? ' active' : '')}
+                  title={`${provider.label} · ${statusLabel}`}
                   onClick={() => setActiveProviderId(provider.id)}
                 >
-                  {provider.label}
+                  <span
+                    className={`media-provider-chip-status${connected ? ' is-connected' : ' is-disconnected'}`}
+                    aria-hidden
+                  />
+                  <span>{provider.label}</span>
+                  <VisuallyHidden>{statusLabel}</VisuallyHidden>
                 </button>
               );
             })}

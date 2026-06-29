@@ -9,7 +9,6 @@
 // floating settings cog in the top-right corner of the main content.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { EntryHelpMenu } from './EntryHelpMenu';
 import { InviteDialog } from './InviteDialog';
 import { CreateTeamDialog } from './CreateTeamDialog';
 import { UpgradeTeamDialog } from './UpgradeTeamDialog';
@@ -17,6 +16,11 @@ import { CreditsPanel, type CreditsInfo } from './CreditsPanel';
 import { Icon } from './Icon';
 import { useT } from '../i18n';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
+
+const REPO_URL = 'https://github.com/nexu-io/open-design';
+const GITHUB_HELP_URL = `${REPO_URL}/issues/new`;
+const GITHUB_FEATURE_URL = `${REPO_URL}/pulls`;
+const externalLinkProps = { target: '_blank', rel: 'noreferrer noopener' } as const;
 
 export type EntryView =
   | 'home'
@@ -30,6 +34,7 @@ export type EntryView =
   | 'content-plan'
   | 'members'
   | 'dashboard'
+  | 'workspace-settings'
   | 'design-systems'
   | 'library'
   | 'brands'
@@ -56,6 +61,7 @@ interface Props {
   onUpgrade?: () => void;
   onOpenSettings?: () => void;
   canManageWorkspace?: boolean;
+  canOwnWorkspace?: boolean;
   cloudWorkspace?: boolean;
 }
 
@@ -84,7 +90,7 @@ function NavButton({ active, ariaLabel, tooltip, onClick, testId, children }: Na
   );
 }
 
-export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, footerExtra, footerNotice, solo = false, credits, onUpgrade, onOpenSettings, canManageWorkspace = true, cloudWorkspace = true }: Props) {
+export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, footerExtra, footerNotice, solo = false, credits, onUpgrade, onOpenSettings, canManageWorkspace = true, canOwnWorkspace = true, cloudWorkspace = true }: Props) {
   const t = useT();
   const brandLabel = t('app.brand');
   const homeLabel = t('entry.navHome');
@@ -176,6 +182,11 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
                   <button type="button" className="entry-nav-rail__menu-item is-primary" role="menuitem">
                     <Icon name="layout" size={15} /> 切换主题 <span className="entry-nav-rail__menu-chevron"><Icon name="chevron-right" size={13} /></span>
                   </button>
+                  <button type="button" className="entry-nav-rail__menu-item" role="menuitem">
+                    <Icon name="languages" size={15} />
+                    切换语言
+                    <span className="entry-nav-rail__menu-meta">中文 / English</span>
+                  </button>
                   <button
                     type="button"
                     className="entry-nav-rail__menu-item"
@@ -187,6 +198,25 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
                   >
                     <Icon name="settings" size={15} /> 设置
                   </button>
+                  <div className="entry-nav-rail__menu-divider" />
+                  <a
+                    className="entry-nav-rail__menu-item"
+                    role="menuitem"
+                    href={GITHUB_HELP_URL}
+                    {...externalLinkProps}
+                    onClick={() => setAccountOpen(false)}
+                  >
+                    <Icon name="comment" size={15} /> 在 GitHub 上获取帮助
+                  </a>
+                  <a
+                    className="entry-nav-rail__menu-item"
+                    role="menuitem"
+                    href={GITHUB_FEATURE_URL}
+                    {...externalLinkProps}
+                    onClick={() => setAccountOpen(false)}
+                  >
+                    <Icon name="sparkles" size={15} /> 提交功能建议
+                  </a>
                   <div className="entry-nav-rail__menu-divider" />
                   <button type="button" className="entry-nav-rail__menu-item" role="menuitem">
                     <Icon name="plus" size={15} /> 添加账号
@@ -348,6 +378,17 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
             >
               <Icon name="kanban" size={18} />
             </NavButton>
+            {canOwnWorkspace ? (
+              <NavButton
+                active={view === 'workspace-settings'}
+                ariaLabel="Workspace 设置"
+                tooltip="Workspace 设置"
+                onClick={() => selectView('workspace-settings')}
+                testId="entry-nav-workspace-settings"
+              >
+                <Icon name="settings" size={18} />
+              </NavButton>
+            ) : null}
           </>
         ) : null}
 
@@ -379,7 +420,6 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
         {footerNotice}
         <div className="entry-rail-actions">
           {footerExtra}
-          <EntryHelpMenu />
         </div>
       </div>
 

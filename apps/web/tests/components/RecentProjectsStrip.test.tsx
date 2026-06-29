@@ -231,4 +231,26 @@ describe('RecentProjectsStrip', () => {
 
     expect(card?.textContent).toContain('共享');
   });
+
+  it('hides shared badges in the team projects space', () => {
+    const { container } = render(
+      <RecentProjectsStrip
+        projects={[
+          project({
+            id: 'project-team',
+            name: 'Team Workspace Overview',
+            updatedAt: 4,
+          }),
+        ]}
+        space="team"
+        onOpen={() => {}}
+        onRename={() => {}}
+      />,
+    );
+
+    const card = container.querySelector('[data-project-id="project-team"]');
+    expect(card).toBeTruthy();
+    expect(card?.querySelector('.recent-projects__card-badge--shared')).toBeNull();
+    expect(card?.textContent).not.toContain('共享');
+  });
 });
