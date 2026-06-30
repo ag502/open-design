@@ -35,6 +35,7 @@ const voiceForm: QuestionForm = {
       label: 'Voice',
       type: 'select',
       required: true,
+      allowCustom: false,
       placeholder: 'Choose a voice',
       help: 'Select a voice description; the answer submits the matching Voice ID.',
       options: [
@@ -141,6 +142,7 @@ describe('QuestionFormView', () => {
     expect(container.querySelector('option[value="21m00Tcm4TlvDq8ikWAM"]')?.textContent).toBe(
       'Rachel — american · female',
     );
+    expect(screen.queryByLabelText('Custom answer')).toBeNull();
 
     fireEvent.change(select, { target: { value: '21m00Tcm4TlvDq8ikWAM' } });
     fireEvent.click(screen.getByRole('button', { name: 'Use voice' }));

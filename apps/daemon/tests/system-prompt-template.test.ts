@@ -502,6 +502,7 @@ describe('composeSystemPrompt — metadata.promptTemplate', () => {
     expect(out).toContain('ElevenLabs voice options');
     expect(out).toContain('<question-form id="elevenlabs-voice" title="Choose an ElevenLabs voice">');
     expect(out).toContain('"type": "select"');
+    expect(out).toContain('"allowCustom": false');
     expect(out).toContain('"label": "Rachel — american · female"');
     expect(out).toContain('"value": "21m00Tcm4TlvDq8ikWAM"');
     expect(out).toContain('"label": "Adam — american · male"');

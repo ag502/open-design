@@ -864,6 +864,7 @@ function renderElevenLabsVoiceQuestionForm(voiceOptions: AudioVoiceOption[]): {
     label: string;
     type: 'select';
     required: boolean;
+    allowCustom: false;
     placeholder: string;
     help: string;
     options: Array<{ label: string; value: string }>;
@@ -883,6 +884,7 @@ function renderElevenLabsVoiceQuestionForm(voiceOptions: AudioVoiceOption[]): {
         label: 'Voice',
         type: 'select',
         required: true,
+        allowCustom: false,
         placeholder: 'Choose a voice',
         help: 'Select a voice description; the answer submits the matching Voice ID.',
         options,
