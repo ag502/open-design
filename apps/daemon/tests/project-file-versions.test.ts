@@ -183,6 +183,47 @@ describe('project file versions', () => {
     });
   });
 
+  it('keeps checkpoints visible when version creation races HTML rename', async () => {
+    await withProject(async (projectsRoot, projectId) => {
+      const initial = await createProjectFileVersion(
+        projectsRoot,
+        projectId,
+        'foo.html',
+        '<html><body>initial</body></html>',
+        { source: 'ai', promptSource: 'message', label: 'Initial' },
+      );
+      const labels = Array.from({ length: 8 }, (_, index) => `Queued checkpoint ${index + 1}`);
+      const creates = labels.map((label, index) =>
+        createProjectFileVersion(
+          projectsRoot,
+          projectId,
+          'foo.html',
+          `<html><body>queued ${index + 1}</body></html>`,
+          { source: 'manual', promptSource: 'manual', label },
+        ),
+      );
+
+      const results = await Promise.allSettled([
+        renameProjectFileVersionStore(projectsRoot, projectId, 'foo.html', 'nested/bar.html'),
+        ...creates,
+      ]);
+
+      expect(results.filter((result) => result.status === 'rejected')).toEqual([]);
+      await expect(listProjectFileVersions(projectsRoot, projectId, 'foo.html')).resolves.toHaveLength(0);
+      const renamed = await listProjectFileVersions(projectsRoot, projectId, 'nested/bar.html');
+      expect(renamed).toHaveLength(labels.length + 1);
+      expect(new Set(renamed.map((version) => version.label))).toEqual(new Set(['Initial', ...labels]));
+      expect(renamed.map((version) => version.version).sort((a, b) => a - b)).toEqual(
+        Array.from({ length: labels.length + 1 }, (_, index) => index + 1),
+      );
+      const firstRenamed = renamed[0];
+      expect(firstRenamed).toBeDefined();
+      expect(firstRenamed?.id).toBe(initial.id);
+      expect(renamed.every((version) => version.fileName === 'nested/bar.html')).toBe(true);
+      expect(renamed.filter((version) => version.current)).toHaveLength(1);
+    });
+  });
+
   it('moves HTML version history when a project file is renamed', async () => {
     await withProject(async (projectsRoot, projectId) => {
       const first = await createProjectFileVersion(
