@@ -4412,4 +4412,64 @@ describe('SettingsDialog about interactions', () => {
     });
     expect(screen.getByText('Version 1.2.3-beta.4 is ready to install.')).toBeTruthy();
   });
+
+  it('installs a downloaded payload update from the about page', async () => {
+    const payloadReady = updateStatus({
+      artifact: {
+        name: 'open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+        platformKey: 'mac',
+        type: 'payload',
+        url: 'https://fixture.test/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+      },
+      availableVersion: '1.2.3-beta.4',
+      capabilities: {
+        canApplyInPlace: true,
+        canDownload: true,
+        canOpenInstaller: false,
+        requiresManualInstall: false,
+      },
+      downloadPath: '/tmp/open-design-updater/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+      state: 'downloaded',
+    });
+    const installing = updateStatus({
+      ...payloadReady,
+      state: 'installing',
+    });
+    const install = vi.fn(async () => installing);
+    const quit = vi.fn(async () => ({ ok: true as const }));
+    restoreOpenDesignHost = installMockOpenDesignHost({
+      host: {
+        updater: {
+          install,
+          quit,
+          status: vi.fn(async () => payloadReady),
+        },
+      },
+    });
+
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'codex' },
+      {
+        initialSection: 'about',
+        appVersionInfo: {
+          version: '1.2.3-beta.3',
+          channel: 'beta',
+          packaged: true,
+          platform: 'darwin',
+          arch: 'arm64',
+        },
+      },
+    );
+
+    expect(await screen.findByText('Version 1.2.3-beta.4 is ready to install.')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: en['updater.installRestart'] }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalledWith({ payload: { source: 'settings-about' } });
+    });
+    await waitFor(() => {
+      expect(quit).toHaveBeenCalledWith({ payload: { source: 'settings-about' } });
+    });
+  });
 });

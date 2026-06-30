@@ -185,6 +185,39 @@ describe('SettingsDialog about update control', () => {
     });
   });
 
+  it('offers install and restart when a payload update has already downloaded', () => {
+    const control = deriveAboutUpdateControl(
+      deriveUpdaterModel(
+        updateStatus({
+          artifact: {
+            name: 'open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+            platformKey: 'mac',
+            type: 'payload',
+            url: 'https://fixture.test/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+          },
+          availableVersion: '1.2.3-beta.4',
+          capabilities: {
+            canApplyInPlace: true,
+            canDownload: true,
+            canOpenInstaller: false,
+            requiresManualInstall: false,
+          },
+          downloadPath: '/tmp/open-design-updater/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+          state: 'downloaded',
+        }),
+        { hostAvailable: true },
+      ),
+      packagedVersion,
+    );
+
+    expect(control).toMatchObject({
+      primaryAction: 'install',
+      primaryLabelKey: 'updater.installRestart',
+      statusKey: 'settings.updateStatusReady',
+      statusVars: { version: '1.2.3-beta.4' },
+    });
+  });
+
   it('turns update errors into a retry action', () => {
     const control = deriveAboutUpdateControl(
       deriveUpdaterModel(updateStatus({ state: 'error' }), { hostAvailable: true }),

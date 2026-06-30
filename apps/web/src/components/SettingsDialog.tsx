@@ -297,10 +297,15 @@ export function deriveAboutUpdateControl(
         ...(typeof percent === 'number' ? { statusVars: { percent } } : {}),
       };
     }
-    case 'downloaded':
+    case 'downloaded': {
+      const canInstallUpdate = model.canOpenInstaller || model.canApplyInPlace;
       return {
-        primaryAction: model.canOpenInstaller ? 'install' : null,
-        primaryLabelKey: model.canOpenInstaller ? 'settings.updateNow' : null,
+        primaryAction: canInstallUpdate ? 'install' : null,
+        primaryLabelKey: canInstallUpdate
+          ? model.updateKind === 'payload'
+            ? 'updater.installRestart'
+            : 'settings.updateNow'
+          : null,
         showReleaseLink: true,
         statusKey: model.availableVersion
           ? 'settings.updateStatusReady'
@@ -308,6 +313,7 @@ export function deriveAboutUpdateControl(
         statusTone: 'success',
         ...(model.availableVersion ? { statusVars: { version: model.availableVersion } } : {}),
       };
+    }
     case 'installing':
       return {
         primaryAction: null,
