@@ -587,6 +587,53 @@ describe('HomeView prompt handoff', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('asks before replacing an edited Home draft with the rail create-plugin prompt', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (url) => {
+      if (typeof url === 'string' && url === '/api/plugins') {
+        return new Response(JSON.stringify({ plugins: [AUTHORING_PLUGIN, WEB_PROTOTYPE_PLUGIN] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (typeof url === 'string' && url.includes('/api/plugins/od-plugin-authoring/apply')) {
+        return new Response(JSON.stringify(AUTHORING_APPLY_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    stubAnimationFrame();
+
+    render(
+      <HomeView
+        projects={[]}
+        onSubmit={() => undefined}
+        onOpenProject={() => undefined}
+        onViewAllProjects={() => undefined}
+      />,
+    );
+
+    await screen.findByTestId('home-hero-input');
+    await setPromptAndSettle('Keep my custom plugin brief');
+    await clickHomeShortcut('create-plugin');
+
+    const dialog = await screen.findByRole('dialog', { name: /replace current prompt/i });
+    expect(homeHeroPromptText()).toBe('Keep my custom plugin brief');
+    expect(fetchMock.mock.calls.some(([url]) => (
+      typeof url === 'string' && url.includes('/api/plugins/od-plugin-authoring/apply')
+    ))).toBe(false);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Replace' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/plugins/od-plugin-authoring/apply',
+      expect.anything(),
+    ));
+    await waitFor(() => expect(homeHeroPromptText()).toBe(PLUGIN_AUTHORING_PROMPT));
+    expect(screen.queryByRole('dialog', { name: /replace current prompt/i })).toBeNull();
+  });
+
   it('routes a plugin-use handoff from the Plugins page as the active driver and submits it as the run driver', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {

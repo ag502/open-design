@@ -1501,18 +1501,23 @@ export function HomeView({
   function queuePluginAuthoring(chipId: string | null, goal?: string) {
     const nextInputs = buildPluginAuthoringInputs(goal);
     const nextPrompt = buildPluginAuthoringPromptForInputs(nextInputs);
-    setActive(null);
-    setActiveSkill(null);
-    setFallbackProjectKind('other');
-    setFallbackProjectMetadata(null);
-    setError(null);
-    setPrompt(nextPrompt);
-    setPromptEditedByUser(false);
-    setPendingAuthoringPrompt(nextPrompt);
-    setPendingAuthoringInputs(nextInputs);
-    setPendingAuthoringChipId(chipId ?? 'create-plugin');
-    setPendingChipId(chipId ?? 'create-plugin');
-    focusPromptAtEnd();
+    runWithReplacementConfirmation('Plugin authoring', nextPrompt, async () => {
+      setActive(null);
+      setActiveSkill(null);
+      setFallbackProjectKind('other');
+      setFallbackProjectMetadata(null);
+      setError(null);
+      setPrompt(nextPrompt);
+      setPromptEditedByUser(false);
+      setPendingAuthoringPrompt(nextPrompt);
+      setPendingAuthoringInputs(nextInputs);
+      setPendingAuthoringChipId(chipId ?? 'create-plugin');
+      setPendingChipId(chipId ?? 'create-plugin');
+      focusPromptAtEnd();
+    }, {
+      before: active?.record.id ?? null,
+      after: 'od-plugin-authoring',
+    });
   }
 
   useEffect(() => {
