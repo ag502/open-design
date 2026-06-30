@@ -493,6 +493,8 @@ function downgradeUnsupportedChatProtocol(config: AppConfig): void {
   }
 
   config.apiProtocol = DEFAULT_CONFIG.apiProtocol;
+  config.apiKey = DEFAULT_CONFIG.apiKey;
+  config.apiVersion = DEFAULT_CONFIG.apiVersion;
   config.baseUrl = DEFAULT_CONFIG.baseUrl;
   config.model = DEFAULT_CONFIG.model;
   config.apiProviderBaseUrl = DEFAULT_CONFIG.apiProviderBaseUrl;

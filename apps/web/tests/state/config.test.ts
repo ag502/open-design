@@ -916,7 +916,8 @@ describe('loadConfig', () => {
   it('downgrades legacy Bedrock Runtime configs to the default chat protocol', () => {
     const legacyConfig: Partial<AppConfig> = {
       mode: 'api',
-      apiKey: '',
+      apiKey: 'bedrock-secret',
+      apiVersion: 'bedrock-2023-05-31',
       baseUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
       model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
       agentId: null,
@@ -928,6 +929,8 @@ describe('loadConfig', () => {
     const config = loadConfig();
 
     expect(config.apiProtocol).toBe('anthropic');
+    expect(config.apiKey).toBe('');
+    expect(config.apiVersion).toBe('');
     expect(config.baseUrl).toBe(DEFAULT_CONFIG.baseUrl);
     expect(config.model).toBe(DEFAULT_CONFIG.model);
     expect(config.apiProviderBaseUrl).toBe(DEFAULT_CONFIG.apiProviderBaseUrl);
@@ -937,7 +940,8 @@ describe('loadConfig', () => {
     const savedConfig: Partial<AppConfig> = {
       mode: 'api',
       apiProtocol: 'bedrock',
-      apiKey: '',
+      apiKey: 'bedrock-secret',
+      apiVersion: 'bedrock-2023-05-31',
       baseUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
       model: 'amazon.nova-lite-v1:0',
       configMigrationVersion: 1,
@@ -950,6 +954,8 @@ describe('loadConfig', () => {
     const config = loadConfig();
 
     expect(config.apiProtocol).toBe('anthropic');
+    expect(config.apiKey).toBe('');
+    expect(config.apiVersion).toBe('');
     expect(config.baseUrl).toBe(DEFAULT_CONFIG.baseUrl);
     expect(config.model).toBe(DEFAULT_CONFIG.model);
     expect(config.apiProviderBaseUrl).toBe(DEFAULT_CONFIG.apiProviderBaseUrl);
