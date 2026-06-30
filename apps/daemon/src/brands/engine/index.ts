@@ -2,10 +2,10 @@
 /**
  * Public entry point for the brand engine. Import everything from here:
  *
- *   import { buildFromUrl, deriveTokens, renderArtifact } from "./engine/index.js";
+ *   import { buildBrandSystem, deriveTokens, renderArtifact } from "./engine/index.js";
  *
  * The pipeline (see types.ts):
- *   URL / Brand ─▶ Seed ─▶ DesignTokens (default|dark|compact)
+ *   Brand ─▶ Seed ─▶ DesignTokens (default|dark|compact)
  *               ─▶ export (json/css/theme) ─▶ kit (components) ─▶ artifacts (products)
  */
 
@@ -46,5 +46,5 @@ export {
 // ── artifacts: composed products ──
 export { renderArtifact, renderArtifactGallery, brandFontAssets } from "./artifacts/index.js";
 
-// ── build: the integration seam (Brand/URL → full BrandSystem) ──
-export { buildBrandSystem, buildFromUrl, writeBrandSystem, slugify } from "./build.js";
+// ── build: the integration seam (Brand → full BrandSystem) ──
+export { buildBrandSystem, writeBrandSystem, slugify } from "./build.js";
