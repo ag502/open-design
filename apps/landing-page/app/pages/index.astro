@@ -1520,8 +1520,9 @@ const matterRuntime = readFileSync(
           // a homepage sign-in just swaps in place (already on it).
           const goHome = () => {
             if (!homeUrl) return;
+            const targetUrl = new URL(homeUrl, window.location.href);
             const here = window.location.pathname.replace(/\/+$/, '');
-            const target = homeUrl.replace(/\/+$/, '');
+            const target = targetUrl.pathname.replace(/\/+$/, '');
             if (here !== target) window.location.assign(homeUrl);
           };
 
