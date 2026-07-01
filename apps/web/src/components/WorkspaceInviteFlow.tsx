@@ -226,9 +226,6 @@ export function WorkspaceInviteFlow({ scenario, initiallySignedIn = false }: Pro
 
           {stage === 'success' ? (
             <div className={styles.result}>
-              <span className={`${styles.resultIcon} ${styles.resultIconSuccess}`}>
-                <Icon name="check" size={28} />
-              </span>
               <h1>开始协作</h1>
               <p>你已加入 Nexu 团队，正在打开本地 Open Design。</p>
 
