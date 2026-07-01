@@ -2890,7 +2890,7 @@ section.tight { padding: 90px 0; }
   pointer-events: none;
 }
 .lab-stage.precise-bg-in::before {
-  background-image: url('/lab-stage-art.webp');
+  background-image: url('/lab-stage-art.webp?v=2');
 }
 @media (max-width: 880px) {
   /* Two mobile bugs fixed here:
@@ -4383,7 +4383,7 @@ section.tight { padding: 90px 0; }
   z-index: 0;
 }
 .cta-dance.precise-bg-in::before {
-  background-image: url('/cta-bg.webp?v=2');
+  background-image: url('/cta-bg.webp?v=3');
 }
 /* Open Design Home window floating over the mural, centered in the lower half;
    its bottom is clipped by the block's overflow:hidden (matching the comp). */
