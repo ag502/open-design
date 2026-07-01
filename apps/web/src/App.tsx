@@ -65,7 +65,7 @@ import {
   type VelaLoginStatus,
 } from './providers/daemon';
 import { AMR_LOGIN_STATUS_EVENT } from './components/amrLoginPolling';
-import { navigate, useRoute } from './router';
+import { goBack, navigate, useRoute } from './router';
 import {
   fetchDaemonConfig,
   DEFAULT_PET,
@@ -122,6 +122,22 @@ import type {
   SkillSummary,
 } from './types';
 
+type AppCreateProjectInput = Omit<CreateInput, 'metadata'> & {
+  metadata?: CreateInput['metadata'];
+  pendingPrompt?: string;
+  pluginId?: string;
+  pluginType?: string;
+  appliedPluginSnapshotId?: string;
+  pluginInputs?: Record<string, unknown>;
+  initialRunContext?: RunContextSelection | null;
+  conversationMode?: ChatSessionMode;
+  autoSendFirstMessage?: boolean;
+  requestId?: string;
+  pendingFiles?: File[];
+  userWorkingDirToken?: string;
+  linkedDirs?: string[] | null;
+};
+
 const APP_CONFIG_CHANGED_EVENT = 'open-design:app-config-changed';
 const AMR_AGENT_ID = 'amr';
 const AMR_PROFILE_ENV_KEY = 'OPEN_DESIGN_AMR_PROFILE';
@@ -153,14 +169,15 @@ function amrProfileForConfig(config: AppConfig): string | null {
 }
 
 function mergeLinkedDirsIntoMetadata(
-  metadata: ProjectMetadata,
+  metadata: ProjectMetadata | undefined,
   linkedDirs?: string[] | null,
-): ProjectMetadata {
+): ProjectMetadata | undefined {
   const nextDirs = (linkedDirs ?? []).map((dir) => dir.trim()).filter(Boolean);
   if (nextDirs.length === 0) return metadata;
+  const baseMetadata = metadata ?? { kind: 'other' };
   return {
-    ...metadata,
-    linkedDirs: Array.from(new Set([...(metadata.linkedDirs ?? []), ...nextDirs])),
+    ...baseMetadata,
+    linkedDirs: Array.from(new Set([...(baseMetadata.linkedDirs ?? []), ...nextDirs])),
   };
 }
 
@@ -1358,20 +1375,7 @@ function AppInner() {
 
   const handleCreateProject = useCallback(
     async (
-      input: CreateInput & {
-        pendingPrompt?: string;
-        pluginId?: string;
-        pluginType?: string;
-        appliedPluginSnapshotId?: string;
-        pluginInputs?: Record<string, unknown>;
-        initialRunContext?: RunContextSelection | null;
-        conversationMode?: ChatSessionMode;
-        autoSendFirstMessage?: boolean;
-        requestId?: string;
-        pendingFiles?: File[];
-        userWorkingDirToken?: string;
-        linkedDirs?: string[] | null;
-      },
+      input: AppCreateProjectInput,
     ): Promise<boolean> => {
       // Honor an explicit `null` design system — the create panel defaults
       // to "None" for every kind now, and the user expects that to land
@@ -1382,8 +1386,8 @@ function AppInner() {
       (input.metadata?.promptTemplate?.prompt?.trim() || undefined);
 
       const metadata = mergeLinkedDirsIntoMetadata(input.metadata, input.linkedDirs);
-      const kind = metadata.kind ?? null;
-      const fidelity = fidelityToTracking(metadata.fidelity ?? null);
+      const kind = metadata?.kind ?? null;
+      const fidelity = fidelityToTracking(metadata?.fidelity ?? null);
       const creationSource: 'blank' | 'template' | 'zip' | 'folder' =
         kind === 'template' ? 'template' : 'blank';
       let result;
@@ -1452,7 +1456,7 @@ function AppInner() {
       // from Design Files and the first auto-send context once the working
       // dir flips. Doing the handoff first means the initial upload lands in
       // the final tree.
-      const userWorkingDir = metadata.userWorkingDir;
+      const userWorkingDir = metadata?.userWorkingDir;
       let workingDirHandoffFailed = false;
       if (userWorkingDir) {
         try {
@@ -1855,8 +1859,12 @@ function AppInner() {
     void patchProject(id, { name: trimmed });
   }, []);
 
+  // Return to wherever the user opened this project from (Projects, Tasks, a
+  // design system, …) by popping the history stack. Falls back to the Projects
+  // list only when there is no in-app history behind us (a deep link / fresh
+  // load straight onto the project URL) — see `goBack`.
   const handleBack = useCallback(() => {
-    navigate({ kind: 'home', view: 'home' });
+    goBack({ kind: 'home', view: 'projects' });
   }, []);
 
   const handleClearPendingPrompt = useCallback(() => {
