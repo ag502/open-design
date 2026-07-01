@@ -14,7 +14,7 @@ import {
   projectKindFromMetadataToTracking,
   fidelityToTracking,
 } from '@open-design/contracts/analytics';
-import type { AmrModelsResponse, ChatSessionMode } from '@open-design/contracts';
+import type { AmrModelsResponse, ChatSessionMode, RunContextSelection } from '@open-design/contracts';
 import { DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID } from '@open-design/contracts';
 import { EntryView } from './components/EntryView';
 import { DemoControlBar, isInviteScenario, type DemoPlan, type DemoScenario, type DemoUseMode } from './components/DemoControlBar';
@@ -116,6 +116,7 @@ import type {
   DesignSystemGenerationJob,
   DesignSystemSummary,
   Project,
+  ProjectMetadata,
   ProjectTemplate,
   ProviderModelOption,
   PromptTemplateSummary,
@@ -129,11 +130,13 @@ type AppCreateProjectInput = Omit<CreateInput, 'metadata'> & {
   pluginType?: string;
   appliedPluginSnapshotId?: string;
   pluginInputs?: Record<string, unknown>;
+  initialRunContext?: RunContextSelection | null;
   conversationMode?: ChatSessionMode;
   autoSendFirstMessage?: boolean;
   requestId?: string;
   pendingFiles?: File[];
   userWorkingDirToken?: string;
+  linkedDirs?: string[] | null;
 };
 
 const APP_CONFIG_CHANGED_EVENT = 'open-design:app-config-changed';
@@ -164,6 +167,19 @@ function normalizeSavedComposioConfig(config: AppConfig['composio']): AppConfig[
 function amrProfileForConfig(config: AppConfig): string | null {
   const profile = config.agentCliEnv?.[AMR_AGENT_ID]?.[AMR_PROFILE_ENV_KEY];
   return typeof profile === 'string' && profile ? profile : null;
+}
+
+function mergeLinkedDirsIntoMetadata(
+  metadata: ProjectMetadata | undefined,
+  linkedDirs?: string[] | null,
+): ProjectMetadata | undefined {
+  const nextDirs = (linkedDirs ?? []).map((dir) => dir.trim()).filter(Boolean);
+  if (nextDirs.length === 0) return metadata;
+  const baseMetadata = metadata ?? { kind: 'other' };
+  return {
+    ...baseMetadata,
+    linkedDirs: Array.from(new Set([...(baseMetadata.linkedDirs ?? []), ...nextDirs])),
+  };
 }
 
 function sameAgentModelChoice(
@@ -1373,8 +1389,9 @@ function AppInner() {
       input.pendingPrompt ??
       (input.metadata?.promptTemplate?.prompt?.trim() || undefined);
 
-      const kind = input.metadata?.kind ?? null;
-      const fidelity = fidelityToTracking(input.metadata?.fidelity ?? null);
+      const metadata = mergeLinkedDirsIntoMetadata(input.metadata, input.linkedDirs);
+      const kind = metadata?.kind ?? null;
+      const fidelity = fidelityToTracking(metadata?.fidelity ?? null);
       const creationSource: 'blank' | 'template' | 'zip' | 'folder' =
         kind === 'template' ? 'template' : 'blank';
       let result;
@@ -1384,7 +1401,7 @@ function AppInner() {
           skillId: input.skillId,
           designSystemId: input.designSystemId,
           pendingPrompt: derivedPendingPrompt,
-          metadata: input.metadata,
+          metadata,
           ...(input.conversationMode ? { conversationMode: input.conversationMode } : {}),
           ...(input.pluginId ? { pluginId: input.pluginId } : {}),
           ...(input.appliedPluginSnapshotId
@@ -1404,7 +1421,7 @@ function AppInner() {
             area: 'new_project',
             project_source: 'create_button',
             project_id: null,
-            project_kind: projectKindFromMetadataToTracking(input.metadata),
+            project_kind: projectKindFromMetadataToTracking(metadata),
             fidelity,
             result: 'failed',
             error_code: errorCode,
@@ -1421,7 +1438,7 @@ function AppInner() {
             area: 'new_project',
             project_source: 'create_button',
             project_id: null,
-            project_kind: projectKindFromMetadataToTracking(input.metadata),
+            project_kind: projectKindFromMetadataToTracking(metadata),
             fidelity,
             ...(input.pluginId ? { plugin_id: input.pluginId } : {}),
             ...(input.pluginType ? { plugin_type: input.pluginType } : {}),
@@ -1443,7 +1460,7 @@ function AppInner() {
       // from Design Files and the first auto-send context once the working
       // dir flips. Doing the handoff first means the initial upload lands in
       // the final tree.
-      const userWorkingDir = input.metadata?.userWorkingDir;
+      const userWorkingDir = metadata?.userWorkingDir;
       let workingDirHandoffFailed = false;
       if (userWorkingDir) {
         try {
@@ -1501,7 +1518,7 @@ function AppInner() {
           area: 'new_project',
           project_source: 'create_button',
           project_id: result.project.id,
-          project_kind: projectKindFromMetadataToTracking(input.metadata),
+          project_kind: projectKindFromMetadataToTracking(metadata),
           fidelity,
           ...(input.pluginId ? { plugin_id: input.pluginId } : {}),
           ...(input.pluginType ? { plugin_type: input.pluginType } : {}),
@@ -1532,6 +1549,16 @@ function AppInner() {
           } else {
             window.sessionStorage.removeItem(
               `od:auto-send-attachments:${result.project.id}`,
+            );
+          }
+          if (input.initialRunContext && Object.keys(input.initialRunContext).length > 0) {
+            window.sessionStorage.setItem(
+              `od:auto-send-context:${result.project.id}`,
+              JSON.stringify(input.initialRunContext),
+            );
+          } else {
+            window.sessionStorage.removeItem(
+              `od:auto-send-context:${result.project.id}`,
             );
           }
         } catch {
