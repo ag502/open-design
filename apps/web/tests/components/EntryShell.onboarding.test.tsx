@@ -634,6 +634,44 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     expect(screen.queryByText('Signing in…')).toBeNull();
   });
 
+  // The cloud sign-in error is page-level state that belongs to the cloud path
+  // only. Switching to a different runtime must clear it so a stale cloud error
+  // does not bleed onto the Local CLI or BYOK setup sub-page.
+  it.each([
+    { label: 'Local coding agent', button: /Local coding agent/i },
+    { label: 'BYOK', button: /Bring your own key/i },
+  ])('clears the cloud sign-in error when switching to $label', async ({ button }) => {
+    const fetchMock = vi.fn(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/integrations/vela/status')) {
+        return jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' });
+      }
+      if (url.endsWith('/api/integrations/vela/login') && init?.method === 'POST') {
+        return jsonResponse({ error: 'vela binary not found' }, 500);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    renderOnboarding();
+
+    await clickCloudSignIn();
+    await waitFor(() => {
+      expect(
+        screen.getByText('Cloud sign-in is temporarily unavailable. Please try again later.'),
+      ).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: button }));
+
+    // Moving to another runtime path drops the cloud error entirely.
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Cloud sign-in is temporarily unavailable. Please try again later.'),
+      ).toBeNull();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('clears AMR login pending when the cloud sign-in is canceled', async () => {
     const fetchMock = vi.fn(async (input, init) => {
       const url = String(input);
