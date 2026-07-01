@@ -151,11 +151,24 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit, canAss
         </div>
 
         <div className="entry-invite__art" aria-hidden>
-          <span className="entry-invite__art-blob entry-invite__art-blob--a" />
-          <span className="entry-invite__art-blob entry-invite__art-blob--b" />
-          <span className="entry-invite__art-card entry-invite__art-card--1" />
-          <span className="entry-invite__art-card entry-invite__art-card--2" />
-          <span className="entry-invite__art-card entry-invite__art-card--3" />
+          <span className="entry-invite__art-glow" />
+          <div className="entry-invite__art-cluster">
+            <span className="entry-invite__art-avatar">
+              <img src="/team-avatars/a2.png" alt="" />
+            </span>
+            <span className="entry-invite__art-avatar">
+              <img src="/team-avatars/a1.png" alt="" />
+            </span>
+            <span className="entry-invite__art-avatar">
+              <img src="/team-avatars/a4.png" alt="" />
+            </span>
+            <span className="entry-invite__art-avatar">
+              <img src="/team-avatars/a6.png" alt="" />
+            </span>
+            <span className="entry-invite__art-avatar entry-invite__art-avatar--invite">
+              <Icon name="plus" size={26} />
+            </span>
+          </div>
         </div>
       </div>
     </div>

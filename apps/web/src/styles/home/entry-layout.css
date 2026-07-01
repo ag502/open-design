@@ -6012,62 +6012,55 @@
   color: var(--text-faint);
   cursor: default;
 }
+/* Right column: a cluster of overlapping teammate avatars ending in a
+   dashed "+" — reads as "bring people together" instead of the previous
+   abstract blobs. */
 .entry-invite__art {
   position: relative;
   flex: 0 0 360px;
   overflow: hidden;
+  display: grid;
+  place-items: center;
   background: linear-gradient(150deg, #f4f1ff 0%, #faf7ff 100%);
 }
-.entry-invite__art-blob {
+.entry-invite__art-glow {
   position: absolute;
+  width: 300px;
+  height: 300px;
   border-radius: 50%;
-  filter: blur(2px);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 70%);
+  filter: blur(6px);
 }
-.entry-invite__art-blob--a {
-  width: 320px;
-  height: 320px;
-  right: -90px;
-  bottom: -120px;
-  background: radial-gradient(circle at 30% 30%, #8b5cf6 0%, #7c3aed 60%, #6d28d9 100%);
-  opacity: 0.92;
+.entry-invite__art-cluster {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
-.entry-invite__art-blob--b {
-  width: 200px;
-  height: 200px;
-  right: -40px;
-  bottom: -60px;
-  background: radial-gradient(circle at 40% 40%, #f43f5e 0%, #be123c 100%);
-  opacity: 0.85;
-}
-.entry-invite__art-card {
-  position: absolute;
-  border-radius: 10px;
+.entry-invite__art-avatar {
+  width: 72px;
+  height: 72px;
+  margin-left: -20px;
+  border-radius: 50%;
+  border: 3px solid #fff;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(76, 29, 149, 0.18);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 24px rgba(76, 29, 149, 0.16);
 }
-.entry-invite__art-card--1 {
-  width: 120px;
-  height: 150px;
-  left: 36px;
-  top: 70px;
-  transform: rotate(-6deg);
-  background: linear-gradient(160deg, #fff 0%, #f3efff 100%);
+.entry-invite__art-avatar:first-child { margin-left: 0; }
+.entry-invite__art-avatar:nth-child(odd) { transform: translateY(-12px); }
+.entry-invite__art-avatar:nth-child(even) { transform: translateY(12px); }
+.entry-invite__art-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
-.entry-invite__art-card--2 {
-  width: 150px;
-  height: 200px;
-  left: 120px;
-  top: 110px;
-  transform: rotate(3deg);
-  background: linear-gradient(160deg, #7c3aed 0%, #5b21b6 100%);
-}
-.entry-invite__art-card--3 {
-  width: 86px;
-  height: 130px;
-  right: 56px;
-  bottom: 90px;
-  transform: rotate(-4deg);
-  background: linear-gradient(160deg, #fff 0%, #ffe9ec 100%);
+.entry-invite__art-avatar--invite {
+  border: 2px dashed color-mix(in srgb, var(--accent) 60%, #fff);
+  background: color-mix(in srgb, var(--accent) 12%, #fff);
+  color: var(--accent);
+  box-shadow: none;
 }
 @media (max-width: 720px) {
   .entry-invite__panel--split { flex-direction: column; max-width: 460px; }

@@ -26,6 +26,10 @@
 
   /* Accent — Open Design action color for app chrome only. */
   --accent: #c96442;
+  /* Foreground for text/icons placed on --accent fills. White reads on both
+     the light (#c96442) and dark (#d97a56) accent; several call sites use
+     var(--accent-contrast) and previously fell through to inherited dark. */
+  --accent-contrast: #fff;
   --accent-strong: #b45a3b;
   --accent-soft: #f5d8cb;
   --accent-tint: #fbeee5;

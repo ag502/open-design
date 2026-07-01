@@ -57,6 +57,8 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
   const [upgraded, setUpgraded] = useState(false);
   const [confettiOn, setConfettiOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Emails showing a transient "已发送" confirmation after a resend click.
+  const [resentEmails, setResentEmails] = useState<Set<string>>(() => new Set());
   // Invites entered before an upgrade was required — sent once upgraded.
   const [queuedInvites, setQueuedInvites] = useState<PendingInvite[]>([]);
   // Per-member role state so the dropdowns are interactive in the demo.
@@ -97,6 +99,19 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
     setPendingInvites((prev) => [...prev, ...rows]);
     setToast(`已向 ${rows.length} 位同事发送邀请邮件`);
     window.setTimeout(() => setToast(null), 3200);
+  }
+
+  function resendInvite(email: string) {
+    setToast(`已重新发送邀请邮件给 ${email}`);
+    window.setTimeout(() => setToast(null), 3200);
+    setResentEmails((prev) => new Set(prev).add(email));
+    window.setTimeout(() => {
+      setResentEmails((prev) => {
+        const next = new Set(prev);
+        next.delete(email);
+        return next;
+      });
+    }, 2000);
   }
 
   function removeMember(member: Member) {
@@ -286,8 +301,21 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
                   <span className="members__badge">等待中</span>
                 </div>
                 <div className="members__col members__col--action">
-                  <button type="button" className="members__resend">
-                    <Icon name="refresh" size={13} /> 重新发送
+                  <button
+                    type="button"
+                    className="members__resend"
+                    onClick={() => resendInvite(invite.email)}
+                    disabled={resentEmails.has(invite.email)}
+                  >
+                    {resentEmails.has(invite.email) ? (
+                      <>
+                        <Icon name="check" size={13} /> 已发送
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="refresh" size={13} /> 重新发送
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
