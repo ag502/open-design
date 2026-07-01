@@ -641,13 +641,14 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     { label: 'Local coding agent', button: /Local coding agent/i },
     { label: 'BYOK', button: /Bring your own key/i },
   ])('clears the cloud sign-in error when switching to $label', async ({ button }) => {
+    const startupError = 'vela binary not found; install vela or configure VELA_BIN';
     const fetchMock = vi.fn(async (input, init) => {
       const url = String(input);
       if (url.endsWith('/api/integrations/vela/status')) {
         return jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' });
       }
       if (url.endsWith('/api/integrations/vela/login') && init?.method === 'POST') {
-        return jsonResponse({ error: 'vela binary not found' }, 500);
+        return jsonResponse({ error: startupError }, 500);
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -663,12 +664,15 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
 
     fireEvent.click(screen.getByRole('button', { name: button }));
 
-    // Moving to another runtime path drops the cloud error entirely.
+    // Moving to another runtime path drops the cloud error entirely: neither the
+    // friendly copy nor the raw daemon message may follow the user onto the
+    // Local CLI / BYOK sub-page.
     await waitFor(() => {
       expect(
         screen.queryByText('Cloud sign-in is temporarily unavailable. Please try again later.'),
       ).toBeNull();
     });
+    expect(screen.queryByText(startupError)).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
