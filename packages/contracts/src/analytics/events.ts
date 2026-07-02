@@ -67,6 +67,7 @@ export type AnalyticsEventName =
   // arrived from the Home recommendation, actually sends their first request
   // and when that first generation completes — the send-through and
   // completion rates the onboarding acceptance criteria track.
+  | 'onboarding_prompt_prefilled'
   | 'onboarding_first_prompt_sent'
   | 'onboarding_first_generation_completed'
   // Design-system lifecycle. Clicks + page_views inside DS surfaces
@@ -768,6 +769,19 @@ export interface OnboardingCompleteResultProps {
   organization_size?: TrackingOnboardingOrganizationSize;
   use_cases?: TrackingOnboardingUseCase[];
   discovery_source?: TrackingOnboardingDiscoverySource;
+}
+
+// Fired once when Studio mounts with the recommended first request pre-filled
+// in the composer — the "Home → Studio handoff succeeded" step of the funnel,
+// between the recommendation's `enter_studio` click and
+// `onboarding_first_prompt_sent`. `role` / `use_cases` echo the survey answers
+// that produced the recommendation (spec §11.1).
+export interface OnboardingPromptPrefilledProps {
+  entry_source: 'home_recommendation';
+  product_type: TrackingOnboardingProductType;
+  recommendation_id: string;
+  role?: TrackingOnboardingRole;
+  use_cases?: TrackingOnboardingUseCase[];
 }
 
 // Fired once, in Studio, when the user sends the first request in a project
@@ -3481,6 +3495,7 @@ export type AnalyticsEventPayload =
   | { event: 'amr_auth_result'; props: AmrAuthResultProps }
   | { event: 'onboarding_runtime_scan_result'; props: OnboardingRuntimeScanResultProps }
   | { event: 'onboarding_complete_result'; props: OnboardingCompleteResultProps }
+  | { event: 'onboarding_prompt_prefilled'; props: OnboardingPromptPrefilledProps }
   | { event: 'onboarding_first_prompt_sent'; props: OnboardingFirstPromptSentProps }
   | {
       event: 'onboarding_first_generation_completed';

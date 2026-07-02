@@ -83,6 +83,7 @@ import {
   trackPageView,
   trackRunCreated,
   trackRunFinished,
+  trackOnboardingPromptPrefilled,
   trackOnboardingFirstPromptSent,
   trackOnboardingFirstGenerationCompleted,
 } from '../analytics/events';
@@ -6913,6 +6914,23 @@ export function ProjectView({
         ? undefined
         : (initialDraft?.projectId === project.id ? initialDraft.value : undefined)
     );
+  // Home → Studio handoff confirmation (spec §11.1 onboarding_prompt_prefilled):
+  // the recommendation's first request actually reached this composer. Fires
+  // once, only for recommendation-started projects that arrived with a seed.
+  const onboardingPrefilledFiredRef = useRef(false);
+  useEffect(() => {
+    const entry = onboardingEntryRef.current;
+    if (!entry || onboardingPrefilledFiredRef.current) return;
+    if (typeof chatInitialDraft !== 'string' || chatInitialDraft.trim().length === 0) return;
+    onboardingPrefilledFiredRef.current = true;
+    trackOnboardingPromptPrefilled(analytics.track, {
+      entry_source: entry.source,
+      product_type: entry.productType,
+      recommendation_id: entry.recommendationId,
+      ...(entry.role ? { role: entry.role } : {}),
+      ...(entry.useCases && entry.useCases.length > 0 ? { use_cases: entry.useCases } : {}),
+    });
+  }, [chatInitialDraft, analytics.track]);
   const brandEnrichmentPromptSeed =
     project.pendingPrompt?.trim() ||
     (initialDraft?.projectId === project.id ? initialDraft.value.trim() : '');

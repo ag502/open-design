@@ -148,6 +148,8 @@ export function RecommendedStartRegion({ recommendation, onStart, onDismiss }: P
       source: 'home_recommendation',
       productType: current.productType,
       recommendationId: current.id,
+      ...(recommendation.role ? { role: recommendation.role } : {}),
+      ...(recommendation.useCases.length > 0 ? { useCases: recommendation.useCases } : {}),
     });
     onStart({
       name: projectNameFromPrompt(firstPrompt, t('home.recommendation.defaultProjectName')),

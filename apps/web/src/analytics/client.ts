@@ -22,6 +22,10 @@ interface AnalyticsContext {
   clientType: AnalyticsClientType;
   locale: string;
   appVersion: string;
+  // Whether this is the install's first analytics session (see
+  // identity.ts#isFirstSession). Optional so callers that don't care
+  // (error tracking) can omit it.
+  isFirstSession?: boolean;
 }
 
 let client: PostHog | null = null;
@@ -298,6 +302,10 @@ export async function getAnalyticsClient(
             client_type: context.clientType,
             locale: context.locale,
             session_id: context.sessionId,
+            // Onboarding-funnel dimension (spec §11.1 common fields).
+            ...(context.isFirstSession !== undefined
+              ? { is_first_session: context.isFirstSession }
+              : {}),
             // v2 rename: was `anonymous_id`. Value is unchanged — the same
             // installationId / local-UUID fallback.
             device_id: distinctId,

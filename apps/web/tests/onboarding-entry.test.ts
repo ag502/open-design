@@ -40,6 +40,23 @@ describe('pending onboarding entry (session hand-off)', () => {
     });
   });
 
+  it('carries the survey answers when present', () => {
+    stashPendingOnboardingEntry({
+      source: 'home_recommendation',
+      productType: 'marketing',
+      recommendationId: 'marketing_landing',
+      role: 'growth',
+      useCases: ['landing', 'ads'],
+    });
+    expect(consumePendingOnboardingEntry()).toEqual({
+      source: 'home_recommendation',
+      productType: 'marketing',
+      recommendationId: 'marketing_landing',
+      role: 'growth',
+      useCases: ['landing', 'ads'],
+    });
+  });
+
   it('is read-once — a second consume returns null', () => {
     stashPendingOnboardingEntry({
       source: 'home_recommendation',

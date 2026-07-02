@@ -127,6 +127,7 @@ import type {
   OnboardingClickProps,
   OnboardingRuntimeScanResultProps,
   OnboardingCompleteResultProps,
+  OnboardingPromptPrefilledProps,
   OnboardingFirstPromptSentProps,
   OnboardingFirstGenerationCompletedProps,
   DesignSystemSourceIngestResultProps,
@@ -1055,6 +1056,13 @@ export function trackOnboardingCompleteResult(
 }
 
 // First-generation funnel (spec §11.1).
+export function trackOnboardingPromptPrefilled(
+  track: Track,
+  props: OnboardingPromptPrefilledProps,
+): void {
+  send(track, 'onboarding_prompt_prefilled', props);
+}
+
 export function trackOnboardingFirstPromptSent(
   track: Track,
   props: OnboardingFirstPromptSentProps,

@@ -17,6 +17,11 @@ export interface OnboardingEntry {
   source: 'home_recommendation';
   productType: ProductType;
   recommendationId: string;
+  // Survey answers that produced the recommendation, echoed on the
+  // `onboarding_prompt_prefilled` funnel event (spec §11.1). Analysis-only —
+  // they live in this session slot, never in project data.
+  role?: string;
+  useCases?: string[];
 }
 
 const STORAGE_KEY = 'open-design:pending-onboarding-entry';
@@ -47,6 +52,11 @@ export function consumePendingOnboardingEntry(): OnboardingEntry | null {
         source: 'home_recommendation',
         productType: parsed.productType,
         recommendationId: parsed.recommendationId,
+        ...(typeof parsed.role === 'string' && parsed.role ? { role: parsed.role } : {}),
+        ...(Array.isArray(parsed.useCases) &&
+        parsed.useCases.every((u) => typeof u === 'string')
+          ? { useCases: parsed.useCases }
+          : {}),
       };
     }
     return null;
