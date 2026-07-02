@@ -5,7 +5,13 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 4px 0 8px;
+  /* Match the hero composer column (720px, centered) so the strip reads as a
+     card in the same visual stack — not a full-width notice bar. */
+  width: 100%;
+  max-width: 720px;
+  align-self: center;
+  flex-wrap: wrap;
+  margin: 12px auto 4px;
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   border-radius: var(--radius);
