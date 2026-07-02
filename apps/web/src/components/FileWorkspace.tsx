@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Button } from '@open-design/components';
+import { createPortal } from 'react-dom';
 import type { DesignSystemEditClickProps, TrackingProjectKind } from '@open-design/contracts/analytics';
 import { useAnalytics } from '../analytics/provider';
 import {
@@ -87,7 +88,7 @@ import {
   type ProjectFile,
   type ProjectFolder,
 } from '../types';
-import type { ChatSessionMode, WorkspaceContextItem } from '@open-design/contracts';
+import type { ChatSessionMode, RunContextSelection, WorkspaceContextItem } from '@open-design/contracts';
 import { createTerminal, killTerminal } from '../state/projects';
 import type { QuestionForm } from '../artifacts/question-form';
 import { DesignFilesPanel, type DesignFilesNavState } from './DesignFilesPanel';
@@ -271,7 +272,11 @@ interface Props {
   questionFormSubmitDisabled?: boolean;
   questionFormSubmittedAnswers?: Record<string, string | string[]>;
   questionsGenerating?: boolean;
-  onSubmitQuestionForm?: (text: string) => void;
+  onSubmitQuestionForm?: (
+    text: string,
+    attachments?: ChatAttachment[],
+    context?: RunContextSelection,
+  ) => void;
   // Bumped nonce that focuses the Questions tab (banner click / new form).
   focusQuestionsRequest?: { nonce: number } | null;
 }
@@ -353,6 +358,131 @@ const SKETCH_AUTOSAVE_DELAY_MS = 800;
 // Stable empty folder list so the render-phase project-switch reset is
 // idempotent (passing a fresh `[]` each render would re-trigger the reset).
 const EMPTY_PROJECT_FOLDERS: ProjectFolder[] = [];
+type ProjectPagePresetId =
+  | 'slides'
+  | 'prototype'
+  | 'wireframe'
+  | 'mobile'
+  | 'document'
+  | 'image'
+  | 'video'
+  | 'hyperframes'
+  | 'audio'
+  | 'liveArtifact';
+type ProjectPageCategoryId = 'recommended' | ProjectPagePresetId;
+interface ProjectPagePreset {
+  id: ProjectPagePresetId;
+  category: Exclude<ProjectPageCategoryId, 'recommended'>;
+  titleKey: keyof Dict;
+  descriptionKey: keyof Dict;
+  icon: IconName;
+  fileBaseName: string;
+  featured?: boolean;
+}
+const PROJECT_PAGE_PRESETS: ProjectPagePreset[] = [
+  {
+    id: 'slides',
+    category: 'slides',
+    titleKey: 'homeHero.chip.deck',
+    descriptionKey: 'homeHero.chip.deckDesc',
+    icon: 'present',
+    fileBaseName: 'slides',
+    featured: true,
+  },
+  {
+    id: 'prototype',
+    category: 'prototype',
+    titleKey: 'homeHero.chip.prototype',
+    descriptionKey: 'homeHero.chip.prototypeDesc',
+    icon: 'layout',
+    fileBaseName: 'prototype',
+    featured: true,
+  },
+  {
+    id: 'wireframe',
+    category: 'wireframe',
+    titleKey: 'homeHero.chip.wireframe',
+    descriptionKey: 'homeHero.chip.wireframeDesc',
+    icon: 'grid',
+    fileBaseName: 'wireframe',
+    featured: true,
+  },
+  {
+    id: 'mobile',
+    category: 'mobile',
+    titleKey: 'homeHero.chip.mobile',
+    descriptionKey: 'homeHero.chip.mobileDesc',
+    icon: 'smartphone',
+    fileBaseName: 'mobile-app',
+    featured: true,
+  },
+  {
+    id: 'document',
+    category: 'document',
+    titleKey: 'homeHero.chip.document',
+    descriptionKey: 'homeHero.chip.documentDesc',
+    icon: 'file-text',
+    fileBaseName: 'document',
+    featured: true,
+  },
+  {
+    id: 'image',
+    category: 'image',
+    titleKey: 'homeHero.chip.image',
+    descriptionKey: 'homeHero.chip.imageDesc',
+    icon: 'image',
+    fileBaseName: 'image-board',
+  },
+  {
+    id: 'video',
+    category: 'video',
+    titleKey: 'homeHero.chip.video',
+    descriptionKey: 'homeHero.chip.videoDesc',
+    icon: 'play',
+    fileBaseName: 'video-storyboard',
+  },
+  {
+    id: 'hyperframes',
+    category: 'hyperframes',
+    titleKey: 'homeHero.chip.hyperframes',
+    descriptionKey: 'homeHero.chip.hyperframesDesc',
+    icon: 'sparkles',
+    fileBaseName: 'hyperframes',
+  },
+  {
+    id: 'audio',
+    category: 'audio',
+    titleKey: 'homeHero.chip.audio',
+    descriptionKey: 'homeHero.chip.audioDesc',
+    icon: 'volume',
+    fileBaseName: 'audio-brief',
+  },
+  {
+    id: 'liveArtifact',
+    category: 'liveArtifact',
+    titleKey: 'homeHero.chip.liveArtifact',
+    descriptionKey: 'homeHero.chip.liveArtifactDesc',
+    icon: 'kanban',
+    fileBaseName: 'live-artifact',
+  },
+];
+const PROJECT_PAGE_CATEGORIES: Array<{
+  id: ProjectPageCategoryId;
+  icon: IconName;
+  labelKey: keyof Dict;
+}> = [
+  { id: 'recommended', icon: 'grid', labelKey: 'settings.onboardingRecommended' },
+  { id: 'slides', icon: 'present', labelKey: 'homeHero.chip.deck' },
+  { id: 'prototype', icon: 'layout', labelKey: 'homeHero.chip.prototype' },
+  { id: 'wireframe', icon: 'grid', labelKey: 'homeHero.chip.wireframe' },
+  { id: 'mobile', icon: 'smartphone', labelKey: 'homeHero.chip.mobile' },
+  { id: 'document', icon: 'file-text', labelKey: 'homeHero.chip.document' },
+  { id: 'image', icon: 'image', labelKey: 'homeHero.chip.image' },
+  { id: 'video', icon: 'play', labelKey: 'homeHero.chip.video' },
+  { id: 'hyperframes', icon: 'sparkles', labelKey: 'homeHero.chip.hyperframes' },
+  { id: 'audio', icon: 'volume', labelKey: 'homeHero.chip.audio' },
+  { id: 'liveArtifact', icon: 'kanban', labelKey: 'homeHero.chip.liveArtifact' },
+];
 type TabDropEdge = 'before' | 'after';
 type BrowserWorkspaceTab = ProjectBrowserWorkspaceTab;
 export interface BrowserOpenRequest {
@@ -687,6 +817,19 @@ export function FileWorkspace({
   // "+" launcher (file search + registry-driven create-new actions:
   // Side Chat, Terminal, Browser).
   const [launcherOpen, setLauncherOpen] = useState(false);
+  const [pagesMenuOpen, setPagesMenuOpen] = useState(false);
+  const [pageCreatorOpen, setPageCreatorOpen] = useState(false);
+  const [pageCreatorQuery, setPageCreatorQuery] = useState('');
+  const [pageCreatorCategory, setPageCreatorCategory] =
+    useState<ProjectPageCategoryId>('recommended');
+  const [pageCreatorPreviewId, setPageCreatorPreviewId] =
+    useState<ProjectPagePresetId>(() => defaultPagePresetId(projectKind));
+  const [pageCreating, setPageCreating] = useState(false);
+  const [pagesMenuPosition, setPagesMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   // Transient feedback when a launcher "create" action (e.g. New Terminal)
   // fails on the daemon side, so the click is never a silent no-op.
   const [launcherToast, setLauncherToast] = useState<string | null>(null);
@@ -699,6 +842,9 @@ export function FileWorkspace({
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const launcherBtnRef = useRef<HTMLButtonElement | null>(null);
+  const pagesMenuRef = useRef<HTMLDivElement | null>(null);
+  const pagesMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pagesMenuFloatingRef = useRef<HTMLDivElement | null>(null);
   const tabsBarRef = useRef<HTMLDivElement | null>(null);
   const draggedTabNameRef = useRef<string | null>(null);
   const browserTabSequenceRef = useRef(0);
@@ -751,10 +897,40 @@ export function FileWorkspace({
     [files],
   );
 
+  const pageFileNames = useMemo(() => new Set(persistedTabs), [persistedTabs]);
+  const pageFiles = useMemo(
+    () => visibleFiles
+      .filter((file) => isProjectPageFile(file, pageFileNames))
+      .sort((a, b) => b.mtime - a.mtime || a.name.localeCompare(b.name)),
+    [pageFileNames, visibleFiles],
+  );
+
+  const updatePagesMenuPosition = useCallback(() => {
+    const button = pagesMenuButtonRef.current;
+    if (!button || typeof window === 'undefined') return;
+    const rect = button.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const menuWidth = Math.min(280, Math.max(180, viewportWidth - 36));
+    const left = Math.min(
+      Math.max(18, rect.left),
+      Math.max(18, viewportWidth - menuWidth - 18),
+    );
+    setPagesMenuPosition({
+      top: rect.bottom + 7,
+      left,
+      width: menuWidth,
+    });
+  }, []);
+
   const sketchFiles = useMemo(
     () => visibleFiles.filter((file) => isSketchName(file.name)),
     [visibleFiles],
   );
+
+  useEffect(() => {
+    setPageCreatorCategory('recommended');
+    setPageCreatorPreviewId(defaultPagePresetId(projectKind));
+  }, [projectId, projectKind]);
 
   const loadSketchFile = useCallback((file: ProjectFile): Promise<boolean> => {
     const sourceKey = sketchFileSourceKey(projectId, file);
@@ -1069,6 +1245,7 @@ export function FileWorkspace({
   // back to the last remaining tab. Skip transient activeTab values
   // (DESIGN_FILES_TAB, pending sketches) since those aren't in persistedTabs.
   useEffect(() => {
+    const latestPersistedTabs = tabsStateRef.current.tabs;
     if (
       activeTab === DESIGN_FILES_TAB
       || activeTab === DESIGN_SYSTEM_TAB
@@ -1081,8 +1258,8 @@ export function FileWorkspace({
       return;
     }
     if (sketches[activeTab] && !sketches[activeTab]!.persisted) return;
-    if (!persistedTabs.includes(activeTab)) {
-      setPersistedActive(persistedTabs[persistedTabs.length - 1] ?? null);
+    if (!latestPersistedTabs.includes(activeTab)) {
+      setPersistedActive(latestPersistedTabs[latestPersistedTabs.length - 1] ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistedTabs, activeTab]);
@@ -1134,6 +1311,30 @@ export function FileWorkspace({
     openRequestedBrowserTab(browserOpenRequest);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [browserOpenRequest]);
+
+  useEffect(() => {
+    if (!pagesMenuOpen) return;
+    updatePagesMenuPosition();
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && pagesMenuRef.current?.contains(target)) return;
+      if (target instanceof Node && pagesMenuFloatingRef.current?.contains(target)) return;
+      setPagesMenuOpen(false);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPagesMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', updatePagesMenuPosition);
+    window.addEventListener('scroll', updatePagesMenuPosition, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', updatePagesMenuPosition);
+      window.removeEventListener('scroll', updatePagesMenuPosition, true);
+    };
+  }, [pagesMenuOpen, updatePagesMenuPosition]);
 
   // Share request: ensure the target file is open + active so the FileViewer
   // below receives the matching `shareRequest` and opens its Share menu.
@@ -1211,18 +1412,22 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, showQuestionsTab]);
 
-  function openFile(name: string) {
+  function openFile(name: string, options?: { forcePersist?: boolean }) {
     setUploadError(null);
     // Read from the ref, not the `persistedTabs` prop closure: this path is
     // reached asynchronously from launcher "create" actions (after the daemon
     // resolves a new terminal/side-chat id), so the closure could be stale and
     // clobber tabs added in the meantime.
     const currentTabs = tabsStateRef.current.tabs;
-    const isNewTab = !currentTabs.includes(name);
+    const shouldPersistTab =
+      options?.forcePersist === true || isPrimaryWorkspaceTab(name, visibleFiles, liveArtifactEntries, sketches);
+    const isNewTab = shouldPersistTab && !currentTabs.includes(name);
     const nextBrowserTabs = isNewTab
       ? reanchorBrowserTabsToCurrentOrder(orderedWorkspaceTabs, browserTabs)
       : browserTabs;
-    const nextTabs = currentTabs.includes(name) ? currentTabs : [...currentTabs, name];
+    const nextTabs = shouldPersistTab && !currentTabs.includes(name)
+      ? [...currentTabs, name]
+      : currentTabs;
     if (nextBrowserTabs !== browserTabs) setBrowserTabs(nextBrowserTabs);
     commitTabsState(workspaceTabsState(nextTabs, name, nextBrowserTabs));
     setActiveTab(name);
@@ -1523,7 +1728,7 @@ export function FileWorkspace({
   // Browser-style tab bar: when the active tab changes (open from a chat
   // file chip, switch via Cmd+P, etc.), scroll it into view so the user
   // can always see what they have selected even when the strip overflows.
-  // The Design Files entry is already sticky-pinned, so we only scroll
+  // The Pages switcher is already sticky-pinned, so we only scroll
   // for real workspace tabs. Issue #775.
   useEffect(() => {
     if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB || activeTab === QUESTIONS_TAB) return;
@@ -1531,15 +1736,15 @@ export function FileWorkspace({
     if (!tabBar) return;
     const el = tabBar.querySelector<HTMLElement>('.ws-tab.active');
     if (!el) return;
-    // The Design Files tab is sticky-pinned to the scrollport's left
-    // edge (index.css:.ws-tab.design-files-tab), so a naive scrollIntoView
+    // The Pages switcher is sticky-pinned to the scrollport's left
+    // edge, so a naive scrollIntoView
     // with inline: 'nearest' would slide a leftward-jumped active tab
     // flush with that edge and leave it hidden underneath the sticky
     // panel. Compute scrollLeft manually instead, treating the sticky
-    // tab's right edge as the effective visible-left boundary.
+    // switcher's right edge as the effective visible-left boundary.
     const tabRect = el.getBoundingClientRect();
     const barRect = tabBar.getBoundingClientRect();
-    const stickyEl = tabBar.querySelector<HTMLElement>('.ws-tab.design-files-tab');
+    const stickyEl = tabBar.querySelector<HTMLElement>('.ws-pages-menu-anchor');
     const stickyWidth = stickyEl ? stickyEl.getBoundingClientRect().width : 0;
     const visibleLeft = barRect.left + stickyWidth;
     const visibleRight = barRect.right;
@@ -1785,7 +1990,34 @@ export function FileWorkspace({
     if (!file) return;
     await onRefreshFiles();
     await refreshProjectFolders();
-    openFile(file.name);
+    openFile(file.name, { forcePersist: true });
+  }
+
+  async function createBlankPage(presetId: ProjectPagePresetId) {
+    if (pageCreating) return;
+    const preset = projectPagePresetById(presetId) ?? PROJECT_PAGE_PRESETS[0]!;
+    const target = nextHtmlPagePath(visibleFiles, preset.fileBaseName);
+    setPageCreating(true);
+    try {
+      const file = await writeProjectTextFile(projectId, target, initialHtmlPage(target, preset, t));
+      if (!file) {
+        // Never let a failed create read as a silent no-op click.
+        setLauncherToast(t('workspace.pageCreateFailed'));
+        return;
+      }
+      setPageCreatorOpen(false);
+      setPagesMenuOpen(false);
+      setPageCreatorQuery('');
+      setPageCreatorCategory('recommended');
+      await onRefreshFiles();
+      await refreshProjectFolders();
+      openFile(file.name, { forcePersist: true });
+    } catch (err) {
+      console.error('[pages] create blank page failed:', err);
+      setLauncherToast(t('workspace.pageCreateFailed'));
+    } finally {
+      setPageCreating(false);
+    }
   }
 
   const activeSketchFile = useMemo(() => {
@@ -2212,16 +2444,25 @@ export function FileWorkspace({
     [browserTabs, tabNames],
   );
 
+  const visibleOrderedWorkspaceTabs = useMemo(
+    () =>
+      orderedWorkspaceTabs.filter((entry) => {
+        if (entry.kind === 'browser') return true;
+        return isPrimaryWorkspaceTab(entry.name, visibleFiles, liveArtifactEntries, sketches);
+      }),
+    [liveArtifactEntries, orderedWorkspaceTabs, sketches, visibleFiles],
+  );
+
   const workspaceTabIds = useMemo(() => {
     const ids: string[] = [];
     if (designSystemProject) ids.push(DESIGN_SYSTEM_TAB);
     ids.push(DESIGN_FILES_TAB);
     if (showQuestionsTab) ids.push(QUESTIONS_TAB);
-    for (const entry of orderedWorkspaceTabs) {
+    for (const entry of visibleOrderedWorkspaceTabs) {
       ids.push(entry.kind === 'browser' ? entry.browserTab.id : entry.name);
     }
     return ids;
-  }, [designSystemProject, orderedWorkspaceTabs, showQuestionsTab]);
+  }, [designSystemProject, showQuestionsTab, visibleOrderedWorkspaceTabs]);
 
   const workspaceContexts = useMemo<WorkspaceContextItem[]>(() => {
     const out: WorkspaceContextItem[] = [];
@@ -2351,7 +2592,7 @@ export function FileWorkspace({
     const measure = () => {
       frame = 0;
       setTabsOverflowing(tabBar.scrollWidth > tabBar.clientWidth + 1);
-      // Pin the sticky Design Files tab to the exact right edge of the sticky
+      // Pin the sticky Pages switcher to the exact right edge of the sticky
       // Design System tab (its real, locale-dependent width + the 2px flex gap),
       // so the two read as adjacent instead of leaving a hardcoded-offset gap.
       const systemTab = tabBar.querySelector<HTMLElement>('.ws-tab.design-system-tab');
@@ -2414,6 +2655,76 @@ export function FileWorkspace({
     },
   };
   const launcherActions = buildLauncherActions(launcherContext);
+  const activePageFile = activeFile && isProjectPageFile(activeFile, pageFileNames) ? activeFile : null;
+  const pagesButtonLabel = activePageFile
+    ? pageDisplayName(activePageFile.name)
+    : activeTab === DESIGN_FILES_TAB
+      ? t('workspace.allProjectFiles')
+    : t('workspace.pages');
+  const pagesMenuNode =
+    pagesMenuOpen && pagesMenuPosition && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            ref={pagesMenuFloatingRef}
+            className="ws-pages-menu"
+            role="menu"
+            data-testid="workspace-pages-menu"
+            style={{
+              top: pagesMenuPosition.top,
+              left: pagesMenuPosition.left,
+              width: pagesMenuPosition.width,
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="ws-pages-menu-new"
+              onClick={() => {
+                setPagesMenuOpen(false);
+                setPageCreatorOpen(true);
+              }}
+            >
+              <Icon name="plus" size={13} />
+              <span>{t('workspace.newBlankPage')}</span>
+            </button>
+            <div className="ws-pages-menu-section" aria-label={t('workspace.pages')}>
+              {pageFiles.length === 0 ? (
+                <div className="ws-pages-menu-empty">{t('workspace.noPagesYet')}</div>
+              ) : (
+                pageFiles.map((file) => (
+                  <button
+                    key={file.name}
+                    type="button"
+                    role="menuitem"
+                    className={activeTab === file.name ? 'active' : ''}
+                    onClick={() => {
+                      openFile(file.name);
+                      setPagesMenuOpen(false);
+                    }}
+                    title={file.name}
+                  >
+                    <Icon name={pageIconName(file.name)} size={13} />
+                    <span className="ws-pages-menu-name">{pageDisplayName(file.name)}</span>
+                  </button>
+                ))
+              )}
+            </div>
+            <button
+              type="button"
+              role="menuitem"
+              className="ws-pages-menu-files"
+              onClick={() => {
+                setPersistedActive(DESIGN_FILES_TAB);
+                setPagesMenuOpen(false);
+              }}
+            >
+              <Icon name="folder" size={13} />
+              <span>{t('workspace.allProjectFiles')}</span>
+            </button>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div
@@ -2444,7 +2755,7 @@ export function FileWorkspace({
           ref={tabsBarRef}
           className={`ws-tabs-bar${tabsOverflowing ? ' is-overflowing' : ''}`}
           role="tablist"
-          aria-label={t('workspace.designFiles')}
+          aria-label={t('workspace.pages')}
           onWheel={(event) => {
             // Translate vertical wheel into horizontal tab scroll so Windows
             // mouse-wheel users (no horizontal wheel/trackpad) can reach
@@ -2481,21 +2792,27 @@ export function FileWorkspace({
               <span className="ws-tab-label">{t('dsManager.tabDesignSystem')}</span>
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`ws-tab design-files-tab ${activeTab === DESIGN_FILES_TAB ? 'active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === DESIGN_FILES_TAB}
-            tabIndex={0}
-            data-testid="design-files-tab"
-            onClick={() => setPersistedActive(DESIGN_FILES_TAB)}
-            title={t('workspace.designFiles')}
-          >
-            <span className="tab-icon" aria-hidden>
-              <Icon name="grid" size={13} />
-            </span>
-            <span className="ws-tab-label">{t('workspace.designFiles')}</span>
-          </button>
+          <div className="ws-pages-menu-anchor" ref={pagesMenuRef} role="presentation">
+            <button
+              ref={pagesMenuButtonRef}
+              type="button"
+              className={`ws-tab pages-tab ${activePageFile || activeTab === DESIGN_FILES_TAB ? 'active' : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={pagesMenuOpen}
+              data-testid="workspace-pages-menu-trigger"
+              onClick={() => {
+                if (!pagesMenuOpen) updatePagesMenuPosition();
+                setPagesMenuOpen((open) => !open);
+              }}
+              title={t('workspace.pages')}
+            >
+              <span className="tab-icon" aria-hidden>
+                <Icon name="file-text" size={13} />
+              </span>
+              <span className="ws-tab-label">{pagesButtonLabel}</span>
+              <Icon name="chevron-down" size={12} />
+            </button>
+          </div>
           {showQuestionsTab ? (
             <button
               type="button"
@@ -2513,7 +2830,7 @@ export function FileWorkspace({
               <span className="ws-tab-label">{t('questions.tabLabel')}</span>
             </button>
           ) : null}
-          {orderedWorkspaceTabs.map((entry) => {
+          {visibleOrderedWorkspaceTabs.map((entry) => {
             if (entry.kind === 'browser') {
               const browserTab = entry.browserTab;
               const browserUrl = browserTab.url?.trim() ?? '';
@@ -2619,6 +2936,7 @@ export function FileWorkspace({
             );
           })}
         </div>
+        {pagesMenuNode}
         <div className="ws-add-tab">
           <button
             ref={launcherBtnRef}
@@ -2748,7 +3066,9 @@ export function FileWorkspace({
             submitDisabled={questionFormSubmitDisabled}
             submittedAnswers={questionFormSubmittedAnswers}
             generating={questionsGenerating}
-            onSubmit={(text) => onSubmitQuestionForm?.(text)}
+            onSubmit={(text, payload) =>
+              onSubmitQuestionForm?.(text, payload?.attachments ?? [], payload?.context)
+            }
           />
         ) : activeTab === DESIGN_SYSTEM_TAB && designSystemProject ? (
           <DesignSystemProjectPanel
@@ -2778,7 +3098,7 @@ export function FileWorkspace({
           <DesignFilesPanel
             key={projectId}
             projectId={projectId}
-            rootDirName={rootDirName}
+            rootDirName={rootDirName ?? t('workspace.allProjectFiles')}
             reloading={reloading}
             running={Boolean(streaming)}
             files={visibleFiles}
@@ -2973,12 +3293,27 @@ export function FileWorkspace({
                 setActiveTab(DESIGN_FILES_TAB);
               }}
             >
-              {t('workspace.designFilesLink')}
+              {t('workspace.allProjectFiles')}
             </a>
             .
           </div>
         )}
       </div>
+      <PageCreatorDialog
+        open={pageCreatorOpen}
+        t={t}
+        query={pageCreatorQuery}
+        category={pageCreatorCategory}
+        previewId={pageCreatorPreviewId}
+        creating={pageCreating}
+        onQueryChange={setPageCreatorQuery}
+        onCategoryChange={setPageCreatorCategory}
+        onPreviewChange={setPageCreatorPreviewId}
+        onCreate={(presetId) => void createBlankPage(presetId)}
+        onClose={() => {
+          if (!pageCreating) setPageCreatorOpen(false);
+        }}
+      />
       <input
         ref={fileInputRef}
         type="file"
@@ -4970,6 +5305,466 @@ ${t('designFiles.documentTemplate.nextBody')}
 `;
 }
 
+function defaultPagePresetId(projectKind: TrackingProjectKind): ProjectPagePresetId {
+  switch (projectKind) {
+    case 'slide_deck':
+      return 'slides';
+    case 'document':
+      return 'document';
+    case 'template':
+    case 'prototype':
+    case 'wireframe':
+    case 'mobile':
+    default:
+      return 'prototype';
+  }
+}
+
+function projectPagePresetById(id: ProjectPagePresetId): ProjectPagePreset | undefined {
+  return PROJECT_PAGE_PRESETS.find((preset) => preset.id === id);
+}
+
+function isProjectPageFile(file: ProjectFile, pageFileNames: Set<string>): boolean {
+  return (
+    file.kind === 'html'
+    && !isLiveArtifactImplementationPath(file.name)
+    && (
+      pageFileNames.has(file.name)
+      || isLikelyPrimaryPageFileName(file.name)
+    )
+  );
+}
+
+function isLikelyPrimaryPageFileName(name: string): boolean {
+  const normalized = normalizeProjectFilePath(name).toLowerCase();
+  const basename = normalized.split('/').filter(Boolean).pop() ?? normalized;
+  if (!/\.html?$/i.test(basename)) return false;
+  if (basename === 'index.html') return true;
+  const stem = basename.replace(/\.html?$/i, '');
+  return /^(page|prototype|wireframe|mobile-app|mobile|slides?|deck|presentation|document|resume|image-board|video-storyboard|hyperframes|audio-brief|live-artifact)(-\d+)?$/i.test(stem);
+}
+
+function isPrimaryWorkspaceTab(
+  name: string,
+  files: ProjectFile[],
+  liveArtifactEntries: LiveArtifactWorkspaceEntry[],
+  sketches: Record<string, SketchState>,
+): boolean {
+  if (
+    isBrowserTabId(name)
+    || isTerminalTabId(name)
+    || isSideChatTabId(name)
+    || name === DESIGN_SYSTEM_TAB
+    || name === QUESTIONS_TAB
+  ) {
+    return true;
+  }
+  if (liveArtifactEntries.some((entry) => entry.tabId === name)) return true;
+  const file = files.find((candidate) => candidate.name === name);
+  if (file) {
+    return file.type !== 'dir';
+  }
+  if (/\.html?$/i.test(name)) return true;
+  return Boolean(isSketchName(name) && sketches[name]);
+}
+
+function pageDisplayName(name: string): string {
+  const basename = normalizeProjectFilePath(name).split('/').filter(Boolean).pop() ?? name;
+  return basename.replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim() || basename;
+}
+
+function pageIconName(name: string): IconName {
+  return /\b(deck|slide|slides|pitch|presentation)\b/i.test(name) ? 'present' : 'file-text';
+}
+
+function nextHtmlPagePath(files: ProjectFile[], baseName: string): string {
+  const safeBaseName = baseName.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '') || 'page';
+  const existing = new Set(files.map((file) => normalizeProjectFilePath(file.name).toLowerCase()));
+  for (let index = 1; index < 1000; index += 1) {
+    const name = index === 1 ? `${safeBaseName}.html` : `${safeBaseName}-${index}.html`;
+    if (!existing.has(normalizeProjectFilePath(name).toLowerCase())) return name;
+  }
+  return `${safeBaseName}-${Date.now()}.html`;
+}
+
+function initialHtmlPage(path: string, preset: ProjectPagePreset, t: TranslateFn): string {
+  const title = pageTitleFromPath(path, t(preset.titleKey));
+  switch (preset.id) {
+    case 'slides':
+      return initialSlidesPage(title);
+    case 'document':
+      return initialDocumentPage(title);
+    case 'wireframe':
+      return initialWireframePage(title);
+    case 'mobile':
+      return initialMobilePage(title);
+    case 'image':
+      return initialImagePage(title);
+    case 'video':
+      return initialVideoPage(title);
+    case 'hyperframes':
+      return initialHyperframesPage(title);
+    case 'audio':
+      return initialAudioPage(title);
+    case 'liveArtifact':
+      return initialLiveArtifactPage(title);
+    case 'prototype':
+    default:
+      return initialPrototypePage(title);
+  }
+}
+
+function pageTitleFromPath(path: string, fallback: string): string {
+  const title = pageDisplayName(path)
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+  return title || fallback;
+}
+
+function initialPrototypePage(title: string): string {
+  const safeTitle = escapeHtmlText(title);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${safeTitle}</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f5f7; color: #17202a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+    main { width: min(1080px, 100%); min-height: 640px; display: grid; grid-template-columns: 1fr 0.9fr; overflow: hidden; border: 1px solid #d9dde5; background: #fff; box-shadow: 0 28px 80px rgba(17, 24, 39, 0.12); }
+    section { padding: 56px; }
+    .hero { display: flex; flex-direction: column; justify-content: space-between; background: #101820; color: #f9fafb; }
+    .eyebrow { color: #5ee0a0; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+    h1 { margin: 28px 0 18px; font-size: clamp(44px, 6vw, 80px); line-height: 0.95; letter-spacing: 0; }
+    p { margin: 0; max-width: 54ch; color: #d7dde6; font-size: 18px; line-height: 1.6; }
+    .panel { display: grid; align-content: center; gap: 18px; background: #f7f2ea; }
+    .step { padding: 18px; border: 1px solid #d7cdbf; background: rgba(255, 255, 255, 0.78); }
+    .step strong { display: block; margin-bottom: 6px; color: #111827; }
+    .step span { color: #556170; line-height: 1.5; }
+    @media (max-width: 820px) { main { grid-template-columns: 1fr; } section { padding: 32px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Open Design</div>
+        <h1>${safeTitle}</h1>
+        <p>Turn product intent, references, and iteration notes into a polished page that can be reviewed, remixed, and shipped.</p>
+      </div>
+      <p>Replace this starter with your own audience, workflow, and key screen.</p>
+    </section>
+    <section class="panel" aria-label="Prototype outline">
+      <div class="step"><strong>1. Promise</strong><span>State the concrete thing this page helps people do.</span></div>
+      <div class="step"><strong>2. Interaction</strong><span>Sketch the main action, state change, or decision path.</span></div>
+      <div class="step"><strong>3. Proof</strong><span>Add screenshots, data, or examples that make the design credible.</span></div>
+    </section>
+  </main>
+</body>
+</html>
+`;
+}
+
+function initialWireframePage(title: string): string {
+  return initialPrototypePage(title)
+    .replace('Turn product intent, references, and iteration notes into a polished page that can be reviewed, remixed, and shipped.', 'Map structure, priority, and flows before polishing visual style.')
+    .replace('1. Promise', '1. Flow')
+    .replace('2. Interaction', '2. Screen')
+    .replace('3. Proof', '3. Questions');
+}
+
+function initialMobilePage(title: string): string {
+  return initialPrototypePage(title)
+    .replace('width: min(1080px, 100%); min-height: 640px;', 'width: min(430px, 100%); min-height: 820px;')
+    .replace('grid-template-columns: 1fr 0.9fr;', 'grid-template-columns: 1fr;')
+    .replace('Turn product intent, references, and iteration notes into a polished page that can be reviewed, remixed, and shipped.', 'Shape a mobile app screen with clear hierarchy, native-feeling controls, and handoff-ready states.');
+}
+
+function initialImagePage(title: string): string {
+  return initialPrototypePage(title)
+    .replace('Prototype outline', 'Image direction')
+    .replace('1. Promise', '1. Subject')
+    .replace('2. Interaction', '2. Composition')
+    .replace('3. Proof', '3. Style')
+    .replace('Turn product intent, references, and iteration notes into a polished page that can be reviewed, remixed, and shipped.', 'Collect image direction, composition notes, references, and generation constraints in one reviewable page.');
+}
+
+function initialVideoPage(title: string): string {
+  return initialPrototypePage(title)
+    .replace('Prototype outline', 'Video storyboard')
+    .replace('1. Promise', '1. Hook')
+    .replace('2. Interaction', '2. Sequence')
+    .replace('3. Proof', '3. Output')
+    .replace('Turn product intent, references, and iteration notes into a polished page that can be reviewed, remixed, and shipped.', 'Draft scenes, timing, captions, motion, and export requirements before rendering video.');
+}
+
+function initialHyperframesPage(title: string): string {
+  return initialVideoPage(title)
+    .replace('Draft scenes, timing, captions, motion, and export requirements before rendering video.', 'Author an HTML motion piece with scenes, transitions, audio-reactive moments, and capture notes.');
+}
+
+function initialAudioPage(title: string): string {
+  return initialDocumentPage(title)
+    .replace('Use this page for a brief, memo, case study, or structured design note that should read well in preview.', 'Use this page for voice, music, sound design, pronunciation, pacing, and final-use notes.');
+}
+
+function initialLiveArtifactPage(title: string): string {
+  return initialPrototypePage(title)
+    .replace('Prototype outline', 'Live artifact plan')
+    .replace('1. Promise', '1. Data')
+    .replace('2. Interaction', '2. Controls')
+    .replace('3. Proof', '3. States')
+    .replace('Turn product intent, references, and iteration notes into a polished page that can be reviewed, remixed, and shipped.', 'Plan data sources, widgets, filters, refresh cadence, and empty/loading/error states.');
+}
+
+function initialSlidesPage(title: string): string {
+  const safeTitle = escapeHtmlText(title);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${safeTitle}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #082015;
+      --fg: #f7fbf8;
+      --muted: #b8c9c0;
+      --accent: #34d399;
+      --surface: rgba(255, 255, 255, 0.08);
+      --shell: #050807;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--shell);
+      color: var(--fg);
+      font: 18px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .deck-shell { position: fixed; inset: 0; overflow: hidden; }
+    .deck-stage {
+      width: 1920px;
+      height: 1080px;
+      background: var(--bg);
+      position: relative;
+      transform-origin: top left;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+    }
+    .slide {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      padding: 120px 140px;
+      background: radial-gradient(circle at 88% 12%, rgba(55, 199, 132, 0.2), transparent 28%), var(--bg);
+    }
+    .slide:not(.active) { display: none !important; }
+    :where(.slide.active) { display: flex; flex-direction: column; }
+    .deck-counter, .deck-hint {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    .cover { justify-content: center; }
+    .kicker { color: var(--accent); font-size: 22px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+    h1 { margin-top: 34px; max-width: 980px; font-size: 112px; line-height: 0.94; letter-spacing: 0; }
+    h2 { margin-top: 20px; max-width: 980px; font-size: 78px; line-height: 1; letter-spacing: 0; }
+    .body { margin-top: 30px; max-width: 760px; color: var(--muted); font-size: 30px; line-height: 1.45; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 76px; }
+    .card { min-height: 280px; padding: 34px; border: 1px solid rgba(255,255,255,0.16); background: var(--surface); }
+    .card strong { display: block; margin-bottom: 16px; font-size: 34px; line-height: 1.05; }
+    .card p { color: var(--muted); font-size: 24px; line-height: 1.42; }
+    .num { position: absolute; right: 108px; top: 78px; color: rgba(255,255,255,0.15); font-size: 150px; font-weight: 800; line-height: 1; }
+    .footer { position: absolute; left: 140px; right: 140px; bottom: 78px; display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 22px; color: rgba(255,255,255,0.52); font-size: 20px; }
+    @media print {
+      @page { size: 1920px 1080px; margin: 0; }
+      html, body { width: 1920px !important; height: auto !important; overflow: visible !important; background: #fff !important; }
+      .deck-shell { position: static !important; display: block !important; inset: auto !important; }
+      .deck-stage { width: 1920px !important; height: auto !important; transform: none !important; box-shadow: none !important; position: static !important; }
+      .slide { display: flex !important; position: relative !important; inset: auto !important; width: 1920px !important; height: 1080px !important; page-break-after: always; break-after: page; }
+      .slide:last-child { page-break-after: auto; break-after: auto; }
+      .deck-counter, .deck-hint { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck-shell">
+    <main class="deck-stage" id="deck-stage">
+      <section class="slide active cover" data-screen-label="01 Cover">
+        <div class="kicker">Open Design deck</div>
+        <h1>${safeTitle}</h1>
+        <p class="body">A focused starter for narrative, critique, speaker notes, and live presentation.</p>
+        <div class="num">01</div>
+        <div class="footer"><span>Starter deck</span><span>1920 x 1080</span></div>
+      </section>
+      <section class="slide" data-screen-label="02 Agenda">
+        <div class="kicker">Agenda</div>
+        <h2>Three points to make</h2>
+        <div class="grid">
+          <div class="card"><strong>Context</strong><p>What changed and why it matters.</p></div>
+          <div class="card"><strong>Design</strong><p>The artifact, flow, or direction to review.</p></div>
+          <div class="card"><strong>Decision</strong><p>The choice or next step you need.</p></div>
+        </div>
+        <div class="num">02</div>
+        <div class="footer"><span>Agenda</span><span>Use notes for delivery cues</span></div>
+      </section>
+      <section class="slide" data-screen-label="03 Decision">
+        <div class="kicker">Close</div>
+        <h2>What should happen next?</h2>
+        <p class="body">Use speaker notes for delivery cues and keep the slide itself focused on the decision.</p>
+        <div class="num">03</div>
+        <div class="footer"><span>Decision</span><span>Owner / timing / next step</span></div>
+      </section>
+    </main>
+  </div>
+  <nav class="deck-counter" role="navigation" aria-label="Deck navigation">
+    <button type="button" id="deck-prev" aria-label="Previous slide">‹</button>
+    <span class="deck-count"><span id="deck-cur">01</span> / <span id="deck-total">03</span></span>
+    <button type="button" id="deck-next" aria-label="Next slide">›</button>
+  </nav>
+  <div class="deck-hint">← / → · space</div>
+  <script type="application/json" id="speaker-notes">[
+    "Open with the one-sentence outcome for the audience.",
+    "Keep each agenda item tied to a decision or review moment.",
+    "Close with the action owner and timing."
+  ]</script>
+  <script>
+    (function () {
+      var stage = document.getElementById('deck-stage');
+      var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+      var prev = document.getElementById('deck-prev');
+      var next = document.getElementById('deck-next');
+      var cur = document.getElementById('deck-cur');
+      var total = document.getElementById('deck-total');
+      var STORE = 'deck:idx:' + (location.pathname || '/');
+      var idx = 0;
+      function fit() {
+        var sw = window.innerWidth;
+        var sh = window.innerHeight;
+        var pad = 32;
+        var s = Math.min((sw - pad) / 1920, (sh - pad) / 1080);
+        if (!isFinite(s) || s <= 0) s = 1;
+        var tx = (sw - 1920 * s) / 2;
+        var ty = (sh - 1080 * s) / 2;
+        stage.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+      }
+      function pad2(n) { return (n < 10 ? '0' : '') + n; }
+      function paint() {
+        slides.forEach(function (el, i) { el.classList.toggle('active', i === idx); });
+        if (cur) cur.textContent = pad2(idx + 1);
+        if (total) total.textContent = pad2(slides.length);
+        if (prev) prev.toggleAttribute('disabled', idx <= 0);
+        if (next) next.toggleAttribute('disabled', idx >= slides.length - 1);
+      }
+      function go(i) {
+        idx = Math.max(0, Math.min(slides.length - 1, i));
+        paint();
+        try { localStorage.setItem(STORE, String(idx)); } catch (_) {}
+      }
+      function interactiveTarget(target) {
+        while (target && target !== document.body && target !== document.documentElement) {
+          var tag = String(target.tagName || '').toUpperCase();
+          if (tag === 'A' || tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable || target.getAttribute('role') === 'button' || target.getAttribute('role') === 'link') return true;
+          target = target.parentElement;
+        }
+        return false;
+      }
+      function focusDeck() { try { window.focus(); document.body.focus({ preventScroll: true }); } catch (_) {} }
+      function onKey(e) {
+        if (e.__odDeckKeyHandled) return;
+        var t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.__odDeckKeyHandled = true; e.preventDefault(); go(idx + 1); }
+        else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.__odDeckKeyHandled = true; e.preventDefault(); go(idx - 1); }
+        else if (e.key === 'Home' || String(e.key).toLowerCase() === 'r') { e.__odDeckKeyHandled = true; e.preventDefault(); go(0); }
+        else if (e.key === 'End') { e.__odDeckKeyHandled = true; e.preventDefault(); go(slides.length - 1); }
+      }
+      window.addEventListener('keydown', onKey, true);
+      document.addEventListener('keydown', onKey, true);
+      if (prev) prev.addEventListener('click', function () { go(idx - 1); });
+      if (next) next.addEventListener('click', function () { go(idx + 1); });
+      document.addEventListener('click', function (e) {
+        if (e.defaultPrevented || (e.button !== undefined && e.button !== 0) || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || interactiveTarget(e.target)) return;
+        focusDeck();
+        if (e.clientX < window.innerWidth / 2) go(idx - 1);
+        else go(idx + 1);
+      }, true);
+      document.body.setAttribute('tabindex', '-1');
+      document.body.style.outline = 'none';
+      document.addEventListener('mousedown', focusDeck);
+      window.addEventListener('load', focusDeck);
+      try {
+        var saved = parseInt(localStorage.getItem(STORE) || '0', 10);
+        if (!isNaN(saved) && saved >= 0 && saved < slides.length) idx = saved;
+      } catch (_) {}
+      window.addEventListener('resize', fit);
+      fit();
+      paint();
+      focusDeck();
+    })();
+  </script>
+</body>
+</html>
+`;
+}
+
+function initialDocumentPage(title: string): string {
+  const safeTitle = escapeHtmlText(title);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${safeTitle}</title>
+  <style>
+    :root { color-scheme: light; font-family: ui-serif, Georgia, "Times New Roman", serif; background: #eef1f4; color: #1c2630; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 40px 20px; }
+    article { width: min(860px, 100%); margin: 0 auto; padding: 72px; background: #fff; border: 1px solid #d8dee6; box-shadow: 0 18px 60px rgba(19, 31, 44, 0.1); }
+    .meta { color: #607083; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    h1 { margin: 18px 0 28px; font-size: clamp(42px, 6vw, 72px); line-height: 1.02; letter-spacing: 0; }
+    h2 { margin: 42px 0 12px; font: 700 18px/1.25 Inter, ui-sans-serif, system-ui, sans-serif; color: #223044; }
+    p, li { font-size: 20px; line-height: 1.65; }
+    p { margin: 0 0 18px; }
+    ul { padding-left: 24px; }
+    @media (max-width: 720px) { article { padding: 36px 24px; } }
+  </style>
+</head>
+<body>
+  <article>
+    <div class="meta">Open Design document</div>
+    <h1>${safeTitle}</h1>
+    <p>Use this page for a brief, memo, case study, or structured design note that should read well in preview.</p>
+    <h2>Purpose</h2>
+    <p>State the audience, the decision, and the desired result.</p>
+    <h2>Key Points</h2>
+    <ul>
+      <li>What the artifact needs to communicate.</li>
+      <li>What evidence or references should guide the design.</li>
+      <li>What reviewers should respond to first.</li>
+    </ul>
+  </article>
+</body>
+</html>
+`;
+}
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function documentTemplateScenarioKey(projectKind: TrackingProjectKind): keyof Dict {
   switch (projectKind) {
     case 'prototype':
@@ -5400,6 +6195,235 @@ function escapeDesignSystemPreviewAttr(value: string): string {
 
 function escapeDesignSystemPreviewCssUrl(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\a ');
+}
+
+function PageCreatorDialog({
+  open,
+  t,
+  query,
+  category,
+  previewId,
+  creating,
+  onQueryChange,
+  onCategoryChange,
+  onPreviewChange,
+  onCreate,
+  onClose,
+}: {
+  open: boolean;
+  t: TranslateFn;
+  query: string;
+  category: ProjectPageCategoryId;
+  previewId: ProjectPagePresetId;
+  creating: boolean;
+  onQueryChange: (value: string) => void;
+  onCategoryChange: (value: ProjectPageCategoryId) => void;
+  onPreviewChange: (value: ProjectPagePresetId) => void;
+  onCreate: (value: ProjectPagePresetId) => void;
+  onClose: () => void;
+}) {
+  const [modalPreviewId, setModalPreviewId] = useState<ProjectPagePresetId | null>(null);
+  useEffect(() => {
+    if (!open) setModalPreviewId(null);
+  }, [open]);
+
+  if (!open) return null;
+
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filteredPresets = PROJECT_PAGE_PRESETS.filter((preset) => {
+    const haystack = [
+      preset.id,
+      preset.fileBaseName,
+      preset.category,
+      t(preset.titleKey),
+      t(preset.descriptionKey),
+    ].join(' ').toLocaleLowerCase();
+    if (normalizedQuery) return haystack.includes(normalizedQuery);
+    if (category === 'recommended') return preset.featured === true;
+    return preset.category === category;
+  });
+  const previewPreset =
+    projectPagePresetById(previewId) ?? filteredPresets[0] ?? PROJECT_PAGE_PRESETS[0]!;
+  const modalPreviewPreset = modalPreviewId
+    ? projectPagePresetById(modalPreviewId) ?? previewPreset
+    : null;
+  const modalPreviewSrcDoc = modalPreviewPreset
+    ? initialHtmlPage(`${modalPreviewPreset.fileBaseName}.html`, modalPreviewPreset, t)
+    : '';
+
+  const dialog = (
+    <div
+      className="page-creator-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !creating) onClose();
+      }}
+    >
+      <section
+        className="page-creator-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('workspace.pageCreatorTitle')}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="page-creator-head">
+          <div>
+            <p className="page-creator-kicker">{t('workspace.pages')}</p>
+            <h2>{t('workspace.pageCreatorTitle')}</h2>
+          </div>
+          <label className="page-creator-search">
+            <Icon name="search" size={14} />
+            <input
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder={t('workspace.pageCreatorSearch')}
+              autoFocus
+            />
+          </label>
+          <button
+            type="button"
+            className="page-creator-close od-tooltip"
+            onClick={onClose}
+            disabled={creating}
+            title={t('common.close')}
+            data-tooltip={t('common.close')}
+            aria-label={t('common.close')}
+          >
+            <Icon name="close" size={15} />
+          </button>
+        </header>
+        <div className="page-creator-body">
+          <aside className="page-creator-sidebar" aria-label={t('workspace.pageCreatorCategoryAll')}>
+            {PROJECT_PAGE_CATEGORIES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={!normalizedQuery && category === item.id ? 'active' : ''}
+                onClick={() => {
+                  onCategoryChange(item.id);
+                  onQueryChange('');
+                  const firstPreset = PROJECT_PAGE_PRESETS.find((preset) =>
+                    item.id === 'recommended' ? preset.featured === true : preset.category === item.id,
+                  );
+                  if (firstPreset) onPreviewChange(firstPreset.id);
+                }}
+              >
+                <Icon name={item.icon} size={13} />
+                <span>{t(item.labelKey)}</span>
+              </button>
+            ))}
+          </aside>
+          <div className="page-creator-main">
+            <div className="page-creator-grid" role="list">
+              {filteredPresets.length === 0 ? (
+                <p className="page-creator-empty">{t('workspace.pageCreatorEmpty')}</p>
+              ) : (
+                filteredPresets.map((preset) => {
+                  const srcDoc = initialHtmlPage(`${preset.fileBaseName}.html`, preset, t);
+                  return (
+                    <article
+                      key={preset.id}
+                      className={`page-creator-card ${previewPreset.id === preset.id ? 'active' : ''}`}
+                      role="listitem"
+                      onMouseEnter={() => onPreviewChange(preset.id)}
+                      onFocus={() => onPreviewChange(preset.id)}
+                    >
+                      <div className="page-creator-card-preview">
+                        <span className="page-creator-card-frame" aria-hidden>
+                          {/* allow-scripts (still origin-isolated) so templates
+                              that scale themselves — the slides deck stage —
+                              preview at fit instead of a clipped corner. */}
+                          <iframe title="" srcDoc={srcDoc} sandbox="allow-scripts" loading="lazy" tabIndex={-1} />
+                        </span>
+                        <span className="page-creator-card-copy">
+                          <strong>
+                            <Icon name={preset.icon} size={14} />
+                            {t(preset.titleKey)}
+                          </strong>
+                          <span>{t(preset.descriptionKey)}</span>
+                        </span>
+                        <span className="page-creator-card-actions">
+                          <button
+                            type="button"
+                            className="page-creator-preview-button"
+                            onClick={() => setModalPreviewId(preset.id)}
+                            disabled={creating}
+                          >
+                            <Icon name="eye" size={13} />
+                            {t('workspace.pageCreatorPreview')}
+                          </button>
+                          <button
+                            type="button"
+                            className="page-creator-use"
+                            onClick={() => onCreate(preset.id)}
+                            disabled={creating}
+                          >
+                            {t('workspace.pageCreatorUse')}
+                          </button>
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+      {modalPreviewPreset ? (
+        <div
+          className="page-template-preview-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setModalPreviewId(null);
+          }}
+        >
+          <section
+            className="page-template-preview-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${t('workspace.pageCreatorPreview')} ${t(modalPreviewPreset.titleKey)}`}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="page-template-preview-head">
+              <div>
+                <p className="page-creator-kicker">{t('workspace.pageCreatorPreview')}</p>
+                <h3>{t(modalPreviewPreset.titleKey)}</h3>
+              </div>
+              <button
+                type="button"
+                className="page-creator-close od-tooltip"
+                onClick={() => setModalPreviewId(null)}
+                title={t('common.close')}
+                data-tooltip={t('common.close')}
+                aria-label={t('common.close')}
+              >
+                <Icon name="close" size={15} />
+              </button>
+            </header>
+            <iframe
+              className="page-template-preview-frame"
+              title={t(modalPreviewPreset.titleKey)}
+              srcDoc={modalPreviewSrcDoc}
+              sandbox="allow-scripts"
+            />
+            <footer className="page-template-preview-foot">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => onCreate(modalPreviewPreset.id)}
+                disabled={creating}
+              >
+                {t('workspace.pageCreatorUse')}
+              </Button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return typeof document !== 'undefined' ? createPortal(dialog, document.body) : dialog;
 }
 
 function Tab({

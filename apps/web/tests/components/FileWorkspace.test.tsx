@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { act } from 'react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -543,7 +543,7 @@ describe('FileWorkspace upload input', () => {
       />,
     );
 
-    expect(container.querySelector('.df-breadcrumb-current')?.textContent).toBe('Project');
+    expect(container.querySelector('.df-breadcrumb-current')?.textContent).toBe('All project files');
     expect(screen.getByTestId('design-file-row-home.html')).toBeTruthy();
   });
 
@@ -769,7 +769,7 @@ describe('FileWorkspace upload input', () => {
     );
   });
 
-  it('keeps the Design Files tab as the first workspace tab before opened files', () => {
+  it('keeps All project files inside the Pages switcher instead of a standalone tab', () => {
     const markup = renderToStaticMarkup(
       <FileWorkspace
         projectId="project-1"
@@ -784,9 +784,137 @@ describe('FileWorkspace upload input', () => {
     );
 
     expect(markup).toContain('class="ws-tabs-bar"');
-    expect(markup).toMatch(
-      /role="tablist"[\s\S]*data-testid="design-files-tab"[\s\S]*artifact\.html/,
+    expect(markup).toContain('data-testid="workspace-pages-menu-trigger"');
+    expect(markup).not.toContain('data-testid="design-files-tab"');
+    expect(markup).toContain('artifact.html');
+  });
+
+  it('lists only marked or primary HTML pages in the Pages menu and keeps resources in All project files', () => {
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[
+          workspaceFile('index.html'),
+          workspaceFile('story.html'),
+          workspaceFile('notes.md'),
+          baseFile({
+            name: 'assets/logo.png',
+            path: 'assets/logo.png',
+            kind: 'image',
+            mime: 'image/png',
+          }),
+        ]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: [], active: null }}
+        onTabsStateChange={vi.fn()}
+      />,
     );
+
+    expect(screen.queryByTestId('design-files-tab')).toBeNull();
+    expect(screen.getByTestId('workspace-pages-menu-trigger').textContent).toContain('All project files');
+
+    fireEvent.click(screen.getByTestId('workspace-pages-menu-trigger'));
+    const menu = screen.getByTestId('workspace-pages-menu');
+    expect(menu.closest('.ws-tabs-bar')).toBeNull();
+    expect(menu.textContent).toContain('New blank page');
+    expect(menu.textContent).toContain('index');
+    expect(menu.textContent).toContain('All project files');
+    expect(menu.textContent).not.toContain('story');
+    expect(menu.textContent).not.toContain('logo.png');
+    expect(menu.textContent).not.toContain('notes.md');
+  });
+
+  it('creates a blank page from the Pages picker and opens it as a primary workspace page', async () => {
+    const onRefreshFiles = vi.fn();
+    const onTabsStateChange = vi.fn();
+    mockedWriteProjectTextFile.mockResolvedValueOnce({
+      name: 'slides.html',
+      path: 'slides.html',
+      type: 'file',
+      size: 128,
+      mtime: 1710000000,
+      kind: 'html',
+      mime: 'text/html',
+    });
+
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={onRefreshFiles}
+        isDeck={false}
+        tabsState={{ tabs: [], active: null }}
+        onTabsStateChange={onTabsStateChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('workspace-pages-menu-trigger'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /New blank page/i }));
+    const dialog = screen.getByRole('dialog', { name: /Create page/i });
+    expect(dialog).toBeTruthy();
+    expect(dialog.closest('.workspace')).toBeNull();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Use' })[0]!);
+
+    await waitFor(() => {
+      expect(mockedWriteProjectTextFile).toHaveBeenCalledWith(
+        'project-1',
+        'slides.html',
+        expect.stringContaining('<title>Slides</title>'),
+      );
+    });
+    await waitFor(() => expect(onRefreshFiles).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(onTabsStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: ['slides.html'],
+          active: 'slides.html',
+        }),
+      );
+    });
+  });
+
+  it('opens markdown documents from All project files into a persisted workspace tab', async () => {
+    const onTabsStateChange = vi.fn();
+
+    function StatefulWorkspace() {
+      const [tabsState, setTabsState] = useState({ tabs: [] as string[], active: null as string | null });
+      return (
+        <FileWorkspace
+          projectId="project-1"
+          projectKind="prototype"
+          files={[workspaceFile('document.md')]}
+          liveArtifacts={[]}
+          onRefreshFiles={vi.fn()}
+          isDeck={false}
+          tabsState={tabsState}
+          onTabsStateChange={(next) => {
+            onTabsStateChange(next);
+            setTabsState(next);
+          }}
+        />
+      );
+    }
+
+    render(<StatefulWorkspace />);
+
+    fireEvent.click(screen.getByTestId('design-file-row-document.md').querySelector('.df-row-name-btn')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+
+    await waitFor(() => {
+      expect(onTabsStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: ['document.md'],
+          active: 'document.md',
+        }),
+      );
+    });
+    expect(screen.getByRole('tab', { name: /document\.md/ })).toBeTruthy();
   });
 
   it('labels the same workspace control as chat restore while focused', () => {
@@ -888,6 +1016,58 @@ describe('FileWorkspace launcher tab creation', () => {
     expect(screen.getByText('Create new')).toBeTruthy();
   });
 
+  it('creates a launcher Markdown document as a focused tab while Pages stays aggregate', async () => {
+    const createdFile = workspaceFile('document.md');
+    const onTabsStateChange = vi.fn();
+    mockedWriteProjectTextFile.mockResolvedValueOnce(createdFile);
+
+    function StatefulWorkspace() {
+      const [files, setFiles] = useState<ProjectFile[]>([]);
+      const [tabsState, setTabsState] = useState({ tabs: [] as string[], active: null as string | null });
+      return (
+        <FileWorkspace
+          projectId="project-1"
+          projectKind="prototype"
+          files={files}
+          liveArtifacts={[]}
+          onRefreshFiles={async () => {
+            setFiles([createdFile]);
+          }}
+          isDeck={false}
+          tabsState={tabsState}
+          onTabsStateChange={(next) => {
+            onTabsStateChange(next);
+            setTabsState(next);
+          }}
+        />
+      );
+    }
+
+    render(<StatefulWorkspace />);
+
+    fireEvent.click(screen.getByTestId('workspace-add-tab'));
+    const launcher = await screen.findByTestId('tab-launcher-menu');
+    fireEvent.click(within(launcher).getByRole('button', { name: /Create document/i }));
+
+    await waitFor(() => {
+      expect(mockedWriteProjectTextFile).toHaveBeenCalledWith(
+        'project-1',
+        'document.md',
+        expect.stringContaining('# Document'),
+      );
+    });
+    await waitFor(() => {
+      expect(onTabsStateChange).toHaveBeenLastCalledWith({
+        tabs: ['document.md'],
+        active: 'document.md',
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /document\.md/ }).getAttribute('aria-selected')).toBe('true');
+    });
+    expect(screen.getByTestId('workspace-pages-menu-trigger').textContent).toContain('Pages');
+  });
+
   it('renders terminal and side chat tabs after a Design Files-anchored browser tab', () => {
     render(
       <FileWorkspace
@@ -922,7 +1102,6 @@ describe('FileWorkspace launcher tab creation', () => {
     );
 
     expect(renderedTabLabels()).toEqual([
-      'Design Files',
       'Browser',
       'New Terminal',
       'Side chat',
@@ -1429,14 +1608,14 @@ describe('FileWorkspace tab reordering', () => {
         projectKind="prototype"
         files={[
           workspaceFile('analysis.html'),
-          workspaceFile('notes.md'),
+          workspaceFile('notes.html'),
           workspaceFile('summary.html'),
         ]}
         liveArtifacts={[]}
         onRefreshFiles={vi.fn()}
         isDeck={false}
         tabsState={{
-          tabs: ['analysis.html', 'notes.md', 'summary.html'],
+          tabs: ['analysis.html', 'notes.html', 'summary.html'],
           active: null,
         }}
         onTabsStateChange={onTabsStateChange}
@@ -1455,7 +1634,7 @@ describe('FileWorkspace tab reordering', () => {
     act(() => dispatchDragEvent(target, 'drop', dataTransfer));
 
     expect(onTabsStateChange).toHaveBeenCalledWith({
-      tabs: ['summary.html', 'analysis.html', 'notes.md'],
+      tabs: ['summary.html', 'analysis.html', 'notes.html'],
       active: null,
     });
   });
@@ -1469,14 +1648,14 @@ describe('FileWorkspace tab reordering', () => {
         projectKind="prototype"
         files={[
           workspaceFile('analysis.html'),
-          workspaceFile('notes.md'),
+          workspaceFile('notes.html'),
           workspaceFile('summary.html'),
         ]}
         liveArtifacts={[]}
         onRefreshFiles={vi.fn()}
         isDeck={false}
         tabsState={{
-          tabs: ['analysis.html', 'notes.md', 'summary.html'],
+          tabs: ['analysis.html', 'notes.html', 'summary.html'],
           active: null,
         }}
         onTabsStateChange={onTabsStateChange}
@@ -1494,7 +1673,7 @@ describe('FileWorkspace tab reordering', () => {
     act(() => dispatchDragEvent(target, 'drop', dataTransfer, 75));
 
     expect(onTabsStateChange).toHaveBeenCalledWith({
-      tabs: ['notes.md', 'summary.html', 'analysis.html'],
+      tabs: ['notes.html', 'summary.html', 'analysis.html'],
       active: null,
     });
   });
@@ -1506,12 +1685,12 @@ describe('FileWorkspace tab reordering', () => {
       <FileWorkspace
         projectId="project-1"
         projectKind="prototype"
-        files={[workspaceFile('analysis.html'), workspaceFile('notes.md')]}
+        files={[workspaceFile('analysis.html'), workspaceFile('notes.html')]}
         liveArtifacts={[]}
         onRefreshFiles={vi.fn()}
         isDeck={false}
         tabsState={{
-          tabs: ['analysis.html', 'notes.md'],
+          tabs: ['analysis.html', 'notes.html'],
           active: null,
         }}
         onTabsStateChange={onTabsStateChange}
@@ -1535,12 +1714,12 @@ describe('FileWorkspace tab reordering', () => {
       <FileWorkspace
         projectId="project-1"
         projectKind="prototype"
-        files={[workspaceFile('analysis.html'), workspaceFile('notes.md')]}
+        files={[workspaceFile('analysis.html'), workspaceFile('notes.html')]}
         liveArtifacts={[]}
         onRefreshFiles={vi.fn()}
         isDeck={false}
         tabsState={{
-          tabs: ['analysis.html', 'notes.md'],
+          tabs: ['analysis.html', 'notes.html'],
           active: null,
         }}
         onTabsStateChange={vi.fn()}
@@ -1548,7 +1727,7 @@ describe('FileWorkspace tab reordering', () => {
     );
 
     const source = getTabByName(container, /analysis\.html/i);
-    const target = getTabByName(container, /notes\.md/i);
+    const target = getTabByName(container, /notes\.html/i);
     const tabBar = container.querySelector<HTMLElement>('.ws-tabs-bar');
     if (!tabBar) throw new Error('Could not find tabs bar');
     stubTabRect(target);

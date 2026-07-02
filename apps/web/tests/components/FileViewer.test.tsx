@@ -1539,9 +1539,55 @@ describe('FileViewer SVG artifacts', () => {
     const resolvedTop = window
       .getComputedStyle(overlay!)
       .top.replace(/var\(--workspace-tabs-chrome-height,\s*38px\)/, bodyChromeHeight || '38px');
-    expect(resolvedTop).toBe('34px');
+    expect(resolvedTop).toBe('0px');
     style.remove();
     workspaceShell.remove();
+  });
+
+  it('closes deck in-tab presentation when the present iframe forwards Escape', async () => {
+    const file = baseFile({
+      name: 'deck.html',
+      path: 'deck.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Deck',
+        entry: 'deck.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+
+    const { container } = render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={file}
+        isDeck
+        liveHtml="<html><body><section class='slide active'>one</section><section class='slide'>two</section></body></html>"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /present/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /in this tab/i }));
+
+    const frame = await waitFor(() => {
+      const nextFrame = document.body.querySelector<HTMLIFrameElement>('.present-overlay iframe');
+      expect(nextFrame).toBeTruthy();
+      return nextFrame!;
+    });
+    expect(container.querySelector('.html-viewer.is-tab-present')).toBeTruthy();
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'od:present-escape' },
+      source: frame.contentWindow,
+    }));
+
+    await waitFor(() => {
+      expect(container.querySelector('.html-viewer.is-tab-present')).toBeNull();
+    });
   });
 
   it('allows downloads in React component preview iframes', async () => {
@@ -1698,7 +1744,7 @@ describe('FileViewer SVG artifacts', () => {
     expect(markup).toContain('data-od-render-mode="url-load" data-od-active="false"');
   });
 
-  it('hides preview-only toolbar controls when switching an HTML deck to source view', async () => {
+  it('keeps HTML decks in design preview mode instead of exposing the source tab', async () => {
     const file = baseFile({
       name: 'deck.html',
       path: 'deck.html',
@@ -1724,23 +1770,20 @@ describe('FileViewer SVG artifacts', () => {
       />,
     );
 
-    expect(container.querySelector('.deck-nav')).toBeTruthy();
+    expect(container.querySelector('.viewer-tabs')).toBeNull();
+    expect(container.querySelector('.deck-nav')).toBeNull();
+    expect(container.querySelector('.deck-thumbnail-toolbar-toggle')).toBeTruthy();
+    expect(container.querySelector('.deck-thumbnail-rail .deck-thumbnail-toggle')).toBeNull();
+    expect(container.querySelector('.deck-floating-nav')).toBeTruthy();
+    const notesSwitch = screen.getByRole('switch', { name: /edit/i });
+    expect(notesSwitch.closest('label')).toBeNull();
+    fireEvent.click(container.querySelector('.deck-thumbnail-toolbar-toggle')!);
+    expect(container.querySelector('.comment-preview-layer-deck-rail-collapsed')).toBeTruthy();
+    expect(container.querySelector('.deck-thumbnail-toolbar-toggle')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Manual' })).toBeNull();
     expect(container.querySelector('.viewer-viewport-switcher')).toBeTruthy();
     expect(screen.queryByTestId('palette-tweaks-toggle')).toBeNull();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Code' }));
-
-    await waitFor(() => {
-      expect(container.querySelector('.deck-nav')).toBeNull();
-      expect(container.querySelector('.viewer-viewport-switcher')).toBeNull();
-      expect(screen.queryByTestId('manual-edit-mode-toggle')).toBeNull();
-      expect(screen.queryByTestId('draw-overlay-toggle')).toBeNull();
-      expect(screen.queryByTestId('palette-tweaks-toggle')).toBeNull();
-      expect(screen.queryByRole('button', { name: /100%/ })).toBeNull();
-      expect(screen.queryByRole('button', { name: /zoom out/i })).toBeNull();
-      expect(screen.queryByRole('button', { name: /zoom in/i })).toBeNull();
-    });
+    expect(screen.queryByRole('tab', { name: 'Code' })).toBeNull();
   });
 
   it('shows Cloudflare Pages as a deploy action without requiring a project name input', async () => {
@@ -6112,13 +6155,13 @@ describe('LiveArtifactViewer', () => {
     expect(rule).toContain('display: none;');
   });
 
-  it('keeps the presentation exit button aligned with preview chrome spacing', () => {
+  it('keeps the legacy presentation exit affordance hidden for deck presentation', () => {
     const css = readExpandedIndexCss();
     const rule = css.match(/\.present-exit\s*\{[^}]+\}/)?.[0] ?? '';
 
+    expect(rule).toContain('display: none;');
     expect(rule).toContain('top: calc(env(safe-area-inset-top, 0px) + 20px);');
     expect(rule).toContain('right: calc(env(safe-area-inset-right, 0px) + 20px);');
-    expect(rule).toContain('display: inline-flex;');
     expect(rule).toContain('align-items: center;');
   });
 
@@ -6139,12 +6182,12 @@ describe('LiveArtifactViewer', () => {
     expect(rule).toContain('outline-offset: 2px');
   });
 
-  it('keeps in-tab presentation overlays anchored to the inherited workspace tab height', () => {
+  it('lets in-tab presentation overlays cover the full window', () => {
     const css = readExpandedIndexCss();
     const overlayRule = css.match(/\.present-overlay\s*\{[^}]+\}/)?.[0] ?? '';
 
     expect(overlayRule).toContain('position: fixed;');
-    expect(overlayRule).toContain('top: var(--workspace-tabs-chrome-height, 38px);');
+    expect(overlayRule).toContain('top: 0;');
     expect(overlayRule).toContain('right: 0;');
     expect(overlayRule).toContain('bottom: 0;');
     expect(overlayRule).toContain('left: 0;');

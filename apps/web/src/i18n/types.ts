@@ -1903,6 +1903,9 @@ export interface Dict {
   'newproj.includeOsWidgets': string;
   'newproj.includeOsWidgetsHint': string;
   'newproj.includeOsWidgetsDisabledHint': string;
+  'newproj.startFromLabel': string;
+  'newproj.startBlank': string;
+  'newproj.startBlankHint': string;
   'newproj.templateLabel': string;
   'newproj.noTemplatesTitle': string;
   'newproj.noTemplatesBody': string;
@@ -3009,6 +3012,17 @@ export interface Dict {
 
   // Workspace / file viewer / design files panel
   'workspace.designFiles': string;
+  'workspace.pages': string;
+  'workspace.allProjectFiles': string;
+  'workspace.newBlankPage': string;
+  'workspace.noPagesYet': string;
+  'workspace.pageCreateFailed': string;
+  'workspace.pageCreatorTitle': string;
+  'workspace.pageCreatorSearch': string;
+  'workspace.pageCreatorCategoryAll': string;
+  'workspace.pageCreatorEmpty': string;
+  'workspace.pageCreatorPreview': string;
+  'workspace.pageCreatorUse': string;
   'workspace.focusMode': string;
   'workspace.showChat': string;
   'workspace.closeTab': string;
@@ -3342,6 +3356,22 @@ export interface Dict {
   'fileViewer.presentInTab': string;
   'fileViewer.presentFullscreen': string;
   'fileViewer.presentNewTab': string;
+  'fileViewer.presentInTabDeckHint': string;
+  'fileViewer.presentEscHint': string;
+  'fileViewer.speakerNotes': string;
+  'fileViewer.speakerNotesSlide': string;
+  'fileViewer.speakerNotesEmpty': string;
+  'fileViewer.speakerNotesEdit': string;
+  'fileViewer.speakerNotesSave': string;
+  'fileViewer.speakerNotesSaving': string;
+  'fileViewer.speakerNotesSaved': string;
+  'fileViewer.speakerNotesSaveFailed': string;
+  'fileViewer.speakerNotesPlaceholder': string;
+  'fileViewer.presenterPause': string;
+  'fileViewer.presenterResume': string;
+  'fileViewer.presenterReset': string;
+  'fileViewer.presenterPrevious': string;
+  'fileViewer.presenterNext': string;
   'fileViewer.exitPresentation': string;
   'fileViewer.shareLabel': string;
   'fileViewer.shareMenuShareLink': string;
@@ -3707,6 +3737,10 @@ export interface Dict {
   'questions.generating': string;
   'questions.skipAll': string;
   'questions.autoSkipHint': string;
+  'questions.uploadingFiles': string;
+  'questions.uploadNeedsProject': string;
+  'questions.uploadPartialFailed': string;
+  'questions.uploadFailed': string;
 
   // Inline <od-card> memory cards (display-only siblings of question-form)
   'artifact.odCardTaskBriefChip': string;

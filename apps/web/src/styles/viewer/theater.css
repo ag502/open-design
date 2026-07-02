@@ -741,7 +741,7 @@
 }
 
 /* ============================================================
-   Deck navigation toolbar (prev / counter / next)
+   Slide deck host chrome (thumbnails + floating nav)
    ============================================================ */
 .deck-nav {
   display: inline-flex;
@@ -762,6 +762,400 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+}
+.comment-preview-layer-with-deck-rail {
+  display: grid;
+  grid-template-columns: 194px minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+/* Collapsed rail claims no column and no divider: the aside unmounts entirely,
+   so the slide fills the pane edge-to-edge and the toolbar toggle is the only
+   affordance left. No sliver of chrome, no border line. */
+.comment-preview-layer-with-deck-rail.comment-preview-layer-deck-rail-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.deck-thumbnail-toolbar-toggle {
+  flex: 0 0 auto;
+}
+.deck-thumbnail-rail {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  /* Hairline divider drawn with an inset shadow (not border) so it never adds
+     layout width, keeping the film-strip flush against the stage. */
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 120px),
+    #0b0b0d;
+  overflow: hidden;
+}
+.deck-thumbnail-list {
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  padding: 12px 12px 16px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.deck-thumbnail-list::-webkit-scrollbar {
+  width: 8px;
+}
+.deck-thumbnail-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: rgba(255, 255, 255, 0.14);
+}
+.deck-thumbnail-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.24);
+}
+.deck-thumbnail-button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: left;
+  cursor: pointer;
+  transition: color 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* `:not(:disabled)` is load-bearing: it lifts specificity above the global
+   `button:hover:not(:disabled)` primitive, whose light-theme --bg-subtle
+   would otherwise paint a white block over this dark rail. Hover feedback
+   belongs to the thumbnail frame, never the row. */
+.deck-thumbnail-button:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.82);
+}
+.deck-thumbnail-button.active {
+  color: #fff;
+}
+.deck-thumbnail-number {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+.deck-thumbnail-frame {
+  display: block;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #050506;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.4);
+  transition:
+    box-shadow 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.deck-thumbnail-button:hover .deck-thumbnail-frame {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.deck-thumbnail-button.active .deck-thumbnail-frame {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.deck-thumbnail-frame iframe {
+  display: block;
+  width: 400%;
+  height: 400%;
+  border: 0;
+  transform: scale(0.25);
+  transform-origin: top left;
+  pointer-events: none;
+  background: #000;
+}
+.comment-preview-layer-with-deck-rail .comment-preview-canvas {
+  background: #050505;
+}
+.deck-floating-nav {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background: rgba(4, 6, 14, 0.91);
+  color: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  opacity: 0;
+  transform: translate(-50%, 6px);
+  pointer-events: none;
+  transition: opacity 140ms cubic-bezier(0.23, 1, 0.32, 1), transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.comment-preview-canvas:hover .deck-floating-nav,
+.comment-preview-canvas:focus-within .deck-floating-nav,
+.deck-floating-nav:hover,
+.deck-floating-nav:focus-within {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.deck-floating-button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.deck-floating-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+.deck-floating-button:disabled,
+.deck-floating-reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.deck-floating-count {
+  min-width: 58px;
+  display: inline-flex;
+  justify-content: center;
+  gap: 8px;
+  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.deck-floating-count span {
+  color: rgba(255, 255, 255, 0.44);
+}
+.deck-floating-count strong {
+  color: #fff;
+}
+.deck-floating-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.13);
+}
+.deck-floating-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.deck-floating-reset:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+.deck-floating-reset kbd {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+  font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ============================================================
+   Slide speaker notes panel
+   ============================================================ */
+.speaker-notes-panel {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  padding: 0;
+}
+/* One hairline only: the panel's top border marks the stage/notes boundary,
+   so the head draws no second divider — label and notes read as one block,
+   matching the claude.ai reference. */
+.speaker-notes-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 16px 0;
+}
+.speaker-notes-panel-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.speaker-notes-panel-meta {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.speaker-notes-edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+/* `:not(:disabled)` outranks the global button:hover primitive so the toggle
+   stays a bare text+switch control instead of gaining a --bg-subtle box. */
+.speaker-notes-edit-toggle:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+}
+.speaker-notes-switch {
+  display: inline-block;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  transition: background 160ms cubic-bezier(0.23, 1, 0.32, 1), border-color 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.speaker-notes-switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.speaker-notes-edit-toggle.is-on .speaker-notes-switch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.speaker-notes-edit-toggle.is-on .speaker-notes-switch::before {
+  transform: translateX(14px);
+  background: #fff;
+}
+/* Preview and editor share the exact same box (position, height, padding) so
+   toggling Edit swaps the read-only text for a textarea in place — no size,
+   padding, or typography shift, i.e. no jitter. */
+.speaker-notes-preview,
+.speaker-notes-editor {
+  position: relative;
+  min-height: 118px;
+  max-height: 180px;
+  padding: 8px 16px 14px;
+}
+.speaker-notes-preview {
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.speaker-notes-editor {
+  padding: 0;
+}
+/* The textarea is styled to be visually identical to the preview text
+   (same padding, font size, line height; no border, transparent background)
+   so entering edit mode reads as the same notes turning editable in place. */
+.speaker-notes-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 118px;
+  max-height: 180px;
+  resize: vertical;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 16px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+}
+/* The shared primitives.css `input, textarea:focus` rule paints a blue focus
+   ring via box-shadow + border-color; `outline: none` alone leaves that ring.
+   Cancel all three so the notes editor reads as inline text turning editable,
+   not a bordered form field. */
+.speaker-notes-editor textarea:focus,
+.speaker-notes-editor textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: transparent;
+}
+/* Status overlays the bottom edge so it never adds height or nudges the text. */
+.speaker-notes-actions {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+.speaker-notes-status {
+  display: inline-flex;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.speaker-notes-actions .speaker-notes-status {
+  margin-left: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
+  backdrop-filter: blur(2px);
+}
+.speaker-notes-status.saved {
+  color: var(--green);
+}
+.speaker-notes-status.error {
+  color: var(--red);
+}
+.viewer.is-tab-present .speaker-notes-panel {
+  display: none;
 }
 
 /* ============================================================

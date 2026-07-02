@@ -7810,11 +7810,14 @@ export function ProjectView({
           questionFormSubmittedAnswers={displayedQuestionFormSubmittedAnswers}
           questionsGenerating={displayedQuestionsGenerating}
           focusQuestionsRequest={focusQuestionsRequest}
-          onSubmitQuestionForm={(text) => {
+          onSubmitQuestionForm={(text, attachments = [], context) => {
             if (currentConversationActionDisabled) return;
             // Submitting question-form answers is a clarification turn, not a
             // fresh create/edit — tag entry_from so the dashboard can separate it.
-            void handleSend(text, [], [], { entryFrom: 'question_answer' });
+            void handleSend(text, attachments, [], {
+              entryFrom: 'question_answer',
+              ...(context ? { context } : {}),
+            });
           }}
         />
       </div>

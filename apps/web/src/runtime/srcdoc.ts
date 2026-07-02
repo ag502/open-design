@@ -26,6 +26,8 @@ export type SrcdocOptions = {
   deck?: boolean;
   baseHref?: string;
   initialSlideIndex?: number;
+  hideDeckChrome?: boolean;
+  deckClickNavigation?: boolean;
   commentBridge?: boolean;
   inspectBridge?: boolean;
   selectionBridge?: boolean;
@@ -261,7 +263,15 @@ export function buildSrcdoc(
   const withBase = options.baseHref ? injectBaseHref(withSourcePaths, options.baseHref) : withSourcePaths;
   const withShim = injectSandboxShim(withBase);
   const withFocusGuard = options.previewFocusGuard ? injectPreviewFocusGuard(withShim) : withShim;
-  const withDeck = options.deck ? injectDeckBridge(withFocusGuard, options.initialSlideIndex) : withFocusGuard;
+  const withDeckChrome = options.deck && options.hideDeckChrome
+    ? injectDeckChromeHiding(withFocusGuard)
+    : withFocusGuard;
+  const withDeck = options.deck
+    ? injectDeckBridge(withDeckChrome, {
+        initialSlideIndex: options.initialSlideIndex,
+        clickNavigation: !!options.deckClickNavigation,
+      })
+    : withDeckChrome;
   // Comment + Inspect share an element-selection bridge: both pick a
   // [data-od-id] / [data-screen-label] node and route the host's reply
   // to either the comment popover (annotate) or the inspect panel
@@ -638,10 +648,21 @@ function injectExportCaptureBridge(doc: string): string {
   }
   function notes(){
     var el = document.getElementById('speaker-notes');
-    if (!el) return '';
-    var t = el.textContent || '';
-    try { var j = JSON.parse(t); if (Array.isArray(j)) return j; } catch(_){}
-    return t.replace(/\\s+/g,' ').trim();
+    if (el) {
+      var t = el.textContent || '';
+      try { var j = JSON.parse(t); if (Array.isArray(j)) return j; } catch(_){}
+      var plain = t.replace(/\\s+/g,' ').trim();
+      if (plain) return plain;
+    }
+    var list = [];
+    // Match every .slide in document order — per-slide notes must line up
+    // 1:1 with the slide list regardless of the deck's container nesting.
+    var slideNodes = document.querySelectorAll('.slide');
+    for (var i = 0; i < slideNodes.length; i++) {
+      var noteEl = slideNodes[i].querySelector('.notes');
+      list.push(noteEl ? (noteEl.textContent || '').replace(/\\s+/g, ' ').trim() : '');
+    }
+    return list.length ? list : '';
   }
   function send(msg){ try { window.parent.postMessage(msg, '*'); } catch(_){} }
   function run(req){
@@ -2022,13 +2043,35 @@ html[data-od-inspect-mode] body iframe { pointer-events: none !important; }
 // the scaled stage lands ~1000px off-screen and the user sees a mostly-
 // black preview with a sliver of slide content in the top-left. Skip the
 // override whenever the framework's marker id is present.
-function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
+function injectDeckChromeHiding(doc: string): string {
+  return injectBeforeHeadEnd(doc, `<style data-od-deck-chrome-hidden>
+.deck-counter,
+.deck-hint,
+.deck-nav,
+.slide-nav,
+.slides-nav,
+.presentation-nav,
+[data-deck-nav],
+[data-slide-nav] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+</style>`);
+}
+
+function injectDeckBridge(
+  doc: string,
+  options: { initialSlideIndex?: number; clickNavigation?: boolean } = {},
+): string {
+  const initialSlideIndex = options.initialSlideIndex ?? 0;
   const safeInitialSlideIndex = Number.isFinite(initialSlideIndex)
     ? Math.max(0, Math.floor(initialSlideIndex))
     : 0;
   const hasInlineSlideMessageListener =
     /addEventListener\s*\(\s*['"]message['"]/i.test(doc) && /\bod:slide\b/.test(doc);
   const isFrameworkDeck = /\bid\s*=\s*["']deck-stage["']/i.test(doc);
+  const clickNavigation = !!options.clickNavigation && !isFrameworkDeck;
   const styleFix = isFrameworkDeck
     ? ''
     : `<style data-od-deck-fix>
@@ -2040,6 +2083,10 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
   if (${JSON.stringify(isFrameworkDeck)}) {
     window.addEventListener('keydown', function(ev){
       var key = ev && ev.key;
+      if (key === 'Escape') {
+        try { window.parent.postMessage({ type: 'od:present-escape' }, '*'); } catch (_) {}
+        return;
+      }
       if (
         key !== 'ArrowRight' &&
         key !== 'PageDown' &&
@@ -2047,11 +2094,18 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
         key !== 'ArrowLeft' &&
         key !== 'PageUp' &&
         key !== 'Home' &&
-        key !== 'End'
+        key !== 'End' &&
+        String(key).toLowerCase() !== 'r'
       ) return;
       var t = ev.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       ev.stopPropagation();
+    }, true);
+  } else {
+    window.addEventListener('keydown', function(ev){
+      if (ev && ev.key === 'Escape') {
+        try { window.parent.postMessage({ type: 'od:present-escape' }, '*'); } catch (_) {}
+      }
     }, true);
   }
   function slides(){
@@ -2376,6 +2430,42 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
     var n = Math.abs(diff);
     for (var k = 0; k < n; k++) dispatchKey(key);
     setTimeout(report, 320);
+  }
+  function isInteractiveClickTarget(target){
+    while (target && target !== document.body && target !== document.documentElement) {
+      if (!target.tagName) break;
+      var tag = String(target.tagName || '').toUpperCase();
+      if (
+        tag === 'A' ||
+        tag === 'BUTTON' ||
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        tag === 'SUMMARY' ||
+        tag === 'LABEL' ||
+        tag === 'IFRAME' ||
+        target.isContentEditable ||
+        target.getAttribute('role') === 'button' ||
+        target.getAttribute('role') === 'link'
+      ) {
+        return true;
+      }
+      target = target.parentElement;
+    }
+    return false;
+  }
+  if (${JSON.stringify(clickNavigation)}) {
+    document.addEventListener('click', function(ev){
+      if (ev.defaultPrevented) return;
+      if (ev.button !== undefined && ev.button !== 0) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+      if (isInteractiveClickTarget(ev.target)) return;
+      var list = slides();
+      if (!list.length) return;
+      ev.preventDefault();
+      if (ev.clientX < window.innerWidth / 2) go('prev');
+      else go('next');
+    }, true);
   }
   var lastCommentTargetSlideIndex = -1;
   function report(){

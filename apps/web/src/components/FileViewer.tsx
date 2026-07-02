@@ -101,6 +101,12 @@ import { shouldConsumeSlideNav } from '../runtime/slide-nav';
 import { findHtmlEntriesReferencing } from '../runtime/jsx-module-refs';
 import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport } from '../runtime/srcdoc';
 import {
+  buildSpeakerNotesPresenterHtml,
+  extractSpeakerNotesFromHtml,
+  normalizeSpeakerNotes,
+  upsertSpeakerNotesInHtml,
+} from '../runtime/speaker-notes';
+import {
   hasUrlModeBridge,
   htmlNeedsFocusGuard,
   htmlNeedsSandboxShim,
@@ -5404,6 +5410,18 @@ function HtmlViewer({
   const [slideState, setSlideState] = useState<SlideState | null>(
     () => htmlPreviewSlideState.get(previewStateKey) ?? null,
   );
+  const presenterWindowRef = useRef<Window | null>(null);
+  const presentOverlayRef = useRef<HTMLDivElement | null>(null);
+  const presentFullscreenRequestedRef = useRef(false);
+  const [presentFullscreenPending, setPresentFullscreenPending] = useState(false);
+  // Brief "Press Esc to exit" hint shown in the main window whenever a
+  // presentation (fullscreen stage + presenter popup) starts.
+  const [presentEscHint, setPresentEscHint] = useState(false);
+  const [deckThumbnailsCollapsed, setDeckThumbnailsCollapsed] = useState(false);
+  const [speakerNotesEditMode, setSpeakerNotesEditMode] = useState(false);
+  const [speakerNotesDraft, setSpeakerNotesDraft] = useState('');
+  const [speakerNotesSaving, setSpeakerNotesSaving] = useState(false);
+  const [speakerNotesStatus, setSpeakerNotesStatus] = useState<'saved' | 'error' | null>(null);
   const boardPreviewScaleOptions = localCommentSideDockActive ? { canvasPadding: 0 } : undefined;
   const overlayPreviewScale = effectivePreviewScale(
     previewViewport,
@@ -5494,6 +5512,36 @@ function HtmlViewer({
   }, [source]);
   const effectiveDeck = isDeck || looksLikeDeck;
   const showDeckNavigation = effectiveDeck && (slideState === null || slideState.count > 0);
+  const activeDeckSlideIndex =
+    slideState?.active ??
+    htmlPreviewSlideState.get(previewStateKey)?.active ??
+    0;
+  const deckSlideCount =
+    slideState?.count ??
+    htmlPreviewSlideState.get(previewStateKey)?.count ??
+    0;
+  const speakerNotes = useMemo(
+    () => extractSpeakerNotesFromHtml(source, deckSlideCount),
+    [source, deckSlideCount],
+  );
+  const showSpeakerNotesPanel = source !== null && effectiveDeck && mode === 'preview';
+  const activeSpeakerNote = speakerNotes[activeDeckSlideIndex] ?? '';
+  const deckSlideTotal = Math.max(deckSlideCount, speakerNotes.length, showDeckNavigation ? 1 : 0);
+  useEffect(() => {
+    setSpeakerNotesDraft(activeSpeakerNote);
+    setSpeakerNotesEditMode(false);
+    setSpeakerNotesStatus(null);
+  }, [activeSpeakerNote, activeDeckSlideIndex, projectId, file.name]);
+  // The "saved" confirmation is transient feedback, not persistent state —
+  // let it fade so the panel returns to its resting look.
+  useEffect(() => {
+    if (speakerNotesStatus !== 'saved') return;
+    const id = window.setTimeout(() => setSpeakerNotesStatus(null), 2400);
+    return () => window.clearTimeout(id);
+  }, [speakerNotesStatus]);
+  useEffect(() => {
+    if (effectiveDeck && mode !== 'preview') setMode('preview');
+  }, [effectiveDeck, mode]);
   // Extra deck signal for EXPORT only. Runtime-managed decks (`<deck-stage>` /
   // `data-screen-label`) need deck capture even when the viewer's nav bridge
   // cannot drive them. Plain `.slide` is intentionally excluded: ordinary pages
@@ -5664,6 +5712,7 @@ function HtmlViewer({
       deck: effectiveDeck,
       baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
       initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
+      hideDeckChrome: effectiveDeck,
       selectionBridge: true,
       // Always inject the manual-edit bridge into the PREVIEW srcDoc (not the
       // export path), so the document is byte-identical across preview /
@@ -5680,6 +5729,32 @@ function HtmlViewer({
     }) : ''),
     [previewSource, effectiveDeck, projectId, file.name, previewStateKey],
   );
+  // Only materialized while the in-tab presentation overlay is up — building
+  // it eagerly would re-run buildSrcdoc on every source edit for a document
+  // nobody is presenting.
+  const presentationSrcDoc = useMemo(
+    () => (source && inTabPresent ? buildSrcdoc(source, {
+      deck: effectiveDeck,
+      baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
+      initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
+      hideDeckChrome: effectiveDeck,
+      deckClickNavigation: effectiveDeck,
+      previewFocusGuard: true,
+    }) : ''),
+    [source, inTabPresent, effectiveDeck, projectId, file.name, previewStateKey],
+  );
+  // Skipped entirely while the rail is collapsed: the rail unmounts its
+  // iframes, so there is no reason to keep N per-slide documents current.
+  const deckThumbnailSrcDocs = useMemo(() => {
+    if (!source || !effectiveDeck || deckSlideTotal <= 0 || deckThumbnailsCollapsed) return [];
+    return Array.from({ length: deckSlideTotal }, (_, index) => buildSrcdoc(source, {
+      deck: true,
+      baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
+      initialSlideIndex: index,
+      hideDeckChrome: true,
+      previewFocusGuard: true,
+    }));
+  }, [source, effectiveDeck, deckSlideTotal, deckThumbnailsCollapsed, projectId, file.name]);
   const lazySrcDocTransport = useMemo(() => buildLazySrcdocTransport(), []);
   const [srcDocTransportResetKey, setSrcDocTransportResetKey] = useState(0);
   const [srcDocShellReady, setSrcDocShellReady] = useState(false);
@@ -7008,10 +7083,23 @@ function HtmlViewer({
     return () => window.removeEventListener('message', onMessage);
   }, [inspectMode, isOurPreviewIframeSource]);
 
-  function postSlide(action: 'next' | 'prev' | 'first' | 'last') {
+  function postSlide(action: 'next' | 'prev' | 'first' | 'last' | 'go', index?: number) {
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
-    win.postMessage({ type: 'od:slide', action }, '*');
+    win.postMessage({
+      type: 'od:slide',
+      action,
+      ...(action === 'go' && typeof index === 'number' ? { index } : {}),
+    }, '*');
+  }
+
+  function goToSlide(index: number) {
+    if (!Number.isFinite(index) || index < 0) return;
+    const target = Math.floor(index);
+    const count = Math.max(deckSlideCount, target + 1);
+    setSlideStateCached(previewStateKey, { active: target, count });
+    setSlideState({ active: target, count });
+    postSlide('go', target);
   }
 
   function syncCachedSlideStateToIframe(target: HTMLIFrameElement | null = iframeRef.current) {
@@ -7019,6 +7107,84 @@ function HtmlViewer({
     const win = target?.contentWindow;
     if (!win || typeof active !== 'number') return;
     win.postMessage({ type: 'od:slide', action: 'go', index: active }, '*');
+  }
+
+  async function saveSpeakerNotes(nextNotes: readonly string[]) {
+    const currentSource = sourceRef.current ?? source;
+    if (!currentSource) return false;
+    const normalized = normalizeSpeakerNotes(nextNotes, Math.max(deckSlideCount, nextNotes.length));
+    const nextSource = upsertSpeakerNotesInHtml(currentSource, normalized);
+    setSpeakerNotesSaving(true);
+    setSpeakerNotesStatus(null);
+    try {
+      const saved = await writeProjectTextFile(projectId, file.name, nextSource, {
+        artifactManifest: file.artifactManifest,
+      });
+      if (!saved) throw new Error('speaker_notes_save_failed');
+      setSource(nextSource);
+      sourceRef.current = nextSource;
+      setInlinedSource(null);
+      setReloadKey((key) => key + 1);
+      setSpeakerNotesStatus('saved');
+      await onFileSaved?.();
+      return true;
+    } catch (err) {
+      console.error('[speaker-notes] save failed:', err);
+      setSpeakerNotesStatus('error');
+      return false;
+    } finally {
+      setSpeakerNotesSaving(false);
+    }
+  }
+
+  async function saveActiveSpeakerNote(options?: { close?: boolean }) {
+    const next = normalizeSpeakerNotes(speakerNotes, Math.max(deckSlideCount, activeDeckSlideIndex + 1));
+    while (next.length <= activeDeckSlideIndex) next.push('');
+    next[activeDeckSlideIndex] = speakerNotesDraft;
+    const ok = await saveSpeakerNotes(next);
+    if (ok && options?.close !== false) setSpeakerNotesEditMode(false);
+    return ok;
+  }
+
+  function openPresenterWindow() {
+    if (!source || typeof window === 'undefined') return;
+    const count = Math.max(deckSlideCount, speakerNotes.length, 1);
+    const presenterPreviewHtmlBySlide = Array.from({ length: count }, (_, index) => buildSrcdoc(source, {
+      deck: true,
+      baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
+      initialSlideIndex: index,
+      hideDeckChrome: true,
+      previewFocusGuard: true,
+    }));
+    const popup = window.open('', `od-presenter-${projectId}-${file.name}`, 'popup,width=1320,height=820');
+    if (!popup) return;
+    presenterWindowRef.current = popup;
+    const html = buildSpeakerNotesPresenterHtml({
+      previewHtml: presenterPreviewHtmlBySlide[0] ?? '',
+      previewHtmlBySlide: presenterPreviewHtmlBySlide,
+      title: exportTitle,
+      projectId,
+      fileName: file.name,
+      notes: speakerNotes,
+      initialSlideIndex: activeDeckSlideIndex,
+      slideCount: count,
+      labels: {
+        title: t('fileViewer.speakerNotes'),
+        edit: t('fileViewer.speakerNotesEdit'),
+        save: t('fileViewer.speakerNotesSave'),
+        pause: t('fileViewer.presenterPause'),
+        resume: t('fileViewer.presenterResume'),
+        reset: t('fileViewer.presenterReset'),
+        previous: t('fileViewer.presenterPrevious'),
+        next: t('fileViewer.presenterNext'),
+        empty: t('fileViewer.speakerNotesEmpty'),
+        slide: t('fileViewer.speakerNotesSlide'),
+      },
+    });
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    popup.focus();
   }
 
   function postInspectSet(elementId: string, selector: string, prop: string, value: string) {
@@ -7129,11 +7295,107 @@ function HtmlViewer({
       } else if (e.key === 'End') {
         e.preventDefault();
         postSlide('last');
+      } else if (e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        goToSlide(0);
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [effectiveDeck, mode]);
+
+  useEffect(() => {
+    function onPresenterMessage(ev: MessageEvent) {
+      if (!presenterWindowRef.current || ev.source !== presenterWindowRef.current) return;
+      const data = ev.data as
+        | {
+            type?: string;
+            projectId?: string;
+            fileName?: string;
+            index?: number;
+            notes?: string[];
+          }
+        | null;
+      if (!data || data.projectId !== projectId || data.fileName !== file.name) return;
+      if (data.type === 'od:presenter-slide-go' && typeof data.index === 'number') {
+        goToSlide(data.index);
+        return;
+      }
+      // Esc inside the presenter popup tears the whole presentation down (popup
+      // window + fullscreen overlay), matching Esc pressed in the main window.
+      if (data.type === 'od:presenter-close') {
+        closeInTabPresentation();
+        return;
+      }
+      if (data.type === 'od:presenter-notes-save' && Array.isArray(data.notes)) {
+        void saveSpeakerNotes(data.notes);
+      }
+    }
+    window.addEventListener('message', onPresenterMessage);
+    return () => window.removeEventListener('message', onPresenterMessage);
+  }, [projectId, file.name, deckSlideCount, previewStateKey, speakerNotes, source]);
+
+  useEffect(() => {
+    const popup = presenterWindowRef.current;
+    if (!popup || popup.closed) return;
+    popup.postMessage({
+      type: 'od:presenter-slide-state',
+      projectId,
+      fileName: file.name,
+      active: activeDeckSlideIndex,
+      count: Math.max(deckSlideCount, speakerNotes.length, 1),
+      notes: speakerNotes,
+    }, '*');
+  }, [activeDeckSlideIndex, deckSlideCount, speakerNotes, projectId, file.name]);
+
+  // Keep the fullscreen present overlay in lockstep with the active slide. The
+  // overlay is a SEPARATE iframe from the background preview, so host-side
+  // navigation (arrow keys, thumbnail clicks, or a move driven from the
+  // presenter popup) has to be forwarded to it explicitly — otherwise the big
+  // presented slide stays frozen while the counter and popup move on. The
+  // overlay opens on the right slide via buildSrcdoc's initialSlideIndex, so
+  // this only drives subsequent moves.
+  useEffect(() => {
+    if (!inTabPresent || !effectiveDeck) return;
+    const frame = presentOverlayRef.current?.querySelector('iframe');
+    frame?.contentWindow?.postMessage(
+      { type: 'od:slide', action: 'go', index: activeDeckSlideIndex },
+      '*',
+    );
+  }, [inTabPresent, effectiveDeck, activeDeckSlideIndex]);
+
+  // The reverse direction: the fullscreen overlay is its own iframe and drives
+  // its own slide when clicked (deckClickNavigation), so adopt the moves it
+  // reports as the host's active slide. That makes the counter, thumbnail rail
+  // and presenter popup all follow a slide advanced from the big stage. The
+  // main slide-state listener only trusts the ACTIVE preview iframe (the
+  // background one), so the overlay needs its own source-matched listener; the
+  // lockstep effect above re-posts the adopted index back as a no-op, so there
+  // is no feedback loop.
+  useEffect(() => {
+    if (!inTabPresent || !effectiveDeck) return;
+    function onOverlaySlideState(ev: MessageEvent) {
+      const frame = presentOverlayRef.current?.querySelector('iframe');
+      if (!frame || ev.source !== frame.contentWindow) return;
+      const data = ev.data as { type?: string; active?: number; count?: number } | null;
+      if (!data || data.type !== 'od:slide-state') return;
+      if (typeof data.active !== 'number' || typeof data.count !== 'number') return;
+      const next = { active: data.active, count: data.count };
+      setSlideStateCached(previewStateKey, next);
+      setSlideState(next);
+    }
+    window.addEventListener('message', onOverlaySlideState);
+    return () => window.removeEventListener('message', onOverlaySlideState);
+  }, [inTabPresent, effectiveDeck, previewStateKey]);
+
+  // The Esc hint is a momentary confirmation, not a persistent chrome: fade it
+  // out a few seconds after the presentation starts. (closeInTabPresentation
+  // also clears it immediately when the user leaves.)
+  useEffect(() => {
+    if (!presentEscHint) return;
+    const id = window.setTimeout(() => setPresentEscHint(false), 3600);
+    return () => window.clearTimeout(id);
+  }, [presentEscHint]);
 
   useEffect(() => {
     if (!presentMenuOpen) return;
@@ -7224,16 +7486,32 @@ function HtmlViewer({
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setInTabPresent(false);
+      if (e.key === 'Escape') closeInTabPresentation();
+    };
+    const onMessage = (ev: MessageEvent) => {
+      const data = ev.data as { type?: string } | null;
+      if (!data || data.type !== 'od:present-escape') return;
+      const frame = presentOverlayRef.current?.querySelector('iframe');
+      if (frame?.contentWindow && ev.source !== frame.contentWindow) return;
+      closeInTabPresentation();
+    };
+    const onFullscreenChange = () => {
+      if (presentFullscreenRequestedRef.current && !document.fullscreenElement) {
+        closeInTabPresentation();
+      }
     };
     updateChromeHeight();
     document.addEventListener('keydown', onKey);
+    window.addEventListener('message', onMessage);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
     window.addEventListener('resize', updateChromeHeight);
     const chrome = document.querySelector<HTMLElement>('.workspace-tabs-chrome.app-chrome-header');
     const observer = chrome && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateChromeHeight) : null;
     if (observer && chrome) observer.observe(chrome);
     return () => {
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onMessage);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
       window.removeEventListener('resize', updateChromeHeight);
       observer?.disconnect();
       if (previousChromeHeight) {
@@ -7244,12 +7522,49 @@ function HtmlViewer({
     };
   }, [inTabPresent]);
 
+  useEffect(() => {
+    if (!inTabPresent || !presentFullscreenPending) return;
+    const overlay = presentOverlayRef.current;
+    if (!overlay || typeof overlay.requestFullscreen !== 'function') {
+      setPresentFullscreenPending(false);
+      return;
+    }
+    let cancelled = false;
+    overlay.requestFullscreen()
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setPresentFullscreenPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inTabPresent, presentFullscreenPending]);
+
+  function closeInTabPresentation() {
+    setInTabPresent(false);
+    setPresentFullscreenPending(false);
+    presentFullscreenRequestedRef.current = false;
+    setPresentEscHint(false);
+    // Tear the presenter popup down together with the fullscreen stage so one
+    // Esc dismisses the whole "presenting" state, not just the main window.
+    const popup = presenterWindowRef.current;
+    if (popup && !popup.closed) {
+      try { popup.close(); } catch { /* already gone */ }
+    }
+    presenterWindowRef.current = null;
+    if (typeof document !== 'undefined' && document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  }
+
   function openInNewTab() {
     if (!source) return;
     openSandboxedPreviewInNewTab(source, exportTitle, {
       deck: effectiveDeck,
       baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
       initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
+      hideDeckChrome: effectiveDeck,
+      deckClickNavigation: effectiveDeck,
     });
   }
 
@@ -7603,18 +7918,21 @@ function HtmlViewer({
 
   function presentInThisTab() {
     setPresentMenuOpen(false);
+    presentFullscreenRequestedRef.current = false;
     setMode('preview');
+    if (effectiveDeck) openPresenterWindow();
     setInTabPresent(true);
+    setPresentEscHint(true);
   }
 
   function presentFullscreen() {
     setPresentMenuOpen(false);
-    const el = previewBodyRef.current;
-    if (el && typeof el.requestFullscreen === 'function') {
-      el.requestFullscreen().catch(() => setInTabPresent(true));
-    } else {
-      setInTabPresent(true);
-    }
+    if (effectiveDeck) openPresenterWindow();
+    setMode('preview');
+    presentFullscreenRequestedRef.current = true;
+    setPresentFullscreenPending(true);
+    setInTabPresent(true);
+    setPresentEscHint(true);
   }
 
   function presentNewTab() {
@@ -8576,11 +8894,18 @@ function HtmlViewer({
   };
   const boardAvailable = mode === 'preview' && source !== null;
   const showPreviewToolbarControls = mode === 'preview';
+  // Independent of deckThumbnailSrcDocs so a collapsed rail (which skips
+  // building the per-slide documents) still renders its frame and toggle.
+  const showDeckThumbnailRail = effectiveDeck && source !== null && deckSlideTotal > 0 && !manualEditMode;
+  const showDeckFloatingNav = effectiveDeck && deckSlideTotal > 0 && !manualEditMode;
+  const deckNavTotal = Math.max(deckSlideTotal, activeDeckSlideIndex + 1, 1);
   const commentPreviewLayoutClass = [
     'comment-preview-layer',
     localCommentSideDockActive ? 'comment-preview-layer-with-side-dock' : '',
     localCommentSideDockActive && commentSidePanelCollapsed ? 'comment-preview-layer-dock-collapsed' : '',
     boardSideDockStacked ? 'comment-preview-layer-side-dock-stacked' : '',
+    showDeckThumbnailRail ? 'comment-preview-layer-with-deck-rail' : '',
+    showDeckThumbnailRail && deckThumbnailsCollapsed ? 'comment-preview-layer-deck-rail-collapsed' : '',
   ].filter(Boolean).join(' ');
   // Edit mode opens clean: the inspector only appears once the user pins an
   // element (click its hover affordance / a container) or opens page styles by
@@ -8858,11 +9183,92 @@ function HtmlViewer({
       composer={null}
     />
   ) : null;
+  const speakerNotesPanel = showSpeakerNotesPanel ? (
+    <section className="speaker-notes-panel" data-testid="speaker-notes-panel" aria-label={t('fileViewer.speakerNotes')}>
+      <div className="speaker-notes-panel-head">
+        <div className="speaker-notes-panel-title">
+          <span>{t('fileViewer.speakerNotes')}</span>
+          <span className="speaker-notes-panel-meta">
+            {t('fileViewer.speakerNotesSlide', {
+              current: activeDeckSlideIndex + 1,
+              total: Math.max(deckSlideCount, speakerNotes.length, 1),
+            })}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={`speaker-notes-edit-toggle${speakerNotesEditMode ? ' is-on' : ''}`}
+          role="switch"
+          aria-checked={speakerNotesEditMode}
+          onMouseDown={(event) => {
+            if (speakerNotesEditMode) event.preventDefault();
+          }}
+          onClick={() => {
+            if (speakerNotesEditMode) {
+              void saveActiveSpeakerNote();
+            } else {
+              setSpeakerNotesEditMode(true);
+              setSpeakerNotesDraft(activeSpeakerNote);
+              setSpeakerNotesStatus(null);
+            }
+          }}
+        >
+          <span>{t('fileViewer.speakerNotesEdit')}</span>
+          <span className="speaker-notes-switch" aria-hidden="true" />
+        </button>
+      </div>
+      {speakerNotesEditMode ? (
+        <div className="speaker-notes-editor">
+          <textarea
+            value={speakerNotesDraft}
+            onChange={(event) => setSpeakerNotesDraft(event.currentTarget.value)}
+            onBlur={() => {
+              void saveActiveSpeakerNote();
+            }}
+            placeholder={t('fileViewer.speakerNotesPlaceholder')}
+            rows={4}
+          />
+          <div className="speaker-notes-actions">
+            {speakerNotesSaving ? (
+              <span className="speaker-notes-status saving">{t('fileViewer.speakerNotesSaving')}</span>
+            ) : null}
+            {speakerNotesStatus === 'error' ? (
+              <span className="speaker-notes-status error">{t('fileViewer.speakerNotesSaveFailed')}</span>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="speaker-notes-preview">
+          {activeSpeakerNote.trim() ? activeSpeakerNote : t('fileViewer.speakerNotesEmpty')}
+          {speakerNotesStatus === 'saved' ? (
+            <span className="speaker-notes-status saved">{t('fileViewer.speakerNotesSaved')}</span>
+          ) : null}
+          {speakerNotesStatus === 'error' ? (
+            <span className="speaker-notes-status error">{t('fileViewer.speakerNotesSaveFailed')}</span>
+          ) : null}
+        </div>
+      )}
+    </section>
+  ) : null;
 
   return (
     <div className={`viewer html-viewer${inTabPresent ? ' is-tab-present' : ''}`}>
       <div className="viewer-toolbar">
         <div className="viewer-toolbar-left">
+          {showDeckThumbnailRail ? (
+            <button
+              type="button"
+              className="icon-only deck-thumbnail-toolbar-toggle od-tooltip"
+              aria-expanded={!deckThumbnailsCollapsed}
+              aria-label={deckThumbnailsCollapsed ? t('designFiles.expandGroup') : t('designFiles.collapseGroup')}
+              title={deckThumbnailsCollapsed ? t('designFiles.expandGroup') : t('designFiles.collapseGroup')}
+              data-tooltip={deckThumbnailsCollapsed ? t('designFiles.expandGroup') : t('designFiles.collapseGroup')}
+              data-tooltip-placement="bottom"
+              onClick={() => setDeckThumbnailsCollapsed((value) => !value)}
+            >
+              <Icon name="slides" size={15} />
+            </button>
+          ) : null}
           <button
             type="button"
             className="icon-only od-tooltip"
@@ -8874,26 +9280,28 @@ function HtmlViewer({
           >
             <Icon name="reload" size={14} />
           </button>
-          <div className="viewer-tabs" role="tablist" aria-label="View mode">
-            {([
-              ['preview', t('fileViewer.preview')],
-              ['source', t('fileViewer.source')],
-            ] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                className={`viewer-tab ${mode === id ? 'active' : ''}`}
-                aria-selected={mode === id}
-                onClick={() => {
-                  fireArtifactToolbarClick(id);
-                  selectMode(id);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {!effectiveDeck ? (
+            <div className="viewer-tabs" role="tablist" aria-label="View mode">
+              {([
+                ['preview', t('fileViewer.preview')],
+                ['source', t('fileViewer.source')],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  className={`viewer-tab ${mode === id ? 'active' : ''}`}
+                  aria-selected={mode === id}
+                  onClick={() => {
+                    fireArtifactToolbarClick(id);
+                    selectMode(id);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {showPreviewToolbarControls ? (
             <>
               <span className="viewer-divider" aria-hidden />
@@ -8903,46 +9311,6 @@ function HtmlViewer({
                 t={t}
               />
             </>
-          ) : null}
-          {showPreviewToolbarControls && showDeckNavigation ? (
-            <span
-              className="deck-nav"
-              role="group"
-              aria-label={t('fileViewer.slideNavAria')}
-            >
-              <button
-                type="button"
-                className="icon-only od-tooltip"
-                onClick={() => postSlide('prev')}
-                title={t('fileViewer.previousSlide')}
-                data-tooltip={t('fileViewer.previousSlide')}
-                data-tooltip-placement="bottom"
-                aria-label={t('fileViewer.previousSlide')}
-                disabled={slideState !== null && slideState.active <= 0}
-              >
-                <Icon name="chevron-right" size={14} style={{ transform: 'rotate(180deg)' }} />
-              </button>
-              <span className="deck-nav-counter">
-                {slideState
-                  ? `${slideState.active + 1} / ${slideState.count}`
-                  : '— / —'}
-              </span>
-              <button
-                type="button"
-                className="icon-only od-tooltip"
-                onClick={() => postSlide('next')}
-                title={t('fileViewer.nextSlide')}
-                data-tooltip={t('fileViewer.nextSlide')}
-                data-tooltip-placement="bottom"
-                aria-label={t('fileViewer.nextSlide')}
-                disabled={
-                  slideState !== null &&
-                  slideState.active >= slideState.count - 1
-                }
-              >
-                <Icon name="chevron-right" size={14} />
-              </button>
-            </span>
           ) : null}
         </div>
         <div className="viewer-toolbar-actions">
@@ -9087,7 +9455,10 @@ function HtmlViewer({
                 <div className="present-menu" role="menu">
                   <button role="menuitem" onClick={() => { firePresentPopoverClick('in_this_tab'); presentInThisTab(); }}>
                     <span className="present-icon"><RemixIcon name="eye-line" size={14} /></span>{' '}
-                    {t('fileViewer.presentInTab')}
+                    <span className="present-menu-copy">
+                      <span>{t('fileViewer.presentInTab')}</span>
+                      {effectiveDeck ? <small>{t('fileViewer.presentInTabDeckHint')}</small> : null}
+                    </span>
                   </button>
                   <button role="menuitem" onClick={() => { firePresentPopoverClick('fullscreen'); presentFullscreen(); }}>
                     <span className="present-icon"><RemixIcon name="play-line" size={14} /></span>{' '}
@@ -9439,6 +9810,43 @@ function HtmlViewer({
           >
             {manualEditPanel}
             {manualEditHoverAffordance}
+            {showDeckThumbnailRail && !deckThumbnailsCollapsed ? (
+              <aside
+                className="deck-thumbnail-rail"
+                aria-label="Slides"
+              >
+                <div className="deck-thumbnail-list">
+                    {deckThumbnailSrcDocs.map((thumbSrcDoc, index) => {
+                      const active = index === activeDeckSlideIndex;
+                      const slideLabel = t('fileViewer.speakerNotesSlide', {
+                        current: index + 1,
+                        total: deckNavTotal,
+                      });
+                      return (
+                        <button
+                          key={index}
+                          type="button"
+                          className={`deck-thumbnail-button${active ? ' active' : ''}`}
+                          aria-current={active ? 'true' : undefined}
+                          title={slideLabel}
+                          onClick={() => goToSlide(index)}
+                        >
+                          <span className="deck-thumbnail-number">{index + 1}</span>
+                          <span className="deck-thumbnail-frame" aria-hidden="true">
+                            <iframe
+                              title={slideLabel}
+                              sandbox="allow-scripts allow-downloads"
+                              srcDoc={thumbSrcDoc}
+                              loading="lazy"
+                              tabIndex={-1}
+                            />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+              </aside>
+            ) : null}
             <div
               className={manualEditMode ? 'manual-edit-canvas' : 'comment-preview-canvas'}
               data-testid={manualEditMode ? undefined : 'comment-preview-canvas'}
@@ -9642,6 +10050,49 @@ function HtmlViewer({
                   />
                 </div>
               ) : null}
+              {showDeckFloatingNav ? (
+                <div className="deck-floating-nav" aria-label="Deck navigation">
+                  <button
+                    type="button"
+                    className="deck-floating-button od-tooltip"
+                    aria-label={t('fileViewer.previousSlide')}
+                    title={t('fileViewer.previousSlide')}
+                    data-tooltip={t('fileViewer.previousSlide')}
+                    data-tooltip-placement="top"
+                    disabled={activeDeckSlideIndex <= 0}
+                    onClick={() => postSlide('prev')}
+                  >
+                    <Icon name="chevron-left" size={14} />
+                  </button>
+                  <span className="deck-floating-count" aria-live="polite">
+                    <strong>{activeDeckSlideIndex + 1}</strong>
+                    <span>/</span>
+                    <span>{deckNavTotal}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="deck-floating-button od-tooltip"
+                    aria-label={t('fileViewer.nextSlide')}
+                    title={t('fileViewer.nextSlide')}
+                    data-tooltip={t('fileViewer.nextSlide')}
+                    data-tooltip-placement="top"
+                    disabled={activeDeckSlideIndex >= deckNavTotal - 1}
+                    onClick={() => postSlide('next')}
+                  >
+                    <Icon name="chevron-right" size={14} />
+                  </button>
+                  <span className="deck-floating-divider" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="deck-floating-reset"
+                    onClick={() => goToSlide(0)}
+                    disabled={activeDeckSlideIndex <= 0}
+                  >
+                    {t('fileViewer.presenterReset')}
+                    <kbd>R</kbd>
+                  </button>
+                </div>
+              ) : null}
               {commentComposer}
               {boardMode && !commentCreateMode && hoveredCommentTarget && (!activeCommentTarget || commentPortalHost) ? (
                 <AnnotationHoverPopover
@@ -9762,34 +10213,37 @@ function HtmlViewer({
           <pre className="viewer-source">{source}</pre>
         )}
       </div>
+      {speakerNotesPanel}
       {inTabPresent && source && typeof document !== 'undefined' ? createPortal(
         <div
+          ref={presentOverlayRef}
           className="present-overlay"
           role="dialog"
-          aria-label={t('fileViewer.exitPresentation')}
+          aria-label={t('fileViewer.present')}
         >
-          <button
-            className="present-exit"
-            onClick={() => setInTabPresent(false)}
-            aria-label={t('fileViewer.exitPresentation')}
-          >
-            <Icon name="close" size={13} /> {t('fileViewer.exitPresentation')}
-          </button>
-          {useUrlLoadPreview ? (
+          {effectiveDeck || !useUrlLoadPreview ? (
+            <iframe
+              title="present"
+              sandbox="allow-scripts allow-downloads"
+              data-od-render-mode="srcdoc"
+              srcDoc={effectiveDeck ? presentationSrcDoc : srcDoc}
+            />
+          ) : (
             <iframe
               title="present"
               sandbox="allow-scripts allow-downloads"
               data-od-render-mode="url-load"
               src={activePreviewSrcUrl}
             />
-          ) : (
-            <iframe
-              title="present"
-              sandbox="allow-scripts allow-downloads"
-              data-od-render-mode="srcdoc"
-              srcDoc={srcDoc}
-            />
           )}
+          {/* Lives INSIDE the overlay (not a body-portaled toast) so it stays
+              visible when the overlay is the fullscreen element — a sibling
+              toast would be clipped out of the fullscreen render. */}
+          {presentEscHint ? (
+            <div className="present-esc-hint" role="status">
+              {t('fileViewer.presentEscHint')}
+            </div>
+          ) : null}
         </div>,
         document.body,
       ) : null}
