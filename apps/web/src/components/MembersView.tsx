@@ -12,7 +12,7 @@ import { InviteDialog } from './InviteDialog';
 import { UpgradeTeamDialog } from './UpgradeTeamDialog';
 import { Confetti } from './Confetti';
 
-type Role = '所有者' | '管理员' | '成员';
+type Role = '所有者' | '管理员' | '编辑者' | '查看者';
 
 interface Member {
   id: string;
@@ -30,13 +30,16 @@ interface Member {
 const MOCK_MEMBERS: Member[] = [
   { id: 'qy', name: '琼羽（你）', email: 'qiongyu@nexu.io', img: '/team-avatars/a2.png', role: '所有者', joinedAt: '2026-06-01', isYou: true },
   { id: 'zw', name: '张伟', email: 'zhangwei@nexu.io', img: '/team-avatars/a1.png', role: '管理员', joinedAt: '2026-06-24' },
-  { id: 'ln', name: '李娜', email: 'lina@nexu.io', img: '/team-avatars/a3.png', role: '成员', joinedAt: '2026-06-25' },
-  { id: 'wf', name: '王芳', email: 'wangfang@nexu.io', img: '/team-avatars/a4.png', role: '成员', joinedAt: '2026-06-20' },
-  { id: 'cm', name: '陈明', email: 'chenming@nexu.io', img: '/team-avatars/a6.png', role: '成员', joinedAt: '2026-06-18' },
-  { id: 'ly', name: '刘洋', email: 'liuyang@nexu.io', img: '/team-avatars/a7.png', role: '成员', joinedAt: '2026-06-12' },
+  { id: 'ln', name: '李娜', email: 'lina@nexu.io', img: '/team-avatars/a3.png', role: '编辑者', joinedAt: '2026-06-25' },
+  { id: 'wf', name: '王芳', email: 'wangfang@nexu.io', img: '/team-avatars/a4.png', role: '查看者', joinedAt: '2026-06-20' },
+  { id: 'cm', name: '陈明', email: 'chenming@nexu.io', img: '/team-avatars/a6.png', role: '编辑者', joinedAt: '2026-06-18' },
+  { id: 'ly', name: '刘洋', email: 'liuyang@nexu.io', img: '/team-avatars/a7.png', role: '查看者', joinedAt: '2026-06-12' },
 ];
 
-const ROLE_OPTIONS: Role[] = ['所有者', '管理员', '成员'];
+// Assignable roles per the PRD matrix. 所有者 is deliberately NOT here:
+// the workspace Owner is a singleton (the creator) and cannot be assigned
+// to other members — the owner row renders it read-only instead.
+const ASSIGNABLE_ROLE_OPTIONS: Role[] = ['管理员', '编辑者', '查看者'];
 const MIN_TEAM_SEATS = 3;
 const TEAM_PLAN_COPY = [
   'Workspace 基础功能费：20 美元 / 席 / 月',
@@ -245,7 +248,7 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
                   aria-label={`${member.name} 的角色`}
                   onChange={(e) => setRole(member.id, e.target.value as Role)}
                 >
-                  {ROLE_OPTIONS.map((opt) => (
+                  {(member.isYou ? ['所有者' as Role] : ASSIGNABLE_ROLE_OPTIONS).map((opt) => (
                     <option key={opt} value={opt}>
                       {opt}
                     </option>

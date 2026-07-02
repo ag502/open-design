@@ -83,7 +83,9 @@ const ROLE_CHIPS: Array<{ id: DemoScenario; label: string; invite?: boolean }> =
 
 const VIEW_CHIPS: Array<{ id: DemoScenario; label: string }> = [
   { id: 'owner', label: 'Owner' },
-  { id: 'manager', label: 'Manager' },
+  // Label aligned to the PRD role matrix (Owner/Admin/Editor/Viewer); the
+  // scenario id stays 'manager' so existing gating logic is untouched.
+  { id: 'manager', label: 'Admin' },
   { id: 'editor', label: 'Editor' },
   { id: 'viewer', label: 'Viewer' },
 ];

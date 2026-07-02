@@ -47,9 +47,9 @@ interface Props {
   space?: SpaceKind;
   /** Demo-only: Cloud has team visibility, CLI/BYOK does not. */
   collaborationEnabled?: boolean;
-  /** Owner / Manager can invite teammates and choose invited roles. */
+  /** Owner / Admin can invite teammates and choose invited roles. */
   canAssignInviteRoles?: boolean;
-  /** Owner / Manager-only collection actions: invite, bulk delete, and team-space moves. */
+  /** Owner / Admin-only collection actions: invite, bulk delete, and team-space moves. */
   canManageProjectCollection?: boolean;
 }
 

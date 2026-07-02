@@ -14,14 +14,14 @@ const DASHBOARD_STATS = [
 
 const TOKEN_RANKING = [
   { name: '琼羽（你）', role: 'Owner', tokens: '1.42M', share: 100, color: '#c65b3a' },
-  { name: '张伟', role: 'Manager', tokens: '980K', share: 69, color: '#f97316' },
+  { name: '张伟', role: 'Admin', tokens: '980K', share: 69, color: '#f97316' },
   { name: '李娜', role: 'Editor', tokens: '640K', share: 45, color: '#6366f1' },
-  { name: '王芳', role: 'Reviewer', tokens: '420K', share: 30, color: '#10b981' },
+  { name: '王芳', role: 'Viewer', tokens: '420K', share: 30, color: '#10b981' },
 ] as const;
 
 const MEMBER_CREDITS = [
   { name: '琼羽（你）', role: 'Owner', remaining: '18,400', used: '41,600', status: '充足' },
-  { name: '张伟', role: 'Manager', remaining: '9,800', used: '24,200', status: '正常' },
+  { name: '张伟', role: 'Admin', remaining: '9,800', used: '24,200', status: '正常' },
   { name: '李娜', role: 'Editor', remaining: '1,200', used: '18,900', status: '偏低' },
   { name: '王芳', role: 'Viewer', remaining: '320', used: '6,700', status: '需续额' },
 ] as const;
@@ -43,7 +43,7 @@ export function TeamDashboardView({ isAdmin = true, isTeamPlan = false, onAutoRe
         <div>
           <h1 className="entry-section__title">数据大盘</h1>
           <p className="team-dashboard__subtitle">
-            {isAdmin ? 'Owner / Manager 可见 · Nexu 团队最近 30 天' : 'Member 视角 · 仅查看自己的额度状态'}
+            {isAdmin ? 'Owner / Admin 可见 · Nexu 团队最近 30 天' : 'Member 视角 · 仅查看自己的额度状态'}
           </p>
         </div>
       </header>
@@ -67,7 +67,7 @@ export function TeamDashboardView({ isAdmin = true, isTeamPlan = false, onAutoRe
           <p>汇总团队产出、Design System 沉淀、活跃协作和 token 消耗结构。</p>
         </div>
         <div className="team-dashboard__hero-meta" aria-label="数据范围">
-          <span>Owner / Manager</span>
+          <span>Owner / Admin</span>
           <span>最近 30 天</span>
           <span>Demo data</span>
         </div>
@@ -80,7 +80,7 @@ export function TeamDashboardView({ isAdmin = true, isTeamPlan = false, onAutoRe
             <p>
               {isAdmin
                 ? '额度用尽会中断成员的协作与 Agent 任务，请及时为额度偏低的成员续额。'
-                : '当前额度不足时，请联系 Owner 或 Manager 帮你提升额度。'}
+                : '当前额度不足时，请联系 Owner 或 Admin 帮你提升额度。'}
             </p>
           </div>
           <span>{isAdmin ? 'Admin' : 'Member'}</span>

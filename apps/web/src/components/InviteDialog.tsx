@@ -20,12 +20,14 @@ interface Props {
   /** Called with the entered rows when "确认并邀请" is pressed. The host
    *  decides whether to send invites directly or route through upgrade. */
   onSubmit?: (rows: InviteRow[]) => void;
-  /** Owner / Manager can choose roles; Editor / Viewer invite as members. */
+  /** Owner / Admin can choose roles; Editor / Viewer invite with the default role. */
   canAssignRoles?: boolean;
 }
 
 const TEAM_SIZE = 3;
-const DEFAULT_ROLE = '团队成员';
+// Default invited role, aligned to the PRD matrix (管理员/编辑者/查看者 are
+// assignable; 所有者 is the workspace creator only and never assignable).
+const DEFAULT_ROLE = '编辑者';
 
 export function InviteDialog({ open, onClose, freePlan = false, onSubmit, canAssignRoles = true }: Props) {
   const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: DEFAULT_ROLE }]);
@@ -100,7 +102,7 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit, canAss
                 aria-label={canAssignRoles ? '分配角色' : '默认身份'}
               >
                 <option value="管理员">管理员</option>
-                <option value={DEFAULT_ROLE}>团队成员</option>
+                <option value="编辑者">编辑者</option>
                 <option value="查看者">查看者</option>
               </select>
               {rows.length > 1 ? (
