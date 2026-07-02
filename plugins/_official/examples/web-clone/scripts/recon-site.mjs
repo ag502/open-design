@@ -191,6 +191,37 @@ async function collectSignals(page) {
         .slice(0, 12)
         .map((node) => ({ text: text(node).slice(0, 40), ...paletteOf(node) })),
     };
+    // 滚动体感信号——复刻必须还原原站的滚动手感(平滑滚动库/snap/sticky)，
+    // 配合 frameworks 里的 lenis/gsap 检测一起读。
+    const motion = (() => {
+      let scrollSnapRules = 0;
+      let smoothScrollRules = 0;
+      for (const sheet of Array.from(document.styleSheets)) {
+        let rules;
+        try {
+          rules = Array.from(sheet.cssRules || []);
+        } catch {
+          continue;
+        }
+        for (const rule of rules) {
+          const ruleText = rule.cssText || "";
+          if (ruleText.includes("scroll-snap")) scrollSnapRules += 1;
+          if (ruleText.includes("scroll-behavior") && ruleText.includes("smooth")) smoothScrollRules += 1;
+        }
+      }
+      const stickyOrFixedCount = bySelector("header,nav,aside,section,div")
+        .slice(0, 500)
+        .filter((el) => {
+          const position = getComputedStyle(el).position;
+          return position === "sticky" || position === "fixed";
+        }).length;
+      return {
+        htmlScrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
+        scrollSnapRules,
+        smoothScrollRules,
+        stickyOrFixedCount,
+      };
+    })();
     // :root 自定义属性的"计算后"值(声明值可能是 var() 链)。
     const rootStyle = getComputedStyle(document.documentElement);
     const rootVariables = cssVariables
@@ -246,6 +277,7 @@ async function collectSignals(page) {
       cssVariables,
       rootVariables,
       palette,
+      motion,
       fonts: Array.from(document.fonts || []).map((font) => font.family).filter(Boolean).slice(0, 40),
       fontFaces,
       resources,

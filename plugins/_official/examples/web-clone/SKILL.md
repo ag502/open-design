@@ -223,6 +223,8 @@ node scripts/audit-clone.mjs \
    `asset-harvest.mjs --url` 会滚动全页把懒加载图、srcset 变体、CSS 背景图全部按 `asset-manifest.json`（originalUrl → localPath）落到 `assets/images/`。构建页面时照 manifest 机械替换引用；某张图下载失败就换 `--recon` 兜底源或从 `RECON/network` 捕获里捞，实在拿不到才允许占位并在 NOTES.md 写明。
 3. **颜色必须照抄 recon 的计算值，禁止目测。**
    `RECON/original-recon.json` 的 `palette`（body/header/nav/main/footer/buttons 的 computed backgroundColor/color/borderColor）和 `rootVariables` 就是标准答案；`original-summary.md` 里也有摘要。写 CSS 变量时直接复制这些值——footer 是 `rgb(17,17,17)` 就写 `#111111`，不许写"看起来差不多"的 `#0a0a0a`。
+4. **滚动体感必须一致，禁止默认原生滚动了事。**
+   recon 的 `frameworks`（lenis / gsap 检测）+ `motion`（`htmlScrollBehavior` / `scroll-snap` 规则数 / sticky·fixed 元素数）就是原站的滚动配方：原站用惯性平滑滚动库就上同款（Lenis 等）或等效实现；有 `scroll-snap` 就还原 snap；sticky 导航、视差、滚动触发动画逐个对齐。验收时用 `interaction-probe.mjs` 的滚动序列截图对照原站，滚动中途的状态（吸顶阴影、进场动画触发点）也要像。
 
 ### Step 6 · 替换成 用户自己的内容
 
