@@ -36,7 +36,7 @@ describe('workspace tabs chrome styles', () => {
     );
     const projectStrip = cssDeclarations(routinesCss, '.workspace-shell .workspace-tabs-strip');
 
-    expect(ruleValue(chrome, 'padding')).toBe('0 8px 0 6px');
+    expect(ruleValue(chrome, 'padding')).toBe('0 10px 0 8px');
     expect(ruleValue(traffic, 'margin-right')).toBe('var(--app-chrome-traffic-margin)');
     expect(ruleValue(projectChrome, 'padding')).toBe('0 8px 0 0');
     expect(ruleValue(projectStrip, 'align-items')).toBe('center');
@@ -63,15 +63,20 @@ describe('workspace tabs chrome styles', () => {
     const rail = cssDeclarations(entryLayoutCss, '.entry-nav-rail');
     const railDivider = cssDeclarations(entryLayoutCss, '.entry-nav-rail::after');
 
-    const hairlineColor = 'color-mix(in srgb, var(--border) 64%, transparent)';
+    // The workspace-team demo paints its tab-chrome/rail hairlines slightly
+    // stronger than main's shared hairline: the top-chrome divider sits at 78%
+    // and the entry-rail divider at 82% (both set by the demo polish commit in
+    // shell.css / home/entry-layout.css).
+    const chromeHairline = 'color-mix(in srgb, var(--border) 78%, transparent)';
+    const railHairline = 'color-mix(in srgb, var(--border) 82%, transparent)';
     expect(ruleValue(chrome, 'border-bottom')).toBe('0');
     expect(ruleValue(projectChrome, 'border-bottom')).toBe('0');
     expect(ruleValue(rail, 'border-right')).toBe('0');
     expect(ruleValue(chromeDivider, 'height')).toBe('1px');
-    expect(ruleValue(chromeDivider, 'background')).toBe(hairlineColor);
+    expect(ruleValue(chromeDivider, 'background')).toBe(chromeHairline);
     expect(ruleValue(chromeDivider, 'transform')).toBe('scaleY(0.5)');
     expect(ruleValue(railDivider, 'width')).toBe('1px');
-    expect(ruleValue(railDivider, 'background')).toBe(hairlineColor);
+    expect(ruleValue(railDivider, 'background')).toBe(railHairline);
     expect(ruleValue(railDivider, 'transform')).toBe('scaleX(0.5)');
   });
 
@@ -121,7 +126,7 @@ describe('workspace tabs chrome styles', () => {
     const pinnedProject = cssDeclarations(routinesCss, '.workspace-shell .workspace-tab.is-pinned');
 
     // Home never shrinks (flex-shrink 0) in either chrome…
-    expect(ruleValue(pinnedShared, 'flex')).toBe('0 0 96px');
+    expect(ruleValue(pinnedShared, 'flex')).toBe('0 0 44px');
     expect(ruleValue(pinnedProject, 'flex')).toBe('0 0 104px');
     // …and stays stuck to the left edge with an opaque background so scrolled
     // project tabs pass behind it instead of squeezing it.
