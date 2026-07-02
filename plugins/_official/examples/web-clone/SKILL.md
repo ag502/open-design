@@ -75,9 +75,12 @@ node scripts/recon-site.mjs \
   --out RECON \
   --label original
 
+# 真浏览器全程滚动，把页面真实用到的图片/字体/媒体（含第三方 CDN、防盗链资产）
+# 全部拔到本地，并生成 assets/fonts/fonts.css（自托管 @font-face）+ URL→本地路径映射。
 node scripts/asset-harvest.mjs \
+  --url <原站URL> \
   --recon RECON/original-recon.json \
-  --out assets/original \
+  --out assets \
   --manifest RECON/asset-manifest.json
 
 node scripts/network-capture.mjs \
@@ -194,11 +197,26 @@ node scripts/visual-diff.mjs \
   --out RECON/visual-diff-1440.json \
   --diff RECON/screenshots/visual-diff-1440.png
 
+# --recon + --strict: 字体/图片/颜色保真硬门槛，有硬伤 exit 2 —— 修完重跑，
+# 不通过不许交付。
 node scripts/audit-clone.mjs \
   --project . \
   --brand "<原站品牌名>" \
+  --recon RECON/original-recon.json \
+  --strict \
   --out CLONE_AUDIT.md
 ```
+
+## 资产与颜色保真（硬性门槛，违反=复刻失败）
+
+复刻最常见的翻车方式不是结构错，而是**字体不对、图片没下、颜色目测**。以下三条是铁律，`audit-clone.mjs --recon --strict` 会机器校验：
+
+1. **字体必须自托管真字体，禁止系统字体近似。**
+   原站的字体文件几乎都在第三方 CDN（Typekit / Google Fonts / 品牌自有 CDN），带防盗链——所以必须用 `asset-harvest.mjs --url`（真浏览器网络栈）抓，不能裸 curl。产物 `assets/fonts/fonts.css` 已把 @font-face 改写成本地路径，页面直接 `<link rel="stylesheet" href="assets/fonts/fonts.css">`，然后 `font-family` 逐字照抄 recon JSON 里 `palette.*.fontFamily` / `fontFaces[].family` 的值。写 `-apple-system` / `"Helvetica Neue"` 兜底链顶替原站自定义字体 = 直接不合格。
+2. **图片必须落地本地真图，禁止渐变/SVG 占位顶替。**
+   `asset-harvest.mjs --url` 会滚动全页把懒加载图、srcset 变体、CSS 背景图全部按 `asset-manifest.json`（originalUrl → localPath）落到 `assets/images/`。构建页面时照 manifest 机械替换引用；某张图下载失败就换 `--recon` 兜底源或从 `RECON/network` 捕获里捞，实在拿不到才允许占位并在 NOTES.md 写明。
+3. **颜色必须照抄 recon 的计算值，禁止目测。**
+   `RECON/original-recon.json` 的 `palette`（body/header/nav/main/footer/buttons 的 computed backgroundColor/color/borderColor）和 `rootVariables` 就是标准答案；`original-summary.md` 里也有摘要。写 CSS 变量时直接复制这些值——footer 是 `rgb(17,17,17)` 就写 `#111111`，不许写"看起来差不多"的 `#0a0a0a`。
 
 ### Step 6 · 替换成 用户自己的内容
 
@@ -245,8 +263,8 @@ SSL_CERT_FILE=/etc/ssl/cert.pem gh api repos/<u>/<r> | jq '.license'  # + 找 LI
 
 ## 内置脚本
 - `scripts/init-clone.mjs`：初始化克隆项目骨架和 `NOTES.md`。
-- `scripts/recon-site.mjs`：用 Playwright 打开页面，采集框架/资源/DOM 结构/console 错误，并保存三档截图。
-- `scripts/asset-harvest.mjs`：从侦察 JSON 下载原站图片、脚本、样式并生成素材清单。
+- `scripts/recon-site.mjs`：用 Playwright 打开页面并全程滚动，采集框架/资源/DOM 结构/console 错误、关键区块计算色（`palette`）、@font-face 规则与真实加载的字体/图片资源清单，并保存三档截图。
+- `scripts/asset-harvest.mjs`：真浏览器网络栈全程滚动捕获并下载页面真实用到的图片/字体/媒体（含第三方 CDN、防盗链资产），生成 `assets/fonts/fonts.css` 自托管 @font-face 与 originalUrl→localPath 素材清单。
 - `scripts/network-capture.mjs`：捕获 XHR/fetch 请求并保存 JSON/text 响应，给 SPA/SaaS 做本地 fixtures。
 - `scripts/mirror-site.mjs`：真浏览器全程滚动捕获每一个真实请求 → 按路径镜像同源资产（含 JS 运行时 fetch 的 `.sog/.buf/.wasm/.riv`/字体），给静态构建站（Astro/Vite SSG/Hugo）做 1:1 忠实复刻。详见 `references/static-mirror.md`。
 - `scripts/route-crawl.mjs`：爬同站内部链接，按路由保存截图、标题、H1、结构信号，解决多页面站只复刻首页的问题。
@@ -254,7 +272,7 @@ SSL_CERT_FILE=/etc/ssl/cert.pem gh api repos/<u>/<r> | jq '.license'  # + 找 LI
 - `scripts/sourcemap-hunt.mjs`：从 JS chunk 里找 source map，能拿到就保存源码映射。
 - `scripts/compare-recon.mjs`：读取原站与克隆站的侦察 JSON、路由图、交互证据，生成 `CLONE_REPORT.md`。
 - `scripts/visual-diff.mjs`：用浏览器 canvas 做截图像素差异，输出 visual score 和差异图。
-- `scripts/audit-clone.mjs`：扫描追踪脚本、原站品牌残留、日文残留、TODO、外部 URL 风险。
+- `scripts/audit-clone.mjs`：扫描追踪脚本、原站品牌残留、日文残留、TODO、外部 URL 风险；带 `--recon --strict` 时额外校验字体自托管/图片落地/关键区块颜色逐字一致，有硬伤 exit 2。
 - `scripts/od-preview-rewrite.mjs`：把 HTML/CSS/SVG 里的项目根资源引用（如 `/reference-assets/main.css`）改成相对路径，保证 Open Design 文件预览和导出 zip 在嵌套路由下仍能加载资源。
 - `scripts/dna-scaffold.mjs`：从侦察 JSON 生成 `design-dna.json` 设计身份骨架（字体/色候选/框架特效信号 best-effort 预填），给「视觉复刻 / 内容爆改」模式用。详见 `references/design-dna.md`。
 
