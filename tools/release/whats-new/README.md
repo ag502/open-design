@@ -26,7 +26,9 @@ Shape (`title` and `body` required, everything else optional):
 
 - `imageUrl` / `linkUrl` must be HTTPS; malformed files fail the publish.
 - `locales` keys match the web app locale ids (`apps/web/src/i18n/locales/`);
-  missing locales fall back to the top-level copy.
+  missing locales fall back to the top-level copy. Locale entries are
+  validated the same way as the top level: `title`/`body` (when present) must
+  be non-empty strings and `linkUrl` (when present) must be HTTPS.
 - Without `linkUrl` the card links to the GitHub release (stable) or the
   releases index (other channels).
 - The card only shows when the published feed version matches the running app

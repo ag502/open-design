@@ -897,7 +897,7 @@ export function EntryShell({
               </button>
             </div>
             <UpdaterPopup />
-            <WhatsNewPopup />
+            <WhatsNewPopup active={view === 'home'} />
             {avatarMenu}
           </div>
           <div

@@ -47,16 +47,27 @@ type CardModel = {
   hasReleaseNotes: boolean;
 };
 
-export function WhatsNewPopup() {
+// `active` reports whether Home is the active entry view. EntryShell keeps
+// every entry view mounted, so the card gates its fetch/show decision and its
+// `page_name: 'home'` analytics on this flag instead of on mount alone.
+export function WhatsNewPopup({ active }: { active: boolean }) {
   const { t, locale } = useI18n();
   const analytics = useAnalytics();
   const [card, setCard] = useState<CardModel | null>(null);
   const surfaceTrackedRef = useRef(false);
+  const fetchRequestedRef = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
+    if (!active || fetchRequestedRef.current) return;
+    fetchRequestedRef.current = true;
+    let cancelled = false;
     void fetchWhatsNew().then((info) => {
-      if (!mounted || info == null) return;
+      if (cancelled) {
+        // The user left Home mid-fetch; re-arm so the next Home visit retries.
+        fetchRequestedRef.current = false;
+        return;
+      }
+      if (info == null) return;
       const decision = resolveWhatsNewPrompt(info, readLastSeenWhatsNewVersion());
       if (decision === 'baseline') {
         markWhatsNewSeen(info.version);
@@ -85,15 +96,15 @@ export function WhatsNewPopup() {
       }
     });
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-    // The card resolves once per mount; live locale switches keep the copy it
-    // resolved with rather than refetching mid-display.
+    // The card resolves once per Home activation; live locale switches keep
+    // the copy it resolved with rather than refetching mid-display.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   useEffect(() => {
-    if (card == null || surfaceTrackedRef.current) return;
+    if (!active || card == null || surfaceTrackedRef.current) return;
     surfaceTrackedRef.current = true;
     trackWhatsNewPopupSurfaceView(analytics.track, {
       page_name: 'home',
@@ -101,7 +112,7 @@ export function WhatsNewPopup() {
       app_version: card.version,
       has_release_notes: card.hasReleaseNotes,
     });
-  }, [analytics.track, card]);
+  }, [active, analytics.track, card]);
 
   const dismiss = useCallback(() => {
     if (card == null) return;
@@ -116,14 +127,19 @@ export function WhatsNewPopup() {
     setCard(null);
   }, [analytics.track, card]);
 
+  // Escape hides the card without recording the version as seen and without
+  // the dismiss analytics event: the card is a non-modal toast, so a stray
+  // Escape aimed at other UI must not permanently spend the once-per-version
+  // card. Mark-seen stays reserved for the explicit ✕ button and the CTA.
   useEffect(() => {
-    if (card == null) return;
+    if (!active || card == null) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dismiss();
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      setCard(null);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [card, dismiss]);
+  }, [active, card]);
 
   const openLink = useCallback(() => {
     if (card == null) return;
@@ -141,7 +157,7 @@ export function WhatsNewPopup() {
 
   return (
     <AnimatePresence>
-      {card != null ? (
+      {active && card != null ? (
         <motion.section
           aria-labelledby="whats-new-popup-title"
           className={styles.card}

@@ -112,6 +112,28 @@ function readWhatsNewBlock(baseVersion: string): Record<string, unknown> | null 
       throw new Error(`whats-new "${field}" must be an HTTPS URL: ${path}`);
     }
   }
+  // Locale overrides ship into metadata.json for the daemon's
+  // parseLocaleOverrides, which silently drops malformed values — so a bad
+  // entry must fail here, at publish time, where the author can fix it.
+  if (block.locales != null) {
+    if (typeof block.locales !== "object" || Array.isArray(block.locales)) {
+      throw new Error(`whats-new "locales" must be a JSON object: ${path}`);
+    }
+    for (const [locale, entry] of Object.entries(block.locales as Record<string, unknown>)) {
+      if (typeof entry !== "object" || entry == null || Array.isArray(entry)) {
+        throw new Error(`whats-new locale "${locale}" must be a JSON object: ${path}`);
+      }
+      const override = entry as Record<string, unknown>;
+      for (const field of ["title", "body"] as const) {
+        if (override[field] != null && (typeof override[field] !== "string" || (override[field] as string).trim().length === 0)) {
+          throw new Error(`whats-new locale "${locale}" requires a non-empty string "${field}": ${path}`);
+        }
+      }
+      if (override.linkUrl != null && !String(override.linkUrl).startsWith("https://")) {
+        throw new Error(`whats-new locale "${locale}" "linkUrl" must be an HTTPS URL: ${path}`);
+      }
+    }
+  }
   console.log(`including whats-new highlights from ${path}`);
   return block;
 }
