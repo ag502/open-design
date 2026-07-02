@@ -5831,7 +5831,15 @@
   border-color: var(--accent);
   color: #fff;
 }
-.entry-invite__btn.is-primary:hover { filter: brightness(1.05); }
+/* Re-assert the accent fill + white label on hover — the global
+   `button:hover` rule in primitives.css otherwise repaints the background to
+   --bg-subtle, washing the white text away. */
+.entry-invite__btn.is-primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  filter: brightness(1.05);
+}
 
 /* ── Canva-style split invite dialog ── */
 .entry-invite__panel--split {
@@ -5883,9 +5891,10 @@
   max-height: min(42vh, 320px);
   overflow-y: auto;
   /* Negative margin + padding give the input focus ring room so overflow
-     clipping doesn't shave it. */
+     clipping doesn't shave it. Extra right padding keeps the overlay
+     scrollbar clear of each row's remove (×) button. */
   margin: 0 -4px;
-  padding: 2px 4px;
+  padding: 2px 16px 2px 4px;
 }
 .entry-invite__teamsize {
   margin: -8px 0 0;
@@ -5933,16 +5942,22 @@
   align-items: center;
   gap: 6px;
   align-self: flex-start;
-  padding: 6px 10px;
-  border: 0;
+  padding: 8px 14px;
+  /* Ghost button: dashed accent border makes "add member" stand out as the
+     clear next action instead of reading as plain link text. */
+  border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--border));
   background: transparent;
   color: var(--accent);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   border-radius: var(--radius-sm, 8px);
+  transition: background 120ms var(--ease-out), border-color 120ms var(--ease-out);
 }
-.entry-invite__add-row:hover { background: var(--bg-subtle); }
+.entry-invite__add-row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+}
 .entry-invite__panel--split .entry-invite__label { margin-bottom: 0; }
 .entry-invite__panel--split .entry-invite__input {
   flex: 1 1 0;
@@ -5986,6 +6001,10 @@
   transition: filter 120ms, background 120ms, color 120ms;
 }
 .entry-invite__submit:hover:not(:disabled) {
+  /* Hold the accent fill — the global button:hover rule would repaint it to
+     --bg-subtle and hide the white label. */
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
   filter: brightness(1.05);
 }
 .entry-invite__submit:disabled {

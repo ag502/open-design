@@ -99,6 +99,11 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
   const [teamOpen, setTeamOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
+  // Teams created via the "新建团队" dialog, appended to the switcher list
+  // (demo-only local state; no global workspace switch).
+  const [createdTeams, setCreatedTeams] = useState<
+    Array<{ name: string; logo: string | null; color: string }>
+  >([]);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
 
@@ -293,6 +298,29 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
                       Nexu 团队
                       <Icon name="check" size={14} />
                     </button>
+                    {createdTeams.map((team, i) => (
+                      <button
+                        key={`${team.name}-${i}`}
+                        type="button"
+                        className="entry-nav-rail__menu-item"
+                        role="menuitem"
+                      >
+                        {team.logo ? (
+                          <span className="entry-nav-rail__team-avatar" aria-hidden>
+                            <img src={team.logo} alt="" />
+                          </span>
+                        ) : (
+                          <span
+                            className="entry-nav-rail__team-avatar"
+                            aria-hidden
+                            style={{ background: team.color, color: '#fff' }}
+                          >
+                            {team.name.trim().charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        {team.name}
+                      </button>
+                    ))}
                     <div className="entry-nav-rail__menu-divider" />
                     <button
                       type="button"
@@ -430,7 +458,11 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose, 
         freePlan={solo}
         onSubmit={() => { if (solo) setUpgradeOpen(true); }}
       />
-      <CreateTeamDialog open={createTeamOpen} onClose={() => setCreateTeamOpen(false)} />
+      <CreateTeamDialog
+        open={createTeamOpen}
+        onClose={() => setCreateTeamOpen(false)}
+        onCreate={(team) => setCreatedTeams((prev) => [...prev, team])}
+      />
       <UpgradeTeamDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </nav>
   );

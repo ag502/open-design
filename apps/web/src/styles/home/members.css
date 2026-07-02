@@ -42,7 +42,11 @@
   white-space: nowrap;
   transition: filter 0.15s cubic-bezier(0.23, 1, 0.32, 1);
 }
-.members__invite-btn:hover {
+.members__invite-btn:hover:not(:disabled) {
+  /* Re-assert the accent fill — the global button:hover rule otherwise
+     repaints the background to --bg-subtle and hides the white label. */
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
   filter: brightness(1.05);
 }
 
@@ -208,6 +212,15 @@
   font-size: 12px;
   font-weight: 750;
   white-space: nowrap;
+  cursor: pointer;
+  transition: filter 120ms var(--ease-out);
+}
+.members__auto-recharge button:hover:not(:disabled) {
+  /* Hold the accent fill against the global button:hover repaint. */
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  filter: brightness(1.05);
 }
 
 /* Card-like panel that wraps the rows. */

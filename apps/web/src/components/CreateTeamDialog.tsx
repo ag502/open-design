@@ -10,7 +10,7 @@ import { Icon } from './Icon';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onCreate?: (team: { name: string; logo: string | null }) => void;
+  onCreate?: (team: { name: string; logo: string | null; color: string }) => void;
 }
 
 const LOGO_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
@@ -34,7 +34,11 @@ export function CreateTeamDialog({ open, onClose, onCreate }: Props) {
   }
 
   function submit() {
-    onCreate?.({ name: name.trim() || '我的团队', logo: logoData });
+    onCreate?.({
+      name: name.trim() || '我的团队',
+      logo: logoData,
+      color: LOGO_COLORS[colorIdx] ?? LOGO_COLORS[0]!,
+    });
     onClose();
   }
 

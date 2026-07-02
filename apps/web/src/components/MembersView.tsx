@@ -28,7 +28,7 @@ interface Member {
 
 // Unified mock team (kept in sync with RecentProjectsStrip MOCK_MEMBERS).
 const MOCK_MEMBERS: Member[] = [
-  { id: 'qy', name: '琼羽（你）', email: 'qiongyu@nexu.io', img: '/team-avatars/a2.png', role: '所有者', joinedAt: '2026-06-01', isYou: true },
+  { id: 'qy', name: '琼羽', email: 'qiongyu@nexu.io', img: '/team-avatars/a2.png', role: '所有者', joinedAt: '2026-06-01', isYou: true },
   { id: 'zw', name: '张伟', email: 'zhangwei@nexu.io', img: '/team-avatars/a1.png', role: '管理员', joinedAt: '2026-06-24' },
   { id: 'ln', name: '李娜', email: 'lina@nexu.io', img: '/team-avatars/a3.png', role: '成员', joinedAt: '2026-06-25' },
   { id: 'wf', name: '王芳', email: 'wangfang@nexu.io', img: '/team-avatars/a4.png', role: '成员', joinedAt: '2026-06-20' },
