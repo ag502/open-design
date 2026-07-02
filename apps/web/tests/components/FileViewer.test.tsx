@@ -1745,7 +1745,7 @@ describe('FileViewer SVG artifacts', () => {
     expect(markup).toContain('data-od-render-mode="url-load" data-od-active="false"');
   });
 
-  it('keeps HTML decks in design preview mode instead of exposing the source tab', async () => {
+  it('keeps HTML deck source reachable from the viewer mode tabs', async () => {
     const file = baseFile({
       name: 'deck.html',
       path: 'deck.html',
@@ -1771,7 +1771,7 @@ describe('FileViewer SVG artifacts', () => {
       />,
     );
 
-    expect(container.querySelector('.viewer-tabs')).toBeNull();
+    expect(container.querySelector('.viewer-tabs')).toBeTruthy();
     expect(container.querySelector('.deck-nav')).toBeNull();
     expect(container.querySelector('.deck-thumbnail-toolbar-toggle')).toBeTruthy();
     expect(container.querySelector('.deck-thumbnail-rail .deck-thumbnail-toggle')).toBeNull();
@@ -1784,7 +1784,11 @@ describe('FileViewer SVG artifacts', () => {
     expect(screen.queryByRole('button', { name: 'Manual' })).toBeNull();
     expect(container.querySelector('.viewer-viewport-switcher')).toBeTruthy();
     expect(screen.queryByTestId('palette-tweaks-toggle')).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Code' })).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Code' }));
+    expect(screen.getByRole('tab', { name: 'Code' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByTestId('artifact-preview-frame')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Preview' }));
+    expect(screen.getByRole('tab', { name: 'Preview' }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('shows Cloudflare Pages as a deploy action without requiring a project name input', async () => {

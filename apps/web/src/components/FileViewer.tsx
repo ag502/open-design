@@ -6207,9 +6207,6 @@ function HtmlViewer({
     const id = window.setTimeout(() => setSpeakerNotesStatus(null), 2400);
     return () => window.clearTimeout(id);
   }, [speakerNotesStatus]);
-  useEffect(() => {
-    if (effectiveDeck && mode !== 'preview') setMode('preview');
-  }, [effectiveDeck, mode]);
   // Extra deck signal for EXPORT only. Runtime-managed decks (`<deck-stage>` /
   // `data-screen-label`) need deck capture even when the viewer's nav bridge
   // cannot drive them. Plain `.slide` is intentionally excluded: ordinary pages
@@ -9993,33 +9990,31 @@ function HtmlViewer({
           >
             <Icon name="reload" size={14} />
           </button>
-          {!effectiveDeck ? (
-            <div className="viewer-tabs viewer-mode-tabs" role="tablist" aria-label="View mode">
-              {([
-                ['preview', t('fileViewer.preview'), 'eye-line'],
-                ['source', t('fileViewer.source'), 'code-line'],
-              ] as const).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  className={`viewer-tab od-tooltip ${mode === id ? 'active' : ''}`}
-                  aria-label={label}
-                  aria-selected={mode === id}
-                  title={label}
-                  data-tooltip={label}
-                  data-tooltip-placement="bottom"
-                  onClick={() => {
-                    fireArtifactToolbarClick(id);
-                    selectMode(id);
-                  }}
-                >
-                  <RemixIcon name={id === 'preview' ? 'eye-line' : 'code-line'} size={14} className="viewer-tab-icon" />
-                  <span className="viewer-tab-label">{label}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div className="viewer-tabs viewer-mode-tabs" role="tablist" aria-label="View mode">
+            {([
+              ['preview', t('fileViewer.preview'), 'eye-line'],
+              ['source', t('fileViewer.source'), 'code-line'],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                className={`viewer-tab od-tooltip ${mode === id ? 'active' : ''}`}
+                aria-label={label}
+                aria-selected={mode === id}
+                title={label}
+                data-tooltip={label}
+                data-tooltip-placement="bottom"
+                onClick={() => {
+                  fireArtifactToolbarClick(id);
+                  selectMode(id);
+                }}
+              >
+                <RemixIcon name={id === 'preview' ? 'eye-line' : 'code-line'} size={14} className="viewer-tab-icon" />
+                <span className="viewer-tab-label">{label}</span>
+              </button>
+            ))}
+          </div>
           {versioningAvailable ? (
             <button
               type="button"
