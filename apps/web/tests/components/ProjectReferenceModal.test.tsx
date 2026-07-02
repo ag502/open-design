@@ -120,7 +120,7 @@ describe('ProjectReferenceModal', () => {
     const { onSelect } = renderModal({ projects: [importedProject] });
     vi.mocked(getProjectDetail).mockResolvedValue({
       project: importedProject,
-      resolvedDir: '',
+      resolvedDir: null,
     });
 
     await confirmSelection('Imported Project');

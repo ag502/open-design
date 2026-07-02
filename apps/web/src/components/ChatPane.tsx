@@ -613,6 +613,7 @@ interface Props {
   projectMetadata?: ProjectMetadata;
   onProjectMetadataChange?: (metadata: ProjectMetadata) => void;
   activeWorkspaceContext?: WorkspaceContextItem | null;
+  initialWorkspaceContexts?: WorkspaceContextItem[];
   workspaceContexts?: WorkspaceContextItem[];
   currentSkillId?: string | null;
   onProjectSkillChange?: (skillId: string | null) => void;
@@ -842,6 +843,7 @@ export function ChatPane({
   projectMetadata,
   onProjectMetadataChange,
   activeWorkspaceContext,
+  initialWorkspaceContexts = [],
   workspaceContexts = [],
   currentSkillId = null,
   onProjectSkillChange,
@@ -1995,6 +1997,7 @@ export function ChatPane({
       projectMetadata={projectMetadata}
       onProjectMetadataChange={onProjectMetadataChange}
       activeWorkspaceContext={activeWorkspaceContext}
+      initialWorkspaceContexts={initialWorkspaceContexts}
       workspaceContexts={workspaceContexts}
       byokApiProtocol={byokApiProtocol}
       byokImageModel={byokImageModel}
@@ -4088,7 +4091,9 @@ function workspaceContextOpenTarget(item: WorkspaceContextItem): string | null {
 
 function workspaceContextIcon(item: WorkspaceContextItem): IconName {
   if (item.kind === 'browser') return 'globe';
-  if (item.kind === 'folder' || item.kind === 'design-files' || item.kind === 'project' || item.kind === 'local-code') return 'folder';
+  if (item.kind === 'folder' || item.kind === 'design-files') return 'folder';
+  if (item.kind === 'project') return 'folder';
+  if (item.kind === 'local-code') return 'terminal';
   if (item.kind === 'terminal') return 'terminal';
   if (item.kind === 'side-chat') return 'comment';
   if (item.kind === 'design-system') return 'blocks';

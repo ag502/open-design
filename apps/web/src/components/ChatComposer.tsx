@@ -23,8 +23,11 @@ import { useAnalytics } from '../analytics/provider';
 import {
   trackChatPanelClick,
   trackComposerBarClick,
+  trackContextLinkResult,
   trackDesignToolboxClick,
+  trackFigmaHelpModalSurfaceView,
   trackFileUploadResult,
+  trackProjectReferenceModalSurfaceView,
 } from '../analytics/events';
 import type {
   ComposerBarClickProps,
@@ -53,9 +56,10 @@ import type {
 } from '@open-design/contracts';
 import { buildVisualAnnotationAttachment, commentTargetDisplayName } from '../comments';
 import { Icon, type IconName } from "./Icon";
-import { ComposerPlusMenu } from './ComposerPlusMenu';
+import { ComposerPlusMenu, PLUS_SUBMENU_RESOURCE_KIND } from './ComposerPlusMenu';
 import { LibraryPicker } from './LibraryPicker';
 import { FigmaImportModal } from './FigmaImportModal';
+import { FigmaHelpModal } from './FigmaHelpModal';
 import {
   ProjectReferenceModal,
   type ProjectReferenceSelection,
@@ -86,6 +90,7 @@ import {
   mentionTokenPresent,
   type InlineMentionEntity,
 } from '../utils/inlineMentions';
+import { workspaceContextLinkedDir, workspaceContextLinkedDirs } from './workspace-context';
 import {
   LexicalComposerInput,
   type LexicalComposerInputHandle,
@@ -124,7 +129,7 @@ function trackedWorkspaceLinkedDirsForContexts(
 ): Record<string, TrackedWorkspaceLinkedDir> {
   const out: Record<string, TrackedWorkspaceLinkedDir> = {};
   for (const item of items) {
-    const dir = item.absolutePath?.trim() ?? '';
+    const dir = workspaceContextLinkedDir(item) ?? '';
     if (!dir || !linkedDirs.includes(dir)) continue;
     out[item.id] = {
       dir,
@@ -425,8 +430,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       footerAccessory,
       leadingAccessory,
       designSystemPicker,
-      currentDesignSystemId = null,
-      onActiveDesignSystemChange,
       onShowToast,
     },
     ref
@@ -467,6 +470,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const nextAttachmentOrderRef = useRef(0);
     const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
     const [figmaModalOpen, setFigmaModalOpen] = useState(false);
+    const [figmaHelpOpen, setFigmaHelpOpen] = useState(false);
     const [projectReferenceOpen, setProjectReferenceOpen] = useState(false);
     const [stagedVisualComments, setStagedVisualComments] = useState<ChatCommentAttachment[]>([]);
     const streamingAnnotationSendPendingRef = useRef(false);
@@ -485,11 +489,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [designToolboxOpen, setDesignToolboxOpen] = useState(false);
     const [stagedMcpServers, setStagedMcpServers] = useState<McpServerConfig[]>([]);
     const [stagedConnectors, setStagedConnectors] = useState<ConnectorDetail[]>([]);
+    const linkedDirs = projectMetadata?.linkedDirs ?? [];
     const [stagedWorkspaceContexts, setStagedWorkspaceContexts] = useState<WorkspaceContextItem[]>(
       () => dedupeWorkspaceContextItems(initialWorkspaceContexts),
     );
     const [workspaceLinkedDirAdds, setWorkspaceLinkedDirAdds] = useState<Record<string, TrackedWorkspaceLinkedDir>>(
-      () => trackedWorkspaceLinkedDirsForContexts(initialWorkspaceContexts, projectMetadata?.linkedDirs ?? []),
+      () => trackedWorkspaceLinkedDirsForContexts(initialWorkspaceContexts, linkedDirs),
     );
     const [promotedWorkspaceContextDir, setPromotedWorkspaceContextDir] = useState<string | null>(null);
     const [dismissedWorkspaceContextId, setDismissedWorkspaceContextId] = useState<string | null>(null);
@@ -582,6 +587,21 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // wins over this pending value.
     const pendingEntryFromRef = useRef<ChatAnalyticsEntryFrom | null>(null);
     const petEnabled = Boolean(onAdoptPet && onTogglePet);
+    const [recentDirs, setRecentDirs] = useState<string[]>([]);
+    useEffect(() => {
+      let cancelled = false;
+      void fetchRecentLinkedDirs().then((dirs) => {
+        if (!cancelled) setRecentDirs(dirs);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []);
+    const rememberRecentDir = useCallback(async (dir: string) => {
+      setRecentDirs((prev) => [dir, ...prev.filter((d) => d !== dir)].slice(0, 5));
+      const persisted = await pushRecentLinkedDir(dir);
+      setRecentDirs(persisted);
+    }, []);
     const visibleWorkspaceContext =
       activeWorkspaceContext && activeWorkspaceContext.id !== dismissedWorkspaceContextId
         ? activeWorkspaceContext
@@ -600,14 +620,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       for (const item of stagedWorkspaceContexts) push(item);
       return out;
     }, [stagedWorkspaceContexts, visibleWorkspaceContext]);
-    const selectedWorkspaceContextDirs = useMemo(
-      () =>
-        selectedWorkspaceContexts
-          .map((item) => item.absolutePath?.trim() ?? '')
-          .filter((dir) => dir.length > 0),
+    const selectedWorkspaceContextDirs = useMemo<string[]>(
+      () => workspaceContextLinkedDirs(selectedWorkspaceContexts),
       [selectedWorkspaceContexts],
     );
-    const workspaceContextMetadataLinkedDirList = useMemo(
+    const workspaceContextMetadataLinkedDirList = useMemo<string[]>(
       () =>
         Array.from(new Set([
           ...Object.values(workspaceLinkedDirAdds).map((tracked) => tracked.dir),
@@ -615,35 +632,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         ])),
       [selectedWorkspaceContextDirs, workspaceLinkedDirAdds],
     );
-    const workspaceContextLinkedDirList = useMemo(
+    const workspaceContextLinkedDirList = useMemo<string[]>(
       () =>
         workspaceContextMetadataLinkedDirList.filter((dir) => dir !== promotedWorkspaceContextDir),
       [promotedWorkspaceContextDir, workspaceContextMetadataLinkedDirList],
     );
-    const workspaceContextLinkedDirs = useMemo(
+    const workspaceContextLinkedDirSet = useMemo<Set<string>>(
       () => new Set(workspaceContextLinkedDirList),
       [workspaceContextLinkedDirList],
     );
-    const linkedDirs = projectMetadata?.linkedDirs ?? [];
     // The project's working directory: the local folder the agent can read
-    // (via `linkedDirs` -> `--add-dir`). Context-only folders are also linked
-    // for agent read access, but they should not become the displayed primary dir.
-    const workingDir = linkedDirs.find((dir) => !workspaceContextLinkedDirs.has(dir)) ?? null;
-    const [recentDirs, setRecentDirs] = useState<string[]>([]);
-    useEffect(() => {
-      let cancelled = false;
-      void fetchRecentLinkedDirs().then((dirs) => {
-        if (!cancelled) setRecentDirs(dirs);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, []);
-    const rememberRecentDir = useCallback(async (dir: string) => {
-      setRecentDirs((prev) => [dir, ...prev.filter((d) => d !== dir)].slice(0, 5));
-      const persisted = await pushRecentLinkedDir(dir);
-      setRecentDirs(persisted);
-    }, []);
+    // (via `linkedDirs` → `--add-dir`). Shown in the WorkingDirPicker below
+    // the input, mirroring Home. Context-only folders are still linked for
+    // agent read access, but they should not become the displayed primary dir.
+    const workingDir = linkedDirs.find((dir) => !workspaceContextLinkedDirSet.has(dir)) ?? null;
     // Live-check whether the selected working directory still exists, so a
     // folder deleted from disk turns the picker red without a page reload.
     // Re-checked when the dir changes, when the window/tab regains focus
@@ -697,6 +699,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       if (previousWorkspaceContextIdRef.current === activeWorkspaceContextId) return;
       previousWorkspaceContextIdRef.current = activeWorkspaceContextId;
       setDismissedWorkspaceContextId(null);
+      setPromotedWorkspaceContextDir(null);
     }, [activeWorkspaceContextId]);
 
     // Latch `composerEngaged` true on the first real interaction so the
@@ -832,9 +835,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           plugins: pluginsForComposer,
           skills,
           staged,
-          workspaceContexts,
+          workspaceContexts: selectedWorkspaceContexts,
         }),
-      [connectors, enabledMcpServers, pluginsForComposer, projectFiles, skills, staged, workspaceContexts],
+      [connectors, enabledMcpServers, pluginsForComposer, projectFiles, selectedWorkspaceContexts, skills, staged],
     );
     // Resolve which tabs to surface in the consolidated tools popover.
     // Plugins is always visible while a project is active so users can
@@ -1088,6 +1091,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     );
 
     function reset() {
+      pendingEntryFromRef.current = null;
+      pendingSessionModeRef.current = null;
       const linkedWorkspaceContexts = stagedWorkspaceContexts.filter((item) => (
         Boolean(item.absolutePath?.trim()) && Boolean(workspaceLinkedDirAdds[item.id])
       ));
@@ -1095,8 +1100,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       const nextWorkspaceLinkedDirAdds = Object.fromEntries(
         Object.entries(workspaceLinkedDirAdds).filter(([id]) => linkedWorkspaceContextIds.has(id)),
       );
-      pendingEntryFromRef.current = null;
-      pendingSessionModeRef.current = null;
       setDraft("");
       setStaged([]);
       nextAttachmentOrderRef.current = 0;
@@ -1314,34 +1317,75 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     }
 
     async function handleReferenceProjects(selections: ProjectReferenceSelection[]) {
-      const trackedByDir = await addLinkedDirs(selections.map(({ resolvedDir }) => resolvedDir));
-      if (trackedByDir === false) return;
-      const trackedAdds: Record<string, TrackedWorkspaceLinkedDir> = {};
-      for (const { project, resolvedDir } of selections) {
+      const items = selections.map(({ project, resolvedDir }) => {
         const path = resolvedDir.trim();
-        const item: WorkspaceContextItem = {
+        return {
           id: `project:${project.id}`,
           kind: 'project',
           label: project.name || project.id,
           title: project.name || project.id,
           path: project.id,
           ...(path ? { absolutePath: path } : {}),
-        };
+        } satisfies WorkspaceContextItem;
+      });
+      const trackedByDir = await addLinkedDirs(items.map((item) => workspaceContextLinkedDir(item) ?? ''));
+      if (trackedByDir === false) {
+        trackContextLinkResult(analytics.track, {
+          page_name: 'chat_panel',
+          area: 'chat_composer',
+          context_kind: 'project',
+          result: 'failed',
+          count: items.length,
+          ...(projectId ? { project_id: projectId } : {}),
+        });
+        return;
+      }
+      for (const item of items) {
         appendWorkspacePrompt(item);
+      }
+      setProjectReferenceOpen(false);
+      trackContextLinkResult(analytics.track, {
+        page_name: 'chat_panel',
+        area: 'chat_composer',
+        context_kind: 'project',
+        result: 'success',
+        count: items.length,
+        ...(projectId ? { project_id: projectId } : {}),
+      });
+      const trackedAdds: Record<string, TrackedWorkspaceLinkedDir> = {};
+      for (const item of items) {
+        const path = workspaceContextLinkedDir(item);
         const trackedLinkedDir = path ? trackedByDir.get(path) ?? null : null;
         if (trackedLinkedDir) trackedAdds[item.id] = trackedLinkedDir;
       }
       if (Object.keys(trackedAdds).length > 0) {
         setWorkspaceLinkedDirAdds((current) => ({ ...current, ...trackedAdds }));
       }
-      setProjectReferenceOpen(false);
     }
 
     async function handleLinkLocalCodeContext() {
       const selected = await openFolderDialog();
-      if (!selected) return;
+      if (!selected) {
+        trackContextLinkResult(analytics.track, {
+          page_name: 'chat_panel',
+          area: 'chat_composer',
+          context_kind: 'local_code',
+          result: 'cancelled',
+          ...(projectId ? { project_id: projectId } : {}),
+        });
+        return;
+      }
       const trackedLinkedDir = await addLinkedDir(selected);
-      if (trackedLinkedDir === false) return;
+      if (trackedLinkedDir === false) {
+        trackContextLinkResult(analytics.track, {
+          page_name: 'chat_panel',
+          area: 'chat_composer',
+          context_kind: 'local_code',
+          result: 'failed',
+          ...(projectId ? { project_id: projectId } : {}),
+        });
+        return;
+      }
       const label = selected.split(/[/\\]/).filter(Boolean).pop() || selected;
       const item: WorkspaceContextItem = {
         id: `local-code:${selected}`,
@@ -1354,6 +1398,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       if (trackedLinkedDir) {
         setWorkspaceLinkedDirAdds((current) => ({ ...current, [item.id]: trackedLinkedDir }));
       }
+      trackContextLinkResult(analytics.track, {
+        page_name: 'chat_panel',
+        area: 'chat_composer',
+        context_kind: 'local_code',
+        result: 'success',
+        count: 1,
+        ...(projectId ? { project_id: projectId } : {}),
+      });
     }
 
     async function insertSkillMention(skill: SkillSummary) {
@@ -1557,7 +1609,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       return Object.entries(workspaceLinkedDirAdds).some(
         ([candidateId, candidate]) => candidateId !== id && candidate.dir === dir,
       ) || selectedWorkspaceContexts.some((item) => (
-        item.id !== id && item.absolutePath?.trim() === dir
+        item.id !== id && workspaceContextLinkedDir(item) === dir
       )) || workingDir === dir;
     }
 
@@ -2000,7 +2052,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // The WorkingDirPicker treats the project's working directory as a single
     // primary folder, so selecting one replaces the primary `linkedDirs` entry
     // while preserving staged workspace-context dirs. The folder is read-only
-    // awareness for the agent (-> `--add-dir`), not a Design Files import, and
+    // awareness for the agent (→ `--add-dir`), not a Design Files import, and
     // `baseDir` is never touched.
     async function setWorkingDirFolder(dir: string) {
       if (!projectId) return;
@@ -2052,38 +2104,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       }
     }
 
-    async function handleSwitchDesignSystem(
-      designSystemId: string | null,
-      title: string | null,
-    ): Promise<boolean> {
-      if (!projectId) return false;
-      if (designSystemId === currentDesignSystemId) return true;
-      const result = await patchProject(projectId, { designSystemId });
-      if (!result) {
-        onShowToast?.(t('chat.importDesignSystemFailed'));
-        return false;
-      }
-      trackComposerBar({
-        element: 'design_system_switch',
-        ...(designSystemId ? { design_system_id: designSystemId } : {}),
-      });
-      onActiveDesignSystemChange?.(result);
-      const switchedTitle = designSystemId === null
-        ? t('chat.importDesignSystemNone')
-        : title ?? designSystemId;
-      onShowToast?.(t('chat.importDesignSystemSwitched', { title: switchedTitle }));
-      return true;
-    }
-
-
     // Lexical drives every text change through this callback. `present` is the
     // entity list the editor's text currently references (MentionNodes plus
     // plain `@token`s matched against composerMentionEntities, deduped by
     // kind:id). We prune the staged skill/mcp/connector chips to whatever the
     // text still references — generalizing the old skill-only regex prune so a
     // hand-deleted token also drops its chip and never leaks into the run
-    // context. `staged` (files) is intentionally NOT pruned: users attach
-    // files via the upload button without leaving an `@<path>` token.
+    // context. Workspace contexts that added linked dirs are kept visible until
+    // the chip remove button clears the matching metadata access. `staged`
+    // (files) is intentionally NOT pruned: users attach files via the upload
+    // button without leaving an `@<path>` token.
     function handleEditorChange(text: string, present: InlineMentionEntity[]) {
       draftRef.current = text;
       setDraft(text);
@@ -2744,9 +2774,24 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
             />
             <ComposerPlusMenu
               triggerTestId="chat-plus-trigger"
+              placementPreference="up"
               onOpen={() => {
                 trackComposerBar({ element: 'plus_menu_open' });
                 setComposerEngaged(true);
+              }}
+              onSubmenuOpen={(submenu) => {
+                // The toolbox flyout tracks its own open (design_toolbox_open).
+                if (submenu === 'toolbox') return;
+                trackComposerBar({
+                  element: 'plus_submenu_open',
+                  resource_kind: PLUS_SUBMENU_RESOURCE_KIND[submenu],
+                });
+              }}
+              onSearchUsed={(submenu) => {
+                trackComposerBar({
+                  element: 'plus_search',
+                  resource_kind: PLUS_SUBMENU_RESOURCE_KIND[submenu],
+                });
               }}
               connectors={connectors}
               onPickConnector={(connector) => {
@@ -2805,19 +2850,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 fileInputRef.current?.click();
               }}
               onReferenceProject={() => {
-                trackComposerBar({
-                  element: 'plus_pick',
-                  resource_kind: 'workspace',
-                  resource_id: 'reference-project',
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'reference-project' });
+                trackProjectReferenceModalSurfaceView(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'project_reference_modal',
+                  ...(projectId ? { project_id: projectId } : {}),
                 });
                 setProjectReferenceOpen(true);
               }}
               onLinkLocalCode={() => {
-                trackComposerBar({
-                  element: 'plus_pick',
-                  resource_kind: 'workspace',
-                  resource_id: 'local-code',
-                });
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'local-code' });
                 void handleLinkLocalCodeContext();
               }}
               attachLoading={uploading}
@@ -2837,7 +2879,23 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 });
                 setFigmaModalOpen(true);
               } : undefined}
-              onOpenDesignSystems={projectId && designSystemPicker ? openDesignSystemPicker : undefined}
+              onShowFigmaHelp={() => {
+                trackChatPanelClick(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'chat_panel',
+                  element: 'figma_help',
+                });
+                trackFigmaHelpModalSurfaceView(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'figma_help_modal',
+                  ...(projectId ? { project_id: projectId } : {}),
+                });
+                setFigmaHelpOpen(true);
+              }}
+              onOpenDesignSystems={projectId && designSystemPicker ? () => {
+                trackComposerBar({ element: 'design_system_open' });
+                openDesignSystemPicker();
+              } : undefined}
               toolboxLabel={t('chat.designToolbox.title')}
               renderToolbox={(close) => (
                 <DesignToolboxPanel
@@ -3056,10 +3114,25 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
             }}
           />
         ) : null}
+        {figmaHelpOpen ? (
+          <FigmaHelpModal onClose={() => setFigmaHelpOpen(false)} />
+        ) : null}
         {projectReferenceOpen ? (
           <ProjectReferenceModal
             currentProjectId={projectId}
-            onClose={() => setProjectReferenceOpen(false)}
+            onClose={() => {
+              // Only the dismiss paths (X / backdrop / Escape / Cancel) land
+              // here — a confirmed pick closes via handleReferenceProjects,
+              // which reports 'success' / 'failed'.
+              trackContextLinkResult(analytics.track, {
+                page_name: 'chat_panel',
+                area: 'chat_composer',
+                context_kind: 'project',
+                result: 'cancelled',
+                ...(projectId ? { project_id: projectId } : {}),
+              });
+              setProjectReferenceOpen(false);
+            }}
             onSelect={(items) => void handleReferenceProjects(items)}
           />
         ) : null}
@@ -3277,7 +3350,9 @@ function sortChatCommentAttachmentsByOrder(attachments: ChatCommentAttachment[])
 
 function workspaceContextIcon(item: WorkspaceContextItem): IconName {
   if (item.kind === 'browser') return 'globe';
-  if (item.kind === 'folder' || item.kind === 'design-files' || item.kind === 'project' || item.kind === 'local-code') return 'folder';
+  if (item.kind === 'folder' || item.kind === 'design-files') return 'folder';
+  if (item.kind === 'project') return 'folder';
+  if (item.kind === 'local-code') return 'terminal';
   if (item.kind === 'terminal') return 'terminal';
   if (item.kind === 'side-chat') return 'comment';
   if (item.kind === 'design-system') return 'blocks';
@@ -3296,6 +3371,8 @@ function workspaceContextTitle(item: WorkspaceContextItem): string {
 
 function workspaceContextDescription(item: WorkspaceContextItem): string {
   if (item.kind === 'design-files') return item.path || 'Project files';
+  if (item.kind === 'project') return item.absolutePath || item.path || item.title || item.id;
+  if (item.kind === 'local-code') return item.absolutePath || item.path || item.title || item.id;
   if (item.kind === 'terminal') return item.title || 'Terminal session';
   return item.url || item.path || item.absolutePath || item.title || item.tabId || item.id;
 }
@@ -4206,7 +4283,7 @@ function ToolboxItemRow({
         onMouseDown={(e) => e.preventDefault()}
         onClick={onPick}
       >
-        <Icon name={icon} size={15} className="plus-menu__item-icon" />
+        <Icon name={icon} size={14} className="plus-menu__item-icon" />
         <span>{name}</span>
       </button>
     </div>
@@ -4674,11 +4751,9 @@ function designToolboxWorkspaceKindLabel(
       return t('chat.designToolbox.context.designFiles');
     case 'design-system':
       return t('chat.designToolbox.context.designSystem');
-    case 'project':
-      return 'Project';
-    case 'local-code':
-      return 'Local code';
     case 'folder':
+    case 'project':
+    case 'local-code':
       return t('chat.designToolbox.context.folder');
     case 'terminal':
       return t('chat.designToolbox.context.terminal');

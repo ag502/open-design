@@ -16,13 +16,13 @@ import type {
 } from '@open-design/contracts';
 import { useI18n, useT } from '../i18n';
 import type { Locale } from '../i18n/types';
+import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
+import { ComposerPluginPreview } from './ComposerPluginPreview';
+import { localizePluginTitle } from './plugins-home/localization';
 import {
   localizeSkillDescription,
   localizeSkillName,
 } from '../i18n/content';
-import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
-import { ComposerPluginPreview } from './ComposerPluginPreview';
-import { localizePluginTitle } from './plugins-home/localization';
 import { resolveFlyoutSide } from './composer-flyout-placement';
 import { Icon, type IconName } from './Icon';
 
@@ -43,7 +43,17 @@ const PLUS_MENU_FLYOUT_MAX_HEIGHT = 320;
 export type PlusMenuPlacementPreference = 'auto' | 'down' | 'up';
 type PlusMenuFlyoutPlacement = 'right' | 'left' | 'contained';
 type PlusMenuFlyoutVerticalPlacement = 'down' | 'up';
-type PlusMenuSubmenu = 'connectors' | 'plugins' | 'skills' | 'mcp' | 'toolbox';
+export type PlusMenuSubmenu = 'connectors' | 'plugins' | 'skills' | 'mcp' | 'toolbox';
+
+// Analytics mapping for the submenu flyouts: which resource list each
+// submenu carries. `toolbox` is intentionally absent — the project composer
+// tracks it separately as `design_toolbox_open`.
+export const PLUS_SUBMENU_RESOURCE_KIND = {
+  connectors: 'connector',
+  plugins: 'plugin',
+  skills: 'skill',
+  mcp: 'mcp',
+} as const;
 type PlusMenuPopupStyle = CSSProperties & Record<'--plus-menu-flyout-max-height', string>;
 
 function getFlyoutBoundary(anchor: HTMLElement): Pick<DOMRect, 'left' | 'right'> {
@@ -179,6 +189,8 @@ export interface ComposerPlusMenuProps {
   /** Opens the "Import from Figma" dialog (offline .fig decode or a Figma
    *  URL → webpage); omit to hide the row. */
   onImportFigma?: () => void;
+  /** Opens the "how to download a .fig" guide. */
+  onShowFigmaHelp?: () => void;
   /** Opens the design-system picker/surface. */
   onOpenDesignSystems?: () => void;
 
@@ -200,6 +212,21 @@ export interface ComposerPlusMenuProps {
    * cold composer.
    */
   onOpen?: () => void;
+
+  /**
+   * Notified when a submenu flyout actually opens (the active submenu
+   * changes; repeated hovers over the same open row don't re-fire). Callers
+   * use it for analytics; `toolbox` is reported too, and the project
+   * composer filters it out because its panel tracks its own open.
+   */
+  onSubmenuOpen?: (submenu: PlusMenuSubmenu) => void;
+
+  /**
+   * Notified once per submenu-open session when the user starts typing in
+   * that flyout's search box. Carries which list was searched, never the
+   * query text.
+   */
+  onSearchUsed?: (submenu: 'plugins' | 'skills' | 'mcp') => void;
 
   /**
    * Home opens below the trigger like Claude Design's project picker, while
@@ -258,22 +285,25 @@ export function ComposerPlusMenu({
   plugins,
   onPickPlugin,
   onAddPlugin,
+  skills = [],
+  onPickSkill,
   mcpServers,
   onPickMcp,
   onAddMcp,
-  skills = [],
-  onPickSkill,
   onAttachFiles,
   attachLoading,
   onReferenceProject,
   onLinkLocalCode,
   onSelectFromLibrary,
   onImportFigma,
+  onShowFigmaHelp,
   onOpenDesignSystems,
   renderToolbox,
   toolboxLabel,
   triggerTestId,
   onOpen,
+  onSubmenuOpen,
+  onSearchUsed,
   placementPreference = 'auto',
 }: ComposerPlusMenuProps) {
   const t = useT();
@@ -295,6 +325,8 @@ export function ComposerPlusMenu({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
   const submenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether onSearchUsed already fired for the current submenu-open session.
+  const searchUsedRef = useRef(false);
 
   // The plugin and MCP flyouts share one `query`, but it is scoped to whichever
   // submenu is open. Reset it whenever the active submenu changes so a stale
@@ -304,6 +336,7 @@ export function ComposerPlusMenu({
     setQuery('');
     setHoveredPluginId(null);
     setHoveredSkillId(null);
+    searchUsedRef.current = false;
   }, [submenu]);
 
   useEffect(() => () => {
@@ -407,7 +440,20 @@ export function ComposerPlusMenu({
   ) {
     cancelSubmenuClose();
     updateFlyoutGeometry(row, next);
+    if (submenu !== next) onSubmenuOpen?.(next);
     setSubmenu(next);
+  }
+
+  function handleQueryChange(value: string) {
+    if (
+      !searchUsedRef.current &&
+      value.trim() &&
+      (submenu === 'plugins' || submenu === 'skills' || submenu === 'mcp')
+    ) {
+      searchUsedRef.current = true;
+      onSearchUsed?.(submenu);
+    }
+    setQuery(value);
   }
 
   useEffect(() => {
@@ -463,9 +509,6 @@ export function ComposerPlusMenu({
   const filteredPlugins = needle
     ? plugins.filter((p) => pluginMatches(p, needle, localizePluginTitle(locale, p)))
     : plugins;
-  const filteredMcp = needle
-    ? mcpServers.filter((s) => mcpMatches(s, needle))
-    : mcpServers;
   const filteredSkills = needle
     ? skills.filter((skill) =>
         menuSkillMatches(
@@ -476,6 +519,9 @@ export function ComposerPlusMenu({
         ),
       )
     : skills;
+  const filteredMcp = needle
+    ? mcpServers.filter((s) => mcpMatches(s, needle))
+    : mcpServers;
   // The preview mirrors the hovered row, falling back to the first visible
   // plugin so the panel is populated the moment the submenu opens. When a
   // search prunes the hovered row out of view, the fallback re-anchors it.
@@ -601,19 +647,34 @@ export function ComposerPlusMenu({
           {(onImportFigma || onOpenDesignSystems) ? (
             <PlusMenuGroup label={t('chat.plus.group.designs')}>
           {onImportFigma ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="plus-menu__item"
-              data-testid="composer-plus-figma"
-              onClick={() => {
-                close();
-                onImportFigma();
-              }}
-            >
-              <Icon name="import" size={14} className="plus-menu__item-icon" />
-              <span>{t('chat.importFigma')}</span>
-            </button>
+            <div className="plus-menu__split-row" role="none">
+              <button
+                type="button"
+                role="menuitem"
+                className="plus-menu__item plus-menu__split-main"
+                data-testid="composer-plus-figma"
+                onClick={() => {
+                  close();
+                  onImportFigma();
+                }}
+              >
+                <Icon name="upload" size={14} className="plus-menu__item-icon" />
+                <span>{t('chat.plus.uploadFig')}</span>
+              </button>
+              {onShowFigmaHelp ? (
+                <button
+                  type="button"
+                  className="plus-menu__learn"
+                  data-testid="composer-plus-figma-help"
+                  onClick={() => {
+                    close();
+                    onShowFigmaHelp();
+                  }}
+                >
+                  {t('chat.plus.learnHow')}
+                </button>
+              ) : null}
+            </div>
           ) : null}
           {onOpenDesignSystems ? (
             <button
@@ -634,66 +695,6 @@ export function ComposerPlusMenu({
           ) : null}
 
           <PlusMenuGroup label={t('chat.plus.group.other')} hideLabel>
-          {onPickSkill ? (
-            <PlusSubmenuRow
-              label={t('settings.skills')}
-              icon="sparkles"
-              open={submenu === 'skills'}
-              testId="composer-plus-skills"
-              onOpen={(row) => openSubmenu('skills', row)}
-              onClose={scheduleCloseSubmenu}
-              flyoutStyle={flyoutStyle}
-              flyoutClassName={
-                filteredSkills.length > 0 ? 'plus-menu__flyout--skills' : undefined
-              }
-            >
-              <div className="plus-menu__skill-pane">
-                <div className="plus-menu__skill-main">
-                  <div className="plus-menu__search">
-                    <Icon name="search" size={13} />
-                    <input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder={t('settings.skills')}
-                      aria-label={t('settings.skills')}
-                    />
-                  </div>
-                  <div className="plus-menu__list">
-                    {filteredSkills.length === 0 ? (
-                      <div className="plus-menu__empty">{t('examples.emptyNoSkills')}</div>
-                    ) : (
-                      filteredSkills.map((skill) => {
-                        const label = localizeSkillName(locale, skill);
-                        return (
-                          <button
-                            key={skill.id}
-                            type="button"
-                            role="menuitem"
-                            className={`plus-menu__item${
-                              skill.id === hoveredSkill?.id ? ' is-previewed' : ''
-                            }`}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onMouseEnter={() => setHoveredSkillId(skill.id)}
-                            onFocus={() => setHoveredSkillId(skill.id)}
-                            onClick={() => {
-                              close();
-                              onPickSkill(skill);
-                            }}
-                          >
-                            <Icon name="sparkles" size={14} className="plus-menu__item-icon" />
-                            <span>{label}</span>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-                {hoveredSkill ? (
-                  <ComposerSkillPreview skill={hoveredSkill} locale={locale} />
-                ) : null}
-              </div>
-            </PlusSubmenuRow>
-          ) : null}
           <PlusSubmenuRow
             label={t('chat.plus.connectors')}
             icon="link"
@@ -763,7 +764,7 @@ export function ComposerPlusMenu({
                   <Icon name="search" size={13} />
                   <input
                     value={query}
-                    onChange={(event) => setQuery(event.target.value)}
+                    onChange={(event) => handleQueryChange(event.target.value)}
                     placeholder={t('entry.navPlugins')}
                     aria-label={t('entry.navPlugins')}
                   />
@@ -817,6 +818,66 @@ export function ComposerPlusMenu({
               ) : null}
             </div>
           </PlusSubmenuRow>
+          {onPickSkill ? (
+            <PlusSubmenuRow
+              label={t('settings.skills')}
+              icon="sparkles"
+              open={submenu === 'skills'}
+              testId="composer-plus-skills"
+              onOpen={(row) => openSubmenu('skills', row)}
+              onClose={scheduleCloseSubmenu}
+              flyoutStyle={flyoutStyle}
+              flyoutClassName={
+                filteredSkills.length > 0 ? 'plus-menu__flyout--skills' : undefined
+              }
+            >
+              <div className="plus-menu__skill-pane">
+                <div className="plus-menu__skill-main">
+                  <div className="plus-menu__search">
+                    <Icon name="search" size={13} />
+                    <input
+                      value={query}
+                      onChange={(event) => handleQueryChange(event.target.value)}
+                      placeholder={t('settings.skills')}
+                      aria-label={t('settings.skills')}
+                    />
+                  </div>
+                  <div className="plus-menu__list">
+                    {filteredSkills.length === 0 ? (
+                      <div className="plus-menu__empty">{t('examples.emptyNoSkills')}</div>
+                    ) : (
+                      filteredSkills.map((skill) => {
+                        const label = localizeSkillName(locale, skill);
+                        return (
+                          <button
+                            key={skill.id}
+                            type="button"
+                            role="menuitem"
+                            className={`plus-menu__item${
+                              skill.id === hoveredSkill?.id ? ' is-previewed' : ''
+                            }`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onMouseEnter={() => setHoveredSkillId(skill.id)}
+                            onFocus={() => setHoveredSkillId(skill.id)}
+                            onClick={() => {
+                              close();
+                              onPickSkill(skill);
+                            }}
+                          >
+                            <Icon name="sparkles" size={15} className="plus-menu__item-icon" />
+                            <span>{label}</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+                {hoveredSkill ? (
+                  <ComposerSkillPreview skill={hoveredSkill} locale={locale} />
+                ) : null}
+              </div>
+            </PlusSubmenuRow>
+          ) : null}
           <PlusSubmenuRow
             label={t('chat.plus.mcp')}
             icon="link"
@@ -830,7 +891,7 @@ export function ComposerPlusMenu({
               <Icon name="search" size={13} />
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => handleQueryChange(event.target.value)}
                 placeholder="MCP"
                 aria-label="MCP"
               />
@@ -895,6 +956,23 @@ export function ComposerPlusMenu({
   );
 }
 
+function PlusMenuGroup({
+  label,
+  hideLabel = false,
+  children,
+}: {
+  label: string;
+  hideLabel?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="plus-menu__group" role="group" aria-label={label}>
+      {hideLabel ? null : <div className="plus-menu__group-label">{label}</div>}
+      {children}
+    </div>
+  );
+}
+
 function ComposerSkillPreview({
   skill,
   locale,
@@ -933,23 +1011,6 @@ function ComposerSkillPreview({
           </p>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function PlusMenuGroup({
-  label,
-  hideLabel = false,
-  children,
-}: {
-  label: string;
-  hideLabel?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="plus-menu__group" role="group" aria-label={label}>
-      {hideLabel ? null : <div className="plus-menu__group-label">{label}</div>}
-      {children}
     </div>
   );
 }

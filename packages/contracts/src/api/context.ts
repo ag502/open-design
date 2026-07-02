@@ -13,6 +13,8 @@ export type WorkspaceContextKind =
   | 'local-code'
   | 'file'
   | 'folder'
+  | 'project'
+  | 'local-code'
   | 'browser'
   | 'terminal'
   | 'side-chat'
