@@ -514,6 +514,11 @@ export async function configureVisualPage(page: Page, options: VisualPageOptions
         scroll-behavior: auto !important;
         overflow-anchor: none !important;
       }
+      /* The demo scenario switcher is a fixed portal that is not part of any
+         captured product surface; left visible it overlaps and intercepts
+         pointer events on menu/dialog affordances (e.g. entry-settings). No
+         visual/UI test drives it, so hide it during capture. */
+      .demo-bar-portal { display: none !important; }
     `;
       (document.head ?? document.documentElement).appendChild(style);
     };
