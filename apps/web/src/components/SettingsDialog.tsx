@@ -6633,7 +6633,7 @@ function MediaProvidersSection({
       {activeProvider && activeEntry ? (
         <article className="media-provider-detail">
           <div className="media-provider-detail-head">
-            <div className="media-provider-meta">
+            <div className="media-provider-detail-head-top">
               <div className="media-provider-name-row">
                 <h3>{activeProvider.label}</h3>
                 {activeIsSavedState ? (
@@ -6647,16 +6647,16 @@ function MediaProvidersSection({
                   </span>
                 ) : null}
               </div>
-              <p>{activeProvider.hint || providerCapabilityLabel(activeProvider)}</p>
+              <div className="media-provider-badges">
+                <span className="media-provider-badge integrated">
+                  {providerCapabilityLabel(activeProvider)}
+                </span>
+                {activeProvider.credentialsRequired === false ? (
+                  <span className="media-provider-badge on">No key required</span>
+                ) : null}
+              </div>
             </div>
-            <div className="media-provider-badges">
-              <span className="media-provider-badge integrated">
-                {providerCapabilityLabel(activeProvider)}
-              </span>
-              {activeProvider.credentialsRequired === false ? (
-                <span className="media-provider-badge on">No key required</span>
-              ) : null}
-            </div>
+            <p>{activeProvider.hint || providerCapabilityLabel(activeProvider)}</p>
           </div>
           {activeProvider.id === 'grok' ? <XaiOAuthControl /> : null}
           {activeRequiresCredentials ? (
