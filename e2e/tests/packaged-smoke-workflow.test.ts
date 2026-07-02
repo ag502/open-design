@@ -73,6 +73,19 @@ function sectionBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+function parseGithubOutput(raw: string): Record<string, string> {
+  return Object.fromEntries(
+    raw
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        const sep = line.indexOf("=");
+        expect(sep).toBeGreaterThan(0);
+        return [line.slice(0, sep), line.slice(sep + 1)];
+      }),
+  );
+}
+
 async function gitPatchId(mode: "--stable" | "--verbatim", diff: string): Promise<string> {
   return await new Promise((resolve, reject) => {
     const child = execFile("git", ["patch-id", mode], { cwd: workspaceRoot, encoding: "utf8" }, (error, stdout, stderr) => {
