@@ -56,6 +56,7 @@ import { useProjectFileEvents, type ProjectEvent } from '../providers/project-ev
 import { claimRunTurnIndex } from '../analytics/identity';
 import { useCoalescedCallback } from '../hooks/useCoalescedCallback';
 import { isViewerScenario, type DemoScenario, type DemoUseMode } from './DemoControlBar';
+import { readDemoProjectAccessContext } from './demoProjectAccess';
 import {
   composeSystemPrompt,
   type AudioVoiceOption,
@@ -657,9 +658,9 @@ function isDesignSystemWorkspaceMetadata(metadata: ProjectMetadata | undefined):
 // avatars read as the same team across the app. Online presence + collaboration
 // cursors are purely visual; nothing here talks to a backend.
 const PRESENCE_COLLABORATORS = [
-  { name: '张伟', role: 'Editor', activity: '正在评论 Typography', img: '/team-avatars/a1.png', color: '#f97316' },
-  { name: '李娜', role: 'Owner', activity: '正在编辑 Logo', img: '/team-avatars/a3.png', color: '#6366f1' },
-  { name: '王芳', role: 'Reviewer', activity: '正在查看 Color Tokens', img: '/team-avatars/a4.png', color: '#10b981' },
+  { name: '张伟', role: 'Member', activity: '正在评论 Typography', img: '/team-avatars/a1.png', color: '#f97316' },
+  { name: '李娜', role: 'Owner', activity: '正在评论 Logo', img: '/team-avatars/a3.png', color: '#6366f1' },
+  { name: '王芳', role: 'Admin', activity: '正在查看 Color Tokens', img: '/team-avatars/a4.png', color: '#10b981' },
 ];
 
 interface DemoCommentAuthor {
@@ -676,13 +677,13 @@ type DemoAttributedComment = PreviewComment & {
 
 function demoCommentAuthorForScenario(scenario: DemoScenario): DemoCommentAuthor {
   if (isViewerScenario(scenario)) {
-    return { name: '李娜', role: 'Viewer', avatar: '/team-avatars/a3.png', color: '#6366f1', initials: '李' };
+    return { name: '李娜', role: 'Member', avatar: '/team-avatars/a3.png', color: '#6366f1', initials: '李' };
   }
   if (scenario === 'manager' || scenario === 'invite-admin') {
-    return { name: '王芳', role: 'Manager', avatar: '/team-avatars/a4.png', color: '#10b981', initials: '王' };
+    return { name: '王芳', role: 'Admin', avatar: '/team-avatars/a4.png', color: '#10b981', initials: '王' };
   }
-  if (scenario === 'editor' || scenario === 'invite-editor') {
-    return { name: '张伟', role: 'Editor', avatar: '/team-avatars/a1.png', color: '#f97316', initials: '张' };
+  if (scenario === 'editor' || scenario === 'invite-editor' || scenario === 'invite-editor-existing' || scenario === 'invite-editor-new') {
+    return { name: '张伟', role: 'Member', avatar: '/team-avatars/a1.png', color: '#f97316', initials: '张' };
   }
   return { name: '琼羽', role: 'Owner', color: '#c85f3d', initials: '琼' };
 }
@@ -1019,7 +1020,16 @@ export function ProjectView({
     : null;
   const projectIsProgrammaticBrandExtraction =
     isProgrammaticBrandExtractionProject(currentProject.metadata);
-  const demoViewerOnly = isViewerScenario(demoScenario);
+  const demoAccessContext = useMemo(
+    () => readDemoProjectAccessContext(project.id, project.name),
+    [project.id, project.name],
+  );
+  const demoReadonlySharedProject = demoUseMode === 'cloud' && demoAccessContext?.viewerOnly === true;
+  const demoViewerOnly = isViewerScenario(demoScenario) || demoReadonlySharedProject;
+  const demoReadonlyProjectOwner = demoAccessContext?.ownerName ?? '项目创建者';
+  const demoReadonlyCopy = demoReadonlySharedProject
+    ? `这是 ${demoReadonlyProjectOwner} 创建的共享项目。你可以查看和评论，但不能通过 Chat 或编辑工具修改 Artifact。`
+    : null;
   const demoCommentAuthor = useMemo(
     () => demoCommentAuthorForScenario(demoScenario),
     [demoScenario],
@@ -6672,6 +6682,7 @@ export function ProjectView({
               loading={currentConversationLoading}
               sendDisabled={currentConversationSendDisabled || demoViewerOnly}
               inputDisabled={demoViewerOnly}
+              composerPlaceholder={demoReadonlyCopy ?? undefined}
               queuedItems={currentConversationQueuedItems}
               error={conversationLoadError ?? error ?? audioVoiceOptionsError}
               projectId={project.id}
@@ -6791,14 +6802,17 @@ export function ProjectView({
               projectHeader={(
                 <span className="chat-project-title-line">
                   <span
-                    className="title editable"
+                    className={`title${demoViewerOnly ? ' readonly' : ' editable'}`}
                     data-testid="project-title"
-                    title={project.name}
-                    tabIndex={0}
-                    role="textbox"
+                    title={demoReadonlyCopy ?? project.name}
+                    tabIndex={demoViewerOnly ? -1 : 0}
+                    role={demoViewerOnly ? undefined : 'textbox'}
                     suppressContentEditableWarning
-                    contentEditable
-                    onBlur={(e) => handleProjectRename(e.currentTarget.textContent ?? '')}
+                    contentEditable={!demoViewerOnly}
+                    onBlur={(e) => {
+                      if (demoViewerOnly) return;
+                      handleProjectRename(e.currentTarget.textContent ?? '');
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -6817,6 +6831,7 @@ export function ProjectView({
                 <DesignSystemPicker
                   designSystems={designSystems}
                   selectedId={projectDesignSystemId ?? null}
+                  disabled={demoViewerOnly}
                   onChange={handleChangeDesignSystemId}
                 />
               )}
@@ -6925,6 +6940,7 @@ export function ProjectView({
           onLaunchTerminalAuth={handleLaunchAntigravityOauth}
           conversationId={activeConversationId}
           viewerOnly={demoViewerOnly}
+          readonlyNotice={demoReadonlyCopy ?? undefined}
           commentAuthor={demoCommentAuthor}
           demoUseMode={demoUseMode}
           fileActionsBefore={<PresenceAvatarStack />}

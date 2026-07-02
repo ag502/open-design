@@ -2171,18 +2171,12 @@ function AppInner() {
       onDemoLowCredits={() => {}}
       onDemoAcceptInvite={(role) => {
         const scenario: DemoScenario =
-          role === 'editor'
-            ? 'invite-editor-existing'
-            : role === 'admin'
-              ? 'invite-admin'
-              : 'invite-viewer';
+          role === 'admin' ? 'invite-admin' : 'invite-editor-existing';
         setProjectDemoScenario(scenario);
         setProjectDemoPlan(projectDemoUseMode === 'local' ? 'max' : 'team');
         window.history.replaceState(null, '', '/onboarding#invite');
         navigate({ kind: 'home', view: 'onboarding' });
       }}
-      onDemoQueue={() => window.dispatchEvent(new CustomEvent('open-design:demo-queue'))}
-      onDemoEdit={() => window.dispatchEvent(new CustomEvent('open-design:demo-edit'))}
       onDemoScenario={(scenario) => {
         setProjectDemoScenario(scenario);
         if (scenario === 'onboarding-new') setProjectDemoPlan('free');
@@ -2330,18 +2324,12 @@ function AppInner() {
           onLowCredits={() => {}}
           onAcceptInvite={(role) => {
             const scenario: DemoScenario =
-              role === 'editor'
-                ? 'invite-editor-existing'
-                : role === 'admin'
-                  ? 'invite-admin'
-                  : 'invite-viewer';
+              role === 'admin' ? 'invite-admin' : 'invite-editor-existing';
             setProjectDemoScenario(scenario);
             setProjectDemoPlan(projectDemoUseMode === 'local' ? 'max' : 'team');
             window.history.replaceState(null, '', '/onboarding#invite');
             navigate({ kind: 'home', view: 'onboarding' });
           }}
-          onQueueDemo={() => window.dispatchEvent(new CustomEvent('open-design:demo-queue'))}
-          onEditDemo={() => window.dispatchEvent(new CustomEvent('open-design:demo-edit'))}
           onScenario={(scenario) => {
             setProjectDemoScenario(scenario);
             if (scenario === 'onboarding-new') setProjectDemoPlan('free');

@@ -2088,10 +2088,10 @@ export function HomeView({
         heading="最近项目"
         space="recent"
         collaborationEnabled={demoUseMode === 'cloud'}
-        // Gate team-management affordances by role, same as the "全部项目" strip
-        // in EntryShell: a Viewer must not get 多选 / 移出团队空间 / 删除 on
-        // other members' shared projects (per the role permission matrix).
-        canManageProjectCollection={demoUseMode === 'cloud' && demoScenario !== 'viewer' && demoScenario !== 'invite-viewer'}
+        // Cloud collaboration exposes batch actions to all current roles; the
+        // strip blocks the whole action if selected projects include items not
+        // created by the current user.
+        canManageProjectCollection={demoUseMode === 'cloud'}
         canAssignInviteRoles={demoUseMode === 'cloud' && (demoScenario ? canManageWorkspaceScenario(demoScenario) : true)}
         {...(projectsLoading !== undefined ? { loading: projectsLoading } : {})}
         onOpen={(id) => {

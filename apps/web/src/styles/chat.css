@@ -76,6 +76,13 @@
 .chat-project-header-title .title:hover {
   background: color-mix(in srgb, var(--text) 5%, transparent);
 }
+.chat-project-header-title .title.readonly {
+  cursor: default;
+  color: var(--text-strong);
+}
+.chat-project-header-title .title.readonly:hover {
+  background: transparent;
+}
 .chat-project-header-title .title:focus,
 .chat-project-header-title .title:focus-visible {
   background: var(--bg);
@@ -91,7 +98,6 @@
   min-width: 0;
   flex: 0 1 auto;
 }
-
 /* Right-aligned session-history trigger. Collapses the former
    name + history + new-session controls into one icon button; clicking
    it opens the history popover (which contains the "new session" entry
@@ -1148,6 +1154,13 @@
   caret-color: transparent;
 }
 .composer.composer-readonly .composer-input-placeholder {
+  right: 9px;
+  max-width: none;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: pre-wrap;
+  word-break: break-word;
   color: var(--text-soft);
 }
 /* Design-system picker row at the top of the composer card (moved out of

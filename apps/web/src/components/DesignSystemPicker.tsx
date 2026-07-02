@@ -48,6 +48,7 @@ interface Props {
   selectedId: string | null;
   loading?: boolean;
   onChange: (id: string | null) => void;
+  disabled?: boolean;
   /**
    * Trigger styling only; the popover is identical across variants.
    *   - 'project' (default): the chrome-header pill (`project-ds-picker-*`).
@@ -67,6 +68,7 @@ export function DesignSystemPicker({
   selectedId,
   loading,
   onChange,
+  disabled = false,
   variant = 'project',
   label,
   showCreateAction = true,
@@ -91,12 +93,17 @@ export function DesignSystemPicker({
     () => designSystems.find((d) => d.id === selectedId) ?? null,
     [designSystems, selectedId],
   );
+  const triggerDisabled = Boolean(loading || disabled);
 
   // Map each `user:<id>` design system to its backing brand so a selected /
   // hovered brand previews the rich Brand Kit card instead of the thin
   // design-system summary. Fetched lazily on first open; a non-brand system
   // (bundled / imported) is absent from the map and keeps the thin preview.
   const brandsByDesignSystem = useBrandsByDesignSystemId(open);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -526,7 +533,7 @@ export function DesignSystemPicker({
           data-testid="home-hero-design-system-trigger"
           aria-haspopup="listbox"
           aria-expanded={open}
-          disabled={loading}
+          disabled={triggerDisabled}
           title={selected?.title ?? t('designSystemPicker.noneTitle')}
           onClick={() => setOpen((v) => !v)}
         >
@@ -559,7 +566,7 @@ export function DesignSystemPicker({
           data-testid="home-hero-footer-option-designSystem"
           aria-haspopup="listbox"
           aria-expanded={open}
-          disabled={loading}
+          disabled={triggerDisabled}
           onClick={() => setOpen((v) => !v)}
         >
           {triggerSwatches}
@@ -588,8 +595,8 @@ export function DesignSystemPicker({
         className={`project-ds-picker-trigger${selected ? ' picked' : ''}`}
         data-testid="project-ds-picker-trigger"
         onClick={() => setOpen((v) => !v)}
-        disabled={loading}
-        title={selected?.title ?? t('designSystemPicker.select')}
+        disabled={triggerDisabled}
+        title={disabled ? '只读项目不能切换 Design System' : selected?.title ?? t('designSystemPicker.select')}
       >
         {triggerSwatches}
         <span className="project-ds-picker-label">

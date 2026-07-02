@@ -121,6 +121,12 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-tint), var(--shadow-sm);
 }
+.recent-projects__card.is-readonly-shared {
+  border-color: color-mix(in srgb, var(--border-strong) 72%, var(--accent) 28%);
+}
+.recent-projects__card.is-readonly-shared .recent-projects__card-thumb {
+  filter: saturate(0.82);
+}
 .recent-projects__row.is-selecting .recent-projects__card-main {
   cursor: default;
 }
@@ -376,6 +382,11 @@
 .recent-projects__card-menu button:focus-visible {
   background: var(--bg-subtle);
   color: var(--text-strong);
+}
+.recent-projects__card-menu button:disabled {
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text-faint);
 }
 .recent-projects__card-menu button.danger {
   color: var(--red);

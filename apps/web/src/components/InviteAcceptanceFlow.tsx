@@ -15,7 +15,7 @@ import { Icon } from './Icon';
 import { Confetti } from './Confetti';
 import type { DemoScenario } from './DemoControlBar';
 
-export type InviteRole = 'editor' | 'admin' | 'viewer';
+export type InviteRole = 'editor' | 'admin';
 
 interface RoleMeta {
   label: string;
@@ -26,22 +26,16 @@ interface RoleMeta {
 
 const ROLE_META: Record<InviteRole, RoleMeta> = {
   editor: {
-    label: '编辑者',
-    en: 'Editor',
-    perm: '可创建、编辑设计与方案，参与团队协作',
+    label: '成员',
+    en: 'Member',
+    perm: '可创建自己的项目，查看和评论团队共享项目',
     scenario: 'invite-editor',
   },
   admin: {
-    label: '管理者',
+    label: '管理员',
     en: 'Admin',
     perm: '可管理成员、席位与全部项目设置',
     scenario: 'invite-admin',
-  },
-  viewer: {
-    label: '只读成员',
-    en: 'Viewer',
-    perm: '可查看与评论，不能编辑设计',
-    scenario: 'invite-viewer',
   },
 };
 

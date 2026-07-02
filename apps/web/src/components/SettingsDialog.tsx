@@ -299,8 +299,6 @@ interface Props {
   onDemoUseMode?: (mode: DemoUseMode) => void;
   onDemoLowCredits?: () => void;
   onDemoAcceptInvite?: (role: InviteRole) => void;
-  onDemoQueue?: () => void;
-  onDemoEdit?: () => void;
 }
 
 export interface AgentRefreshOptions {
@@ -1168,8 +1166,6 @@ export function SettingsDialog({
   onDemoUseMode,
   onDemoLowCredits,
   onDemoAcceptInvite,
-  onDemoQueue,
-  onDemoEdit,
 }: Props) {
   const { t, locale, setLocale } = useI18n();
   const analytics = useAnalytics();
@@ -5094,8 +5090,6 @@ export function SettingsDialog({
             onLowCredits={onDemoLowCredits ?? (() => {})}
             onAutoRecharge={onDemoLowCredits ? (() => onDemoLowCredits()) : undefined}
             onAcceptInvite={onDemoAcceptInvite ?? (() => {})}
-            onQueueDemo={onDemoQueue}
-            onEditDemo={onDemoEdit}
           />
         ) : null}
       </div>

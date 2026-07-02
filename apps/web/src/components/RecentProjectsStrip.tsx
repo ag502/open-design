@@ -23,6 +23,7 @@ import { Icon } from './Icon';
 import { InviteDialog } from './InviteDialog';
 import { STATUS_LABEL_KEYS } from './DesignsTab';
 import { isDesignSystemProject, isPublishedDesignSystemProject } from './design-system-project';
+import { rememberDemoProjectAccessContext } from './demoProjectAccess';
 
 interface Props {
   projects: Project[];
@@ -121,7 +122,7 @@ function mockCardMeta(index: number, space: SpaceKind) {
   const time = MOCK_TIMES[index % MOCK_TIMES.length] ?? '刚刚';
   if (space === 'team') {
     // All projects: everything is shared, owned by varied team members.
-    const m = MOCK_MEMBERS[(index * 3 + 1) % MOCK_MEMBERS.length] ?? ME;
+    const m = MOCK_MEMBERS[(index * 5 + 1) % MOCK_MEMBERS.length] ?? ME;
     return { ownerName: m.name, ownerInitial: m.initial, ownerImg: m.img, badge: 'shared' as 'private' | 'shared', time };
   }
   if (space === 'drafts') {
@@ -137,6 +138,18 @@ function mockCardMeta(index: number, space: SpaceKind) {
   }
   return { ownerName: '我', ownerInitial: '我', ownerImg: ME.img, badge, time };
 }
+
+type ProjectCardMeta = ReturnType<typeof mockCardMeta>;
+
+function canMutateProject(meta: ProjectCardMeta): boolean {
+  return meta.ownerName === '我';
+}
+
+function isReadonlySharedProject(meta: ProjectCardMeta): boolean {
+  return meta.badge === 'shared' && !canMutateProject(meta);
+}
+
+const NO_PROJECT_MUTATION_TITLE = '只能修改或删除自己创建的项目';
 
 function filterKindForProject(project: Project): ProjectKindFilter {
   const kind = project.metadata?.kind;
@@ -265,10 +278,14 @@ export function RecentProjectsStrip({
   const confirmTitleId = useId();
   const actionsAvailable = canManageProjectCollection && Boolean(onDelete || onRename || collaborationEnabled);
   const activeSelectionMode = canManageProjectCollection && selectionMode;
+  const selectedProjectCards = visibleProjectCards.filter(({ project }) => selectedProjectIds.has(project.id));
   const selectedCount = selectedProjectIds.size;
-  const selectedProjectNames = visibleProjectCards
-    .filter(({ project }) => selectedProjectIds.has(project.id))
-    .map(({ project }) => project.name);
+  const selectedProjectNames = selectedProjectCards.map(({ project }) => project.name);
+  const selectedContainsReadonlyProject = selectedProjectCards.some(({ meta }) => !canMutateProject(meta));
+  const selectedMutationDisabled = selectedCount === 0 || selectedContainsReadonlyProject;
+  const selectedMutationTitle = selectedContainsReadonlyProject
+    ? '包含你无权操作的项目；请选择自己创建的项目'
+    : selectedProjectNames.join('、');
   const canMoveToTeam = canManageProjectCollection && collaborationEnabled && space !== 'team';
   const canMoveToPersonal = canManageProjectCollection && collaborationEnabled && space !== 'drafts';
 
@@ -371,6 +388,8 @@ export function RecentProjectsStrip({
   }
 
   function startRename(project: Project) {
+    const card = visibleProjectCards.find(({ project: candidate }) => candidate.id === project.id);
+    if (card && !canMutateProject(card.meta)) return;
     setMenuOpenId(null);
     setRenameTarget({ id: project.id, original: project.name });
     setRenameInput(project.name);
@@ -391,6 +410,8 @@ export function RecentProjectsStrip({
   }
 
   function requestDelete(project: Project) {
+    const card = visibleProjectCards.find(({ project: candidate }) => candidate.id === project.id);
+    if (card && !canMutateProject(card.meta)) return;
     setMenuOpenId(null);
     setConfirmTarget(project);
   }
@@ -421,6 +442,7 @@ export function RecentProjectsStrip({
 
   async function batchDeleteSelected() {
     if (selectedProjectIds.size === 0) return;
+    if (selectedContainsReadonlyProject) return;
     const ids = [...selectedProjectIds];
     setLocallyDeletedIds((current) => {
       const next = new Set(current);
@@ -438,6 +460,7 @@ export function RecentProjectsStrip({
 
   function batchMoveSelected(action: 'to-team' | 'to-personal') {
     if (selectedProjectIds.size === 0) return;
+    if (selectedContainsReadonlyProject) return;
     const ids = [...selectedProjectIds];
     if (action === 'to-team') {
       setMovedToTeam((current) => {
@@ -594,7 +617,8 @@ export function RecentProjectsStrip({
             {canMoveToTeam ? (
               <button
                 type="button"
-                disabled={selectedCount === 0}
+                disabled={selectedMutationDisabled}
+                title={selectedMutationTitle}
                 onClick={() => batchMoveSelected('to-team')}
               >
                 <Icon name="import" size={13} /> 转入团队空间
@@ -603,7 +627,8 @@ export function RecentProjectsStrip({
             {canMoveToPersonal ? (
               <button
                 type="button"
-                disabled={selectedCount === 0}
+                disabled={selectedMutationDisabled}
+                title={selectedMutationTitle}
                 onClick={() => batchMoveSelected('to-personal')}
               >
                 <Icon name="log-out" size={13} /> 移出团队空间
@@ -612,8 +637,8 @@ export function RecentProjectsStrip({
             <button
               type="button"
               className="danger"
-              disabled={selectedCount === 0}
-              title={selectedProjectNames.join('、')}
+              disabled={selectedMutationDisabled}
+              title={selectedMutationTitle}
               onClick={() => void batchDeleteSelected()}
             >
               <Icon name="trash" size={13} /> 批量删除
@@ -639,11 +664,13 @@ export function RecentProjectsStrip({
             !publishedDesignSystem &&
             (status === 'running' || status === 'queued' || status === 'awaiting_input');
           const selected = selectedProjectIds.has(project.id);
+          const readonlySharedProject = isReadonlySharedProject(meta);
+          const projectMutationAllowed = canMutateProject(meta);
           return (
             <div
               key={project.id}
               role="listitem"
-              className={`recent-projects__card${designSystemProject ? ' is-design-system-project' : ''}${menuOpenId === project.id ? ' is-menu-open' : ''}${activeSelectionMode && selected ? ' is-selected' : ''}`}
+              className={`recent-projects__card${designSystemProject ? ' is-design-system-project' : ''}${menuOpenId === project.id ? ' is-menu-open' : ''}${activeSelectionMode && selected ? ' is-selected' : ''}${readonlySharedProject ? ' is-readonly-shared' : ''}`}
               data-project-id={project.id}
             >
               {activeSelectionMode ? (
@@ -667,6 +694,16 @@ export function RecentProjectsStrip({
                   if (activeSelectionMode) {
                     toggleSelection(project.id);
                   } else {
+                    rememberDemoProjectAccessContext({
+                      projectId: project.id,
+                      projectName: project.name,
+                      ownerName: meta.ownerName,
+                      ownerInitial: meta.ownerInitial,
+                      ...(meta.ownerImg ? { ownerImg: meta.ownerImg } : {}),
+                      badge: meta.badge,
+                      space,
+                      viewerOnly: collaborationEnabled && readonlySharedProject,
+                    });
                     onOpen(project.id);
                   }
                 }}
@@ -759,7 +796,10 @@ export function RecentProjectsStrip({
                         <button
                           type="button"
                           role="menuitem"
+                          disabled={!projectMutationAllowed}
+                          title={projectMutationAllowed ? undefined : NO_PROJECT_MUTATION_TITLE}
                           onClick={() => {
+                            if (!projectMutationAllowed) return;
                             setMenuOpenId(null);
                             setMoveTarget({ project, action: projectMoveAction });
                           }}
@@ -769,7 +809,13 @@ export function RecentProjectsStrip({
                         </button>
                       ) : null}
                       {onRename ? (
-                        <button type="button" role="menuitem" onClick={() => startRename(project)}>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={!projectMutationAllowed}
+                          title={projectMutationAllowed ? undefined : NO_PROJECT_MUTATION_TITLE}
+                          onClick={() => startRename(project)}
+                        >
                           <Icon name="pencil" size={12} />
                           <span>{t('designs.menuRename')}</span>
                         </button>
@@ -779,6 +825,8 @@ export function RecentProjectsStrip({
                           type="button"
                           role="menuitem"
                           className="danger"
+                          disabled={!projectMutationAllowed}
+                          title={projectMutationAllowed ? undefined : NO_PROJECT_MUTATION_TITLE}
                           onClick={() => requestDelete(project)}
                         >
                           <Icon name="close" size={12} />
@@ -863,7 +911,7 @@ export function RecentProjectsStrip({
           <DialogDescription>
             {moveTarget.action === 'to-team' ? (
               <>
-                转入团队空间后，<strong>团队全体成员都可以查看和编辑</strong>。该操作可在「全部项目」中找到。
+                转入团队空间后，<strong>团队全体成员都可以查看和评论</strong>，只有创建者可以编辑。该操作可在「全部项目」中找到。
               </>
             ) : (
               <>

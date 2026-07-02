@@ -15,15 +15,15 @@ const DASHBOARD_STATS = [
 const TOKEN_RANKING = [
   { name: '琼羽（你）', role: 'Owner', tokens: '1.42M', share: 100, color: '#c65b3a' },
   { name: '张伟', role: 'Admin', tokens: '980K', share: 69, color: '#f97316' },
-  { name: '李娜', role: 'Editor', tokens: '640K', share: 45, color: '#6366f1' },
-  { name: '王芳', role: 'Viewer', tokens: '420K', share: 30, color: '#10b981' },
+  { name: '李娜', role: 'Member', tokens: '640K', share: 45, color: '#6366f1' },
+  { name: '王芳', role: 'Member', tokens: '420K', share: 30, color: '#10b981' },
 ] as const;
 
 const MEMBER_CREDITS = [
   { name: '琼羽（你）', role: 'Owner', remaining: '18,400', used: '41,600', status: '充足' },
   { name: '张伟', role: 'Admin', remaining: '9,800', used: '24,200', status: '正常' },
-  { name: '李娜', role: 'Editor', remaining: '1,200', used: '18,900', status: '偏低' },
-  { name: '王芳', role: 'Viewer', remaining: '320', used: '6,700', status: '需续额' },
+  { name: '李娜', role: 'Member', remaining: '1,200', used: '18,900', status: '偏低' },
+  { name: '王芳', role: 'Member', remaining: '320', used: '6,700', status: '需续额' },
 ] as const;
 
 export type TeamDashboardAutoRechargeTarget =

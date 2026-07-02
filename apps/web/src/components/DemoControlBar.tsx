@@ -26,6 +26,7 @@ export function isInviteScenario(
 }
 
 export function isViewerScenario(s: DemoScenario): boolean {
+  // Legacy read-only demo ids kept only for backwards-compatible state/links.
   return s === 'viewer' || s === 'invite-viewer';
 }
 
@@ -45,7 +46,7 @@ export function isSoloPlan(p: DemoPlan): boolean {
   return p !== 'team';
 }
 
-export type InviteRole = 'editor' | 'admin' | 'viewer';
+export type InviteRole = 'editor' | 'admin';
 
 interface Props {
   page: DemoPage;
@@ -62,9 +63,6 @@ interface Props {
   onAutoRecharge?: (scope: 'team' | 'member') => void;
   /** Launches the invitee acceptance flow (email link → join workspace). */
   onAcceptInvite: (role: InviteRole) => void;
-  /** Demo-only collaboration hooks consumed by project pages when mounted. */
-  onQueueDemo?: () => void;
-  onEditDemo?: () => void;
 }
 
 const PAGE_CHIPS: Array<{ id: DemoPage; label: string }> = [
@@ -79,16 +77,14 @@ const SCENARIO_CHIPS: Array<{ id: DemoScenario; label: string }> = [
 const ROLE_CHIPS: Array<{ id: DemoScenario; label: string; invite?: boolean }> = [
   { id: 'invite-editor-existing', label: '接受邀请网页端', invite: true },
   { id: 'invite-editor-new', label: '接受邀请客户端未注册', invite: true },
-  { id: 'invite-viewer', label: '接受邀请客户端已注册', invite: true },
 ];
 
 const VIEW_CHIPS: Array<{ id: DemoScenario; label: string }> = [
   { id: 'owner', label: 'Owner' },
-  // Label aligned to the PRD role matrix (Owner/Admin/Editor/Viewer); the
-  // scenario id stays 'manager' so existing gating logic is untouched.
+  // Scenario ids stay stable for the demo harness; labels follow the
+  // current role model: Owner / Admin / Member.
   { id: 'manager', label: 'Admin' },
-  { id: 'editor', label: 'Editor' },
-  { id: 'viewer', label: 'Viewer' },
+  { id: 'editor', label: 'Member' },
 ];
 
 const PLAN_CHIPS: Array<{ id: DemoPlan; label: string }> = [
@@ -140,7 +136,7 @@ function labelForUseMode(useMode: DemoUseMode): string {
   return USE_MODE_CHIPS.find((chip) => chip.id === useMode)?.label ?? 'Cloud';
 }
 
-function Bar({ page, onPage, scenario, onScenario, plan, onPlan, useMode, onUseMode, onLowCredits, onAutoRecharge, onAcceptInvite, onQueueDemo, onEditDemo }: Props) {
+function Bar({ page, onPage, scenario, onScenario, plan, onPlan, useMode, onUseMode, onLowCredits, onAutoRecharge, onAcceptInvite }: Props) {
   const [collapsed, setCollapsed] = useState(readCollapsedState);
   const availablePlans = useMode === 'local'
     ? PLAN_CHIPS.filter((chip) => chip.id !== 'team')
@@ -300,12 +296,6 @@ function Bar({ page, onPage, scenario, onScenario, plan, onPlan, useMode, onUseM
         <div className="demo-bar__group">
           <span className="demo-bar__label">演示</span>
           <div className="demo-bar__chips">
-            <button type="button" className="demo-bar__chip" onClick={onQueueDemo}>
-              Queue
-            </button>
-            <button type="button" className="demo-bar__chip" onClick={onEditDemo}>
-              Edit
-            </button>
             <button type="button" className="demo-bar__chip demo-bar__chip--warning" onClick={onLowCredits}>
               积分不足
             </button>

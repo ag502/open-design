@@ -265,6 +265,7 @@ interface Props {
   // Bumped nonce that focuses the Questions tab (banner click / new form).
   focusQuestionsRequest?: { nonce: number } | null;
   viewerOnly?: boolean;
+  readonlyNotice?: string;
   commentAuthor?: {
     name: string;
     role: string;
@@ -499,6 +500,7 @@ export function FileWorkspace({
   onSubmitQuestionForm,
   focusQuestionsRequest = null,
   viewerOnly = false,
+  readonlyNotice,
   commentAuthor,
 }: Props) {
   const t = useT();
@@ -1859,7 +1861,7 @@ export function FileWorkspace({
       return term.id;
     },
   };
-  const launcherActions = buildLauncherActions(launcherContext);
+  const launcherActions = viewerOnly ? [] : buildLauncherActions(launcherContext);
 
   return (
     <div
@@ -2124,6 +2126,14 @@ export function FileWorkspace({
           role="alert"
           onDismiss={() => setLauncherToast(null)}
         />
+      ) : null}
+      {viewerOnly ? (
+        <div className="workspace-readonly-notice" role="status">
+          <Icon name="lock" size={14} />
+          <span>
+            {readonlyNotice ?? '共享项目只读：你可以查看和评论，但不能编辑项目文件或通过 Chat 修改 Artifact。'}
+          </span>
+        </div>
       ) : null}
       <div className="ws-body">
         {/* Banner moved into DesignFilesPanel for the Design Files tab so

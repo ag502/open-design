@@ -11,8 +11,8 @@ const INVITE_ROLES: Record<
   { label: string; description: string }
 > = {
   'invite-editor': {
-    label: 'Editor',
-    description: '可创建、编辑和共享团队项目',
+    label: 'Member',
+    description: '可创建自己的项目，查看和评论团队共享项目',
   },
 };
 

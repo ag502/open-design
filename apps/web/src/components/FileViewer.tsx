@@ -7202,6 +7202,10 @@ function HtmlViewer({
   }, [versionPanelOpen]);
 
   useEffect(() => {
+    if (viewerOnly) setVersionPanelOpen(false);
+  }, [viewerOnly]);
+
+  useEffect(() => {
     if (!inTabPresent) return;
     const bodyStyle = document.body.style;
     const previousChromeHeight = bodyStyle.getPropertyValue('--workspace-tabs-chrome-height');
@@ -7934,8 +7938,8 @@ function HtmlViewer({
   const canDownload = rawCanDownload && !viewerOnly;
   const showMarkdownExport = source !== null && isMarkdownArtifact;
   const showImageExport = canShare;
-  const viewerOnlyDisabledTitle = 'Viewer 只能评论，不能编辑或导出';
-  const viewerOnlySendDisabledTitle = 'Viewer 只能保存评论，不能发送到 Chat';
+  const viewerOnlyDisabledTitle = '共享项目只读：可以评论，不能编辑或导出';
+  const viewerOnlySendDisabledTitle = '共享项目只读：可以保存评论，不能发送到 Chat 修改 Artifact';
 
   useEffect(() => {
     if (!viewerOnly) return;
@@ -9063,7 +9067,7 @@ function HtmlViewer({
               ) : null}
             </div>
           ) : null}
-          {rawCanShare || rawCanDownload ? (
+          {!viewerOnly && (rawCanShare || rawCanDownload) ? (
             <button
               type="button"
               className={`chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only${versionPanelOpen ? ' is-active' : ''}`}
@@ -9381,7 +9385,7 @@ function HtmlViewer({
             </div>
           ) : null}
         </>)}
-      {versionPanelOpen ? (
+      {!viewerOnly && versionPanelOpen ? (
         <aside className="artifact-version-panel" aria-label="历史版本">
           <header className="artifact-version-panel__head">
             <div>

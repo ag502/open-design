@@ -32,8 +32,8 @@ const TEAM_TIERS = [
 ];
 const TEAM_BENEFITS = [
   '资产共享与管理：项目 / 设计系统 / 插件',
-  '协作：评论 / 变更 / 历史版本',
-  '基于角色的权限管理（Owner / Manager / Editor / Viewer）',
+  '协作：互相查看和评论，只有创建者可编辑',
+  '基于角色的权限管理（Owner / Admin / Member）',
   '团队用量面板与计费管理',
 ];
 

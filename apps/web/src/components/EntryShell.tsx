@@ -555,7 +555,7 @@ export function EntryShell({
   const cloudWorkspace = demoUseMode === 'cloud';
   const canManageWorkspace = cloudWorkspace && canManageWorkspaceScenario(demoScenario);
   const canOwnWorkspace = cloudWorkspace && (demoScenario === 'home' || demoScenario === 'owner');
-  const canEditTeamProjects = cloudWorkspace && demoScenario !== 'viewer' && demoScenario !== 'invite-viewer';
+  const canEditTeamProjects = cloudWorkspace;
 
   useEffect(() => {
     if (cloudWorkspace) return;
@@ -981,7 +981,7 @@ export function EntryShell({
         setLowCreditsOpen(true);
       }}
       onAutoRecharge={(scope) => {
-        setAutoRechargeTarget(scope === 'member' ? { kind: 'member', name: '李娜', role: 'Editor' } : { kind: 'team' });
+        setAutoRechargeTarget(scope === 'member' ? { kind: 'member', name: '李娜', role: 'Member' } : { kind: 'team' });
         setDemoPlan('team');
         setLowCreditsOpen(true);
       }}
@@ -989,8 +989,6 @@ export function EntryShell({
         setInviteRole(role);
         setInviteFlowOpen(true);
       }}
-      onQueueDemo={() => window.dispatchEvent(new CustomEvent('open-design:demo-queue'))}
-      onEditDemo={() => window.dispatchEvent(new CustomEvent('open-design:demo-edit'))}
       onScenario={(s) => {
         setCloudSignInOnly(false);
         setDemoScenario(s);
