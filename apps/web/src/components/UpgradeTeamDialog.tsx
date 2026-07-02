@@ -102,7 +102,7 @@ export function UpgradeTeamDialog({
             >
               -
             </button>
-            <strong>{seatCount} 个席位</strong>
+            <strong>{seatCount}</strong>
             <button type="button" onClick={() => adjustSeatCount(1)} aria-label="增加席位">
               +
             </button>
