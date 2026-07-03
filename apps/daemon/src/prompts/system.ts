@@ -281,6 +281,27 @@ export function detectDeckIntentSignal(
 const MEDIA_INTENT_SIGNAL =
   /\b(image|images|photo|picture|video|audio|music|voice(over)?|sound|illustration|logo|banner|poster|icon set|wallpaper|avatar|imagen|midjourney|flux|veo|sora|suno)\b|图片|图像|生成图|配图|插画|海报|壁纸|头像|视频|短片|音频|音乐|配音|音效|表情包/i;
 
+// Platform vocabulary across English and Chinese briefs. Same generosity
+// policy as the deck/media signals: over-firing injects a ~1K contracts
+// block that classic carried unconditionally, so the failure direction is
+// status quo; under-firing loses per-platform delivery detail.
+const PLATFORM_INTENT_SIGNAL =
+  /\b(ios|iphone|ipad|android|tablet|responsive|mobile app|native app|desktop app|cross[- ]platform|multi[- ]platform)\b|移动端|手机端|安卓|苹果|平板|响应式|跨端|多端|双端/i;
+
+/**
+ * Whether the visible conversation names a delivery platform. Backstops the
+ * metadata-based gate for PLATFORM_CONTRACTS_BLOCK: freeform projects with
+ * no platform metadata but a platform-explicit brief ("做个 iOS app 原型")
+ * still need the per-platform delivery contracts classic carried always-on.
+ */
+export function detectPlatformIntentSignal(
+  ...texts: Array<string | null | undefined>
+): boolean {
+  return texts.some(
+    (text) => typeof text === 'string' && PLATFORM_INTENT_SIGNAL.test(text),
+  );
+}
+
 /**
  * Whether the visible conversation mentions generating media. Gates the
  * MEDIA_DISPATCH_HINT for non-media projects: most runs never generate
@@ -605,6 +626,10 @@ export interface ComposeInput {
   // `false` skips the MEDIA_DISPATCH_HINT, `true`/`undefined` keep it.
   // Media surfaces always get the full media contract regardless.
   mediaHintSignal?: boolean | undefined;
+  // Whether the visible conversation names a delivery platform (see
+  // `detectPlatformIntentSignal`). ORed with the metadata-based platform
+  // gate for PLATFORM_CONTRACTS_BLOCK under slim; absent = metadata only.
+  platformHintSignal?: boolean | undefined;
 }
 
 export function composeSystemPrompt({
@@ -647,6 +672,7 @@ export function composeSystemPrompt({
   freeformDeckSignal,
   promptCoreVariant,
   mediaHintSignal,
+  platformHintSignal,
 }: ComposeInput): string {
   // Slim core collapses the discovery layer + designer charter + their tail
   // overrides into one charter document; the classic stack keeps the legacy
@@ -667,10 +693,19 @@ export function composeSystemPrompt({
   // turn — with the security section reading as its first subsection, so the
   // ask document keeps the same identity-first H1 > H2 hierarchy as design
   // mode. Both blocks are static, so the swap is cache-neutral.
+  // Plain-stream (BYOK/API) slim runs put the API-mode override BEFORE the
+  // charter: its "every later instruction … is overridden" scope must cover
+  // the charter's TodoWrite/render instructions, which classic guaranteed by
+  // always composing the override first. Cache-neutral — plain runs use the
+  // text_artifact charter variant and form their own prefix family anyway.
   const parts: string[] = isSlimCharterHead
-    ? [renderSlimCoreCharter(
-        executionProfile ?? executionProfileFromStreamFormat(streamFormat),
-      ), '\n\n---\n\n']
+    ? [
+        ...(streamFormat === 'plain' ? [API_MODE_OVERRIDE, '\n\n---\n\n'] : []),
+        renderSlimCoreCharter(
+          executionProfile ?? executionProfileFromStreamFormat(streamFormat),
+        ),
+        '\n\n---\n\n',
+      ]
     : isSlimCore
       ? [CHAT_MODE_OVERRIDE, '\n\n---\n\n', PROMPT_INJECTION_RESISTANCE, '\n\n---\n\n']
       : [PROMPT_INJECTION_RESISTANCE, '\n\n---\n\n'];
@@ -694,7 +729,8 @@ export function composeSystemPrompt({
   // markup described in #313. Keep the wording byte-identical to the
   // contracts copy so both code paths produce the same observable
   // behaviour.
-  if (streamFormat === 'plain') {
+  if (streamFormat === 'plain' && !isSlimCharterHead) {
+    // Slim charter-head runs already composed this first (see head above).
     parts.push(API_MODE_OVERRIDE);
     parts.push('\n\n---\n\n');
   }
@@ -761,11 +797,17 @@ export function composeSystemPrompt({
     // active-DS signal (stable for the whole session, so the stable-prompt
     // fingerprint stays cacheable).
     if (!activeDesignSystemBody) {
-      // Slim carries only the id+label index; the agent pulls the chosen
-      // direction's full spec via `od tools directions --id <id>`. Classic
-      // keeps the inline full library.
+      // Slim carries only the id+label index and the agent pulls the chosen
+      // direction's full spec via `od tools directions --id <id>` — but ONLY
+      // on filesystem runs. text_artifact runs (BYOK/plain adapters) have no
+      // tools to dereference the index, so they keep the full inline library
+      // like classic; anything less tells them to bind palettes they cannot
+      // fetch. Classic keeps the inline full library everywhere.
+      const canPullDirections = resolvedExecutionProfile !== 'text_artifact';
       parts.push(
-        isSlimCore ? renderDirectionIndexBlock() : renderDirectionSpecBlock(),
+        isSlimCore && canPullDirections
+          ? renderDirectionIndexBlock()
+          : renderDirectionSpecBlock(),
         '\n\n---\n\n',
       );
     }
@@ -788,7 +830,8 @@ export function composeSystemPrompt({
     const hasExplicitPlatformSignal =
       isMultiTargetProject ||
       typeof metadata?.platform === 'string' ||
-      (metadata?.platformTargets?.length ?? 0) > 0;
+      (metadata?.platformTargets?.length ?? 0) > 0 ||
+      (platformHintSignal ?? false);
     if (isSlimCore && hasExplicitPlatformSignal) {
       parts.push(PLATFORM_CONTRACTS_BLOCK, '\n\n---\n\n');
     }

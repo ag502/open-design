@@ -49,7 +49,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "clarifying-questions",
       "role-marker-guard",
     ],
-    "totalChars": 43504,
+    "totalChars": 43523,
   },
   "connected-mcp-plugin-stages": {
     "sections": [
@@ -256,7 +256,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "clarifying-questions",
       "role-marker-guard",
     ],
-    "totalChars": 40915,
+    "totalChars": 40934,
   },
   "memory-hooks-off": {
     "sections": [
@@ -330,7 +330,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "media-dispatch-hint",
       "role-marker-guard",
     ],
-    "totalChars": 23114,
+    "totalChars": 23651,
   },
   "slim-freeform-no-deck-signal": {
     "sections": [
@@ -340,7 +340,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "media-dispatch-hint",
       "role-marker-guard",
     ],
-    "totalChars": 13456,
+    "totalChars": 13993,
   },
 }
 `;

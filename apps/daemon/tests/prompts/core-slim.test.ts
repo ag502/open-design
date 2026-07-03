@@ -26,12 +26,17 @@ const repoRoot = path.resolve(__dirname, '../../../..');
  *    it moved to.
  */
 
-// 10KB: the 8KB doctrine budget, plus the ~1KB security section the charter
+// 10.5KB: the 8KB doctrine budget, plus the ~1KB security section the charter
 // absorbed from the standalone injection-resistance block (composed total
 // unchanged), plus ~0.7KB from the structure-review fixes — chiefly restoring
 // the full `output` question to the form example so it reads in forward
-// order (which also shores up few-shot density for weaker fleet models).
-const SLIM_CORE_BYTE_BUDGET = 10_240;
+// order (which also shores up few-shot density for weaker fleet models) —
+// plus ~0.5KB from the regression-audit restorations: the no-hot-linked-user-
+// images product rule, the skill/DS domain-precedence clause, the expressive
+// form-control guidance, and the modern-CSS encouragement. All four were
+// classic behaviors the first compression pass wrongly classified as
+// model-competence filler.
+const SLIM_CORE_BYTE_BUDGET = 10_752;
 
 describe('renderSlimCoreCharter — byte budget', () => {
   it('stays under the byte budget in both execution profiles', () => {
@@ -343,6 +348,73 @@ describe('slim core — direction library becomes a pull layer', () => {
     );
     expect(renderDirectionIndexBlock().length).toBeLessThan(2000);
     expect(renderDirectionSpecBlock().length).toBeGreaterThan(5000);
+  });
+});
+
+describe('slim core — regression-audit fixes vs classic', () => {
+  it('text_artifact runs get the full inline direction library, not the un-pullable index', () => {
+    const out = composeSystemPrompt({
+      metadata: { kind: 'prototype' },
+      executionProfile: 'text_artifact',
+      promptCoreVariant: 'slim',
+    });
+    // No tools on this profile: an index telling the model to run the `od`
+    // CLI is a promise it cannot keep. Classic inlined the palettes; slim
+    // must too on this profile.
+    expect(out).toContain('## Direction library — bind into `:root`');
+    expect(out).toContain('**Palette (drop into `:root`):**');
+    expect(out).not.toContain('## Direction library — index');
+  });
+
+  it('plain-stream runs compose the API-mode override BEFORE the charter (literal scope intact)', () => {
+    const out = composeSystemPrompt({
+      metadata: { kind: 'prototype' },
+      streamFormat: 'plain',
+      promptCoreVariant: 'slim',
+    });
+    expect(out.startsWith('# API mode — no tools available')).toBe(true);
+    const overrideAt = out.indexOf('# API mode — no tools available');
+    const charterAt = out.indexOf('# Open Design charter');
+    expect(charterAt).toBeGreaterThan(overrideAt);
+    // Composed exactly once — the head placement replaces the later push.
+    expect(out.indexOf('# API mode — no tools available')).toBe(
+      out.lastIndexOf('# API mode — no tools available'),
+    );
+  });
+
+  it('platform contracts also gate on the conversation-text platform signal', () => {
+    const base = {
+      metadata: { kind: 'prototype' as const },
+      executionProfile: 'filesystem' as const,
+      promptCoreVariant: 'slim' as const,
+    };
+    expect(composeSystemPrompt(base)).not.toContain('## Platform delivery contracts');
+    expect(
+      composeSystemPrompt({ ...base, platformHintSignal: true }),
+    ).toContain('## Platform delivery contracts');
+  });
+
+  it('keeps the restored classic product rules in the charter', () => {
+    const charter = renderSlimCoreCharter('filesystem');
+    // Never hot-link user-attached images (product constraint, not filler).
+    expect(charter).toContain('Never hot-link user-attached images');
+    // Skill/DS precedence is per-domain, not a strict total order.
+    expect(charter).toContain('each rank highest in their own domain');
+    // Expressive form controls + modern CSS encouragement survived.
+    expect(charter).toContain('most expressive control');
+    expect(charter).toContain('**Modern CSS welcome**');
+  });
+});
+
+describe('detectPlatformIntentSignal', () => {
+  it('fires on platform vocabulary across languages and stays quiet otherwise', async () => {
+    const { detectPlatformIntentSignal } = await import('../../src/prompts/system.js');
+    expect(detectPlatformIntentSignal('make me an iOS app prototype')).toBe(true);
+    expect(detectPlatformIntentSignal('帮我做一个安卓端的应用原型')).toBe(true);
+    expect(detectPlatformIntentSignal('需要响应式的落地页')).toBe(true);
+    expect(detectPlatformIntentSignal(null, 'desktop app for traders')).toBe(true);
+    expect(detectPlatformIntentSignal('redesign the pricing page hero')).toBe(false);
+    expect(detectPlatformIntentSignal('写一份品牌介绍 deck')).toBe(false);
   });
 });
 
