@@ -187,3 +187,147 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
     expect(out).toContain('## Media generation (if asked)');
   });
 });
+
+describe('composeSystemPrompt — slim payload gates (metadata facts / memory / locale / media hint)', () => {
+  const base = {
+    metadata: { kind: 'other' as const },
+    executionProfile: 'filesystem' as const,
+    promptCoreVariant: 'slim' as const,
+  };
+
+  it('renders the metadata block as a fact sheet under slim', () => {
+    const slim = composeSystemPrompt(base);
+    expect(slim).toContain('## Project metadata');
+    expect(slim).toContain('- **screen files**:');
+    expect(slim).toContain('- **product depth**:');
+    // Classic doctrine bullets stay out of the facts variant…
+    for (const rule of [
+      'screen-file-first rule',
+      'product-realism rule',
+      'visual-system rule',
+      'CJX-ready UX rule',
+      'interaction-fidelity rule',
+      'artifact-output rule',
+      'responsive web contract',
+    ]) {
+      expect(slim, `${rule} must not render under slim`).not.toContain(rule);
+    }
+    // …and stay present in classic for the same inputs.
+    const classic = composeSystemPrompt({ ...base, promptCoreVariant: undefined });
+    expect(classic).toContain('screen-file-first rule');
+    expect(classic).toContain('product-realism rule');
+  });
+
+  it('keeps media-kind metadata facts intact under slim', () => {
+    const slim = composeSystemPrompt({
+      metadata: { kind: 'image', imageModel: 'gpt-image-2', imageAspect: '1:1' },
+      executionProfile: 'filesystem',
+      promptCoreVariant: 'slim',
+    });
+    expect(slim).toContain('- **imageModel**: gpt-image-2');
+    expect(slim).toContain('- **aspectRatio**: 1:1');
+  });
+
+  it('compresses the memory scaffolding under slim while keeping headings and card shapes', () => {
+    const memoryInput = {
+      ...base,
+      memoryBody: '### Profile\n\nDense layouts.\n\n### Verified rules\n\n- No pure black.',
+    };
+    const slim = composeSystemPrompt(memoryInput);
+    const classic = composeSystemPrompt({ ...memoryInput, promptCoreVariant: undefined });
+    for (const marker of [
+      '## Personal memory (auto-extracted from past chats)',
+      '## Intent gateway — turn short asks into a brief',
+      '## Self-verify against your verified rules',
+      '## Propose new verified rules from corrections',
+      '<od-card type="task-brief">',
+      '<od-card type="memory-applied">',
+      '<od-card type="verify-scorecard">',
+      '<od-card type="rule-proposal">',
+      '"status": "pass|partial|fail"',
+    ]) {
+      expect(slim, `slim memory must keep ${marker}`).toContain(marker);
+      expect(classic, `classic memory must keep ${marker}`).toContain(marker);
+    }
+    const sectionSpan = (out: string) =>
+      out.length - out.indexOf('## Personal memory');
+    expect(sectionSpan(slim)).toBeLessThan(sectionSpan(classic));
+  });
+
+  it('drops the zh-CN quick-brief sample copy under slim but keeps the locale rule', () => {
+    const slim = composeSystemPrompt({ ...base, locale: 'zh-CN' });
+    expect(slim).toContain('# UI locale override');
+    expect(slim).not.toContain('快速简报 — 30 秒');
+    const classic = composeSystemPrompt({ ...base, locale: 'zh-CN', promptCoreVariant: undefined });
+    expect(classic).toContain('快速简报 — 30 秒');
+  });
+
+  it('gates the media dispatch hint on the media-intent signal', () => {
+    expect(composeSystemPrompt(base)).toContain('## Media generation (if asked)');
+    expect(
+      composeSystemPrompt({ ...base, mediaHintSignal: false }),
+    ).not.toContain('## Media generation (if asked)');
+    // Media surfaces keep the full contract regardless of the signal.
+    const media = composeSystemPrompt({
+      metadata: { kind: 'image' },
+      executionProfile: 'filesystem',
+      mediaHintSignal: false,
+    });
+    expect(media).toContain('## Media generation contract');
+  });
+});
+
+describe('detectMediaIntentSignal', () => {
+  it('fires on media vocabulary across languages and stays quiet otherwise', async () => {
+    const { detectMediaIntentSignal } = await import('../../src/prompts/system.js');
+    expect(detectMediaIntentSignal('generate a hero image for the landing')).toBe(true);
+    expect(detectMediaIntentSignal('帮我配一段背景音乐')).toBe(true);
+    expect(detectMediaIntentSignal('给产品页生成图')).toBe(true);
+    expect(detectMediaIntentSignal('build a pricing page with three tiers')).toBe(false);
+    expect(detectMediaIntentSignal('做一个电商后台')).toBe(false);
+    expect(detectMediaIntentSignal('tweak the nav', '## user\n加个宣传视频')).toBe(true);
+  });
+});
+
+describe('slim core — direction library becomes a pull layer', () => {
+  it('slim composes the compact index; classic keeps the full inline library', async () => {
+    const input = { metadata: { kind: 'prototype' as const }, executionProfile: 'filesystem' as const };
+    const slim = composeSystemPrompt({ ...input, promptCoreVariant: 'slim' });
+    expect(slim).toContain('## Direction library — index (pull the chosen one on demand)');
+    expect(slim).toContain('tools directions --id <id>');
+    expect(slim).toContain('- `editorial-monocle` — Editorial — Monocle / FT magazine');
+    // No inline palette data under slim — that's the pull payload.
+    expect(slim).not.toContain('**Palette (drop into `:root`):**');
+    const classic = composeSystemPrompt(input);
+    expect(classic).toContain('## Direction library — bind into `:root`');
+    expect(classic).toContain('**Palette (drop into `:root`):**');
+    expect(classic).not.toContain('## Direction library — index');
+    // An active design system suppresses both variants.
+    const withDs = composeSystemPrompt({
+      ...input,
+      promptCoreVariant: 'slim',
+      designSystemBody: '# Brand',
+    });
+    expect(withDs).not.toContain('## Direction library');
+  });
+
+  it('formatDirectionSpecText resolves by id or label and returns the bindable spec', async () => {
+    const { formatDirectionSpecText, DESIGN_DIRECTIONS } = await import(
+      '../../src/prompts/directions.js'
+    );
+    const byId = formatDirectionSpecText('editorial-monocle');
+    expect(byId).toContain('--font-display:');
+    expect(byId).toContain('**Posture:**');
+    const first = DESIGN_DIRECTIONS[0]!;
+    expect(formatDirectionSpecText(first.label)).toContain(`(id: ${first.id})`);
+    expect(formatDirectionSpecText('no-such-direction')).toBeNull();
+  });
+
+  it('keeps the index an order of magnitude smaller than the full library', async () => {
+    const { renderDirectionIndexBlock, renderDirectionSpecBlock } = await import(
+      '../../src/prompts/directions.js'
+    );
+    expect(renderDirectionIndexBlock().length).toBeLessThan(2000);
+    expect(renderDirectionSpecBlock().length).toBeGreaterThan(5000);
+  });
+});

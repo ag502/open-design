@@ -330,18 +330,17 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "media-dispatch-hint",
       "role-marker-guard",
     ],
-    "totalChars": 29595,
+    "totalChars": 22237,
   },
   "slim-freeform-no-deck-signal": {
     "sections": [
       "injection-resistance",
-      "direction-library",
       "slim-core-charter",
       "project-metadata",
       "media-dispatch-hint",
       "role-marker-guard",
     ],
-    "totalChars": 21518,
+    "totalChars": 12579,
   },
 }
 `;

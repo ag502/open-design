@@ -32,7 +32,7 @@
 import { renderOfficialDesignerPrompt } from './official-system.js';
 import { renderDiscoveryAndPhilosophy, renderSharedFramesBlock } from './discovery.js';
 import { PLATFORM_CONTRACTS_BLOCK, renderSlimCoreCharter } from './core-slim.js';
-import { renderDirectionSpecBlock } from './directions.js';
+import { renderDirectionIndexBlock, renderDirectionSpecBlock } from './directions.js';
 import { DECK_FRAMEWORK_DIRECTIVE } from './deck-framework.js';
 import { renderMediaGenerationContract } from './media-contract.js';
 import { IMAGE_MODELS } from '../media/models.js';
@@ -83,7 +83,10 @@ const PROMPT_SAFE_HTTP_STATUS_LABELS: Record<string, string> = {
   '504': 'Gateway Timeout',
 };
 
-function renderUiLocalePrompt(locale: string | undefined): string {
+function renderUiLocalePrompt(
+  locale: string | undefined,
+  options?: { includeQuickBriefSamples?: boolean },
+): string {
   const normalized = locale?.trim();
   if (!normalized || normalized.toLowerCase() === 'en') return '';
   const languageName = normalized === 'zh-CN'
@@ -98,7 +101,12 @@ function renderUiLocalePrompt(locale: string | undefined): string {
     `The artifacts you generate must also be in ${languageName}: every piece of user-visible copy in the HTML/React/page/deck you produce — headings, body text, navigation, button and link labels, captions, alt text, and form fields — is written in this language by default. This holds even when a chosen template, plugin, or design system ships its reference/example content in another language: treat that copy as a layout and style reference and translate/adapt it into ${languageName}, do not ship its wording verbatim. Keep brand names, code, and technical identifiers as-is, and honor an explicit user request for a different output language.`,
     'Exception: for the default task-type form, keep the `taskType` option labels as the canonical routing choices: `Prototype`, `Live artifact`, `Slide deck`, `Image`, `Video`, `HyperFrames`, `Audio`, `Other`. Do not translate, reorder, or rewrite those option labels.',
   ];
-  if (normalized === 'zh-CN') {
+  // The worked zh-CN quick-brief copy below matches the CLASSIC default
+  // discovery form verbatim. The slim charter recipes that form instead of
+  // reciting it, and its form contract already requires localizing every
+  // user-facing string — so slim drops the sample block rather than pinning
+  // agents to copy written for a form layout the prompt no longer carries.
+  if (normalized === 'zh-CN' && (options?.includeQuickBriefSamples ?? true)) {
     lines.push(
       '',
       'For the default quick brief in Simplified Chinese, use copy like:',
@@ -277,6 +285,30 @@ export function detectDeckIntentSignal(
 ): boolean {
   return texts.some(
     (text) => typeof text === 'string' && DECK_INTENT_SIGNAL.test(text),
+  );
+}
+
+// Media-generation vocabulary across English and Chinese briefs. Same
+// generosity policy as DECK_INTENT_SIGNAL: over-firing keeps the dispatch
+// hint (status quo), under-firing only costs the ~1.4K hint until the user
+// actually mentions media — at which point the transcript-scanned signal
+// flips true for the rest of the conversation.
+const MEDIA_INTENT_SIGNAL =
+  /\b(image|images|photo|picture|video|audio|music|voice(over)?|sound|illustration|logo|banner|poster|icon set|wallpaper|avatar|imagen|midjourney|flux|veo|sora|suno)\b|图片|图像|生成图|配图|插画|海报|壁纸|头像|视频|短片|音频|音乐|配音|音效|表情包/i;
+
+/**
+ * Whether the visible conversation mentions generating media. Gates the
+ * MEDIA_DISPATCH_HINT for non-media projects: most runs never generate
+ * media, so the generate→wait dispatch hint only ships once the request
+ * text (transcript included) shows media vocabulary. Callers that cannot
+ * supply the request text pass undefined to `mediaHintSignal`, which
+ * preserves the legacy always-inject behavior.
+ */
+export function detectMediaIntentSignal(
+  ...texts: Array<string | null | undefined>
+): boolean {
+  return texts.some(
+    (text) => typeof text === 'string' && MEDIA_INTENT_SIGNAL.test(text),
   );
 }
 
@@ -583,6 +615,11 @@ export interface ComposeInput {
   // active-DS direction, mid-conversation clarifying questions) are then
   // skipped. Daemon callers select it via OD_PROMPT_CORE=slim.
   promptCoreVariant?: 'classic' | 'slim' | undefined;
+  // Whether the visible conversation mentions generating media (see
+  // `detectMediaIntentSignal`). Only consulted for non-media projects:
+  // `false` skips the MEDIA_DISPATCH_HINT, `true`/`undefined` keep it.
+  // Media surfaces always get the full media contract regardless.
+  mediaHintSignal?: boolean | undefined;
 }
 
 export function composeSystemPrompt({
@@ -624,6 +661,7 @@ export function composeSystemPrompt({
   executionProfile,
   freeformDeckSignal,
   promptCoreVariant,
+  mediaHintSignal,
 }: ComposeInput): string {
   // Injection resistance goes FIRST — before everything else — so no later
   // section (skill body, user instructions, project instructions, tool result)
@@ -695,16 +733,18 @@ export function composeSystemPrompt({
     parts.push('\n\n---\n\n');
   }
 
-  const localePrompt = renderUiLocalePrompt(locale);
-  if (localePrompt) {
-    parts.push(localePrompt);
-    parts.push('\n\n---\n\n');
-  }
-
   // Slim core collapses the discovery layer + designer charter + their tail
   // overrides into one charter document; the classic stack keeps the legacy
   // layered composition until the A/B comparison signs off.
   const isSlimCore = promptCoreVariant === 'slim';
+
+  const localePrompt = renderUiLocalePrompt(locale, {
+    includeQuickBriefSamples: !isSlimCore,
+  });
+  if (localePrompt) {
+    parts.push(localePrompt);
+    parts.push('\n\n---\n\n');
+  }
 
   if (!isMediaSurfaceEarly && !isAskMode) {
     if (!isSlimCore) {
@@ -718,7 +758,13 @@ export function composeSystemPrompt({
     // active-DS signal (stable for the whole session, so the stable-prompt
     // fingerprint stays cacheable).
     if (!activeDesignSystemBody) {
-      parts.push(renderDirectionSpecBlock(), '\n\n---\n\n');
+      // Slim carries only the id+label index; the agent pulls the chosen
+      // direction's full spec via `od tools directions --id <id>`. Classic
+      // keeps the inline full library.
+      parts.push(
+        isSlimCore ? renderDirectionIndexBlock() : renderDirectionSpecBlock(),
+        '\n\n---\n\n',
+      );
     }
     // Shared device-frame catalogue only applies to multi-device /
     // multi-target projects (same product across desktop+tablet+phone, or
@@ -758,7 +804,31 @@ export function composeSystemPrompt({
     }
   }
 
-  if (memoryBody && memoryBody.trim().length > 0) {
+  if (isSlimCore && memoryBody && memoryBody.trim().length > 0) {
+    // Slim variants of the two-loop memory scaffolding: identical headings
+    // and od-card shapes (the web client parses the card types and the
+    // daemon programmatically checks the verify-scorecard), with the
+    // repeated rationale prose cut. The classic wording below stays
+    // byte-stable for the classic stack.
+    parts.push(
+      `\n\n## Personal memory (auto-extracted from past chats)\n\nPreferences and context sedimented from this user's previous conversations — authoritative for tone, terminology, and what they already told you; never re-ask what is captured here. On conflict the active design system wins tokens and the active skill wins workflow (see Precedence). Use memory to silently expand short asks into a full internal brief before acting; ask a clarifying question only when a critical target, permission, or conflict cannot be resolved from the request plus memory.\n\n${memoryBody.trim()}`,
+    );
+    if ((memoryHooks?.rewrite ?? true)) {
+      parts.push(
+        `\n\n## Intent gateway — turn short asks into a brief\n\nWhen memory lets you expand a short or underspecified request into a clear brief, surface it as ONE collapsed card at the very start of your reply, then continue working without waiting for confirmation:\n\n<od-card type="task-brief">\n{ "summary": "<one line restating the expanded intent>", "fields": [ {"label": "Audience", "value": "…"}, {"label": "Deliverable", "value": "…"}, {"label": "Done means", "value": "…"} ] }\n</od-card>\n\nAt most one per turn; skip it when the request is already explicit or trivial (you may emit one compact chip instead: <od-card type="memory-applied">{ "summary": "Applied your profile and 2 rules", "used": [ {"type": "profile", "name": "Work profile"} ] }</od-card>). The card replaces the turn-1 discovery form when intent is already clear — it never replaces TodoWrite or the pre-ship self-check, and never appears as prose.`,
+      );
+    }
+    if ((memoryHooks?.verify ?? true)) {
+      parts.push(
+        `\n\n## Self-verify against your verified rules\n\nThe **Verified rules** above are enforceable checks. After producing or editing an artifact, evaluate every active rule, FIX failures in place, then emit one scorecard — the daemon checks it programmatically, and a missing scorecard on an artifact turn with active rules is recorded as an enforcement failure:\n\n<od-card type="verify-scorecard">\n{ "status": "pass|partial|fail", "summary": "5/6 checks passed · 1 auto-fixed", "rows": [ {"rule": "<the check>", "status": "pass|fail|fixed", "note": "<what was wrong / what you fixed>"} ] }\n</od-card>\n\nPrefer fixing silently over asking; leave a row as "fail" only when the fix needs a decision you genuinely cannot make. Order: craft self-check → scorecard → normal handoff. Skip it only when no verified rules apply or the turn produced no artifact.`,
+      );
+    }
+    parts.push(
+      `\n\n## Propose new verified rules from corrections\n\nWhen a user correction implies a reusable, checkable rule, PROPOSE it — never save it silently:\n\n<od-card type="rule-proposal">\n{ "name": "<short name>", "description": "<one line>", "assertion": "<what must hold>", "check": "<how to verify it>", "rationale": "<why you inferred it>" }\n</od-card>\n\nAt most one per turn, and only when confident it generalizes beyond the current artifact.`,
+    );
+  }
+
+  if (!isSlimCore && memoryBody && memoryBody.trim().length > 0) {
     parts.push(
       `\n\n## Personal memory (auto-extracted from past chats)\n\nThe following facts have been sedimented from this user's previous conversations and edited in the settings panel. Treat them as preferences and context, NOT hard rules: when they collide with the active design system tokens, the brand wins; when they collide with the active skill's workflow, the skill wins. They are still authoritative for tone, voice, terminology, and what the user already told you about themselves and their goals — never re-ask the user about something already captured here.\n\nUse memory as a task-intent gateway. When the user's request is short or underspecified, silently expand it into an internal task brief before acting: infer the task type, user/profile background, project/artifact context, delivery preferences, known feedback meanings, constraints, and validation/finish line. Proceed from that richer brief so the user does not need to repeat setup. Ask a clarifying question only when a critical target, permission, or conflict cannot be resolved from the current request plus memory. Do not dump the full internal brief unless the user asks to inspect it. Expanding intent this way changes only WHAT you know going in; it never shortcuts the standard build flow — you still plan with TodoWrite and still run the anti-slop / brand self-check on every artifact-producing turn.\n\n${memoryBody.trim()}`,
     );
@@ -892,6 +962,7 @@ export function composeSystemPrompt({
     audioVoiceOptions,
     audioVoiceOptionsError,
     mediaExecution,
+    isSlimCore ? 'facts' : 'classic',
   );
   if (metaBlock) parts.push(metaBlock);
 
@@ -947,10 +1018,13 @@ export function composeSystemPrompt({
     // mode for anything that actually generates media.
   } else if (isMediaSurface) {
     parts.push(renderMediaGenerationContract(mediaExecution, byokMediaDefaults));
-  } else {
+  } else if (mediaHintSignal ?? true) {
     // Non-media projects (prototype, deck, etc.): inject a lightweight hint
     // so the agent uses `od media generate` if the user asks for an image/video
     // mid-session, rather than hunting for provider API keys in the environment.
+    // Gated on the media-intent signal: most conversations never mention
+    // media, and the transcript-scanned signal flips the hint on for the
+    // rest of the session as soon as one does.
     parts.push(renderMediaDispatchHint(byokMediaDefaults));
   }
 
@@ -1260,18 +1334,28 @@ path via \`"$OD_NODE_BIN" "$OD_BIN" media generate --surface image --model ${ima
 Do not silently fall back.`;
 }
 
+// `style: 'facts'` (slim core) keeps the block a pure fact sheet: key-value
+// fields plus media/workflow data. The doctrine prose the classic variant
+// grew here (responsive contract, cross-platform rule, the seven
+// prototype delivery rules) is owned by the slim charter's Craft section and
+// PLATFORM_CONTRACTS_BLOCK instead, so 'facts' replaces it with two compact
+// delivery lines and drops the rest.
 function renderMetadataBlock(
   metadata: ProjectMetadata | undefined,
   template: ProjectTemplate | undefined,
   audioVoiceOptions: AudioVoiceOption[] | undefined,
   audioVoiceOptionsError: string | undefined,
   mediaExecution: MediaExecutionPolicy | undefined,
+  style: 'classic' | 'facts' = 'classic',
 ): string {
+  const factsOnly = style === 'facts';
   if (!metadata) return '';
   const lines: string[] = [];
   lines.push('\n\n## Project metadata');
   lines.push(
-    'These are the structured choices the user made (or skipped) when creating this project. Treat known fields as authoritative; for any field marked "(unknown — ask)" you MUST include a matching question in your turn-1 discovery form.',
+    factsOnly
+      ? 'Structured choices from project creation. Known fields are authoritative; include a matching turn-1 form question for any field marked "(unknown — ask)".'
+      : 'These are the structured choices the user made (or skipped) when creating this project. Treat known fields as authoritative; for any field marked "(unknown — ask)" you MUST include a matching question in your turn-1 discovery form.',
   );
   lines.push('');
   lines.push(`- **kind**: ${metadata.kind}`);
@@ -1283,17 +1367,25 @@ function renderMetadataBlock(
   if (Array.isArray(metadata.platformTargets) && metadata.platformTargets.length > 0) {
     lines.push(`- **platformTargets**: ${metadata.platformTargets.join(', ')}`);
   }
-  if (metadata.platform === 'responsive' || metadata.platformTargets?.includes('responsive')) {
+  if (!factsOnly && (metadata.platform === 'responsive' || metadata.platformTargets?.includes('responsive'))) {
     lines.push(
       '- **responsive web contract**: `responsive` means one web product experience that adapts across modern browser/device ranges, not only legacy desktop/tablet/mobile buckets. It is not an iOS app, Android app, or native tablet app target. Show responsive behavior through real product layout changes; do not render viewport labels as user-facing product content. Cover 2025–2026 breakpoints: mobile compact 360px, mobile standard 390–430px, foldable/small tablet 600–744px, tablet portrait 768–834px, tablet landscape/large tablet 1024–1180px, laptop 1280–1366px, desktop 1440–1536px, and wide 1920px. Use fluid `clamp()` scales, container queries where useful, and explicit layout changes at semantic thresholds. Verify no horizontal scroll at 360px, 390px, 430px, 600px, 768px, 820px, 1024px, 1366px, 1440px, and 1920px unless the brief explicitly asks for a pan/board canvas.',
     );
   }
-  if ((metadata.platformTargets?.length ?? 0) > 1) {
+  if (!factsOnly && (metadata.platformTargets?.length ?? 0) > 1) {
     lines.push(
       '- **cross-platform deliverable rule**: each selected target keeps the same product goal but MUST be delivered as its own product screen/file when more than one concrete target is selected. Use clear files such as `landing.html` (if enabled), `mobile-ios.html`, `mobile-android.html`, `tablet.html`, `desktop.html`, plus shared `css/` and `js/` when useful. `index.html` may be a launcher/overview that links to these files, but it must not be the only place where mobile/tablet/desktop designs live. Do not collapse cross-platform work into a single tabbed demo, selector UI, comparison board, platform map, or labelled documentation section inside one mock product page.',
     );
   }
-  if (metadata.kind === 'prototype' || metadata.kind === 'template' || metadata.kind === 'other') {
+  if (factsOnly && (metadata.kind === 'prototype' || metadata.kind === 'template' || metadata.kind === 'other')) {
+    lines.push(
+      '- **screen files**: each distinct user-facing screen ships as its own HTML file (`index.html` = launcher/overview when several exist) unless the user asks for a single page.',
+    );
+    lines.push(
+      '- **product depth**: build real product UI with the domain\'s in-app modules and working interactions (tabs, dialogs, filters, validation, playback) — not static screenshot mockups.',
+    );
+  }
+  if (!factsOnly && (metadata.kind === 'prototype' || metadata.kind === 'template' || metadata.kind === 'other')) {
     lines.push(
       '- **screen-file-first rule**: each distinct user-facing screen or surface MUST be delivered as its own HTML file unless the user explicitly asks for a single-page scroll or single-file artifact. Do not combine landing pages, product app screens, dashboards, history, pricing, settings, mobile app, tablet app, desktop app, or OS widget surfaces into one long page. Use `index.html` as a launcher/overview that links to screen files when more than one screen exists; it may summarize the product and show screen cards, but it must not contain the full design for every screen.',
     );
@@ -1316,12 +1408,22 @@ function renderMetadataBlock(
       '- **artifact-output rule**: when you generate an HTML artifact, keep conversational prose concise and product-facing. Do not dump the full raw HTML source back into chat; the artifact/file is the source of truth and the assistant message should only summarize the result.',
     );
   }
-  if (metadata.includeLandingPage) {
+  if (factsOnly && metadata.includeLandingPage) {
+    lines.push(
+      '- **includeLandingPage**: true — ship `landing.html` as a separate responsive marketing surface (hero, value props, product shots, CTA); product screens stay in their own files.',
+    );
+  }
+  if (!factsOnly && metadata.includeLandingPage) {
     lines.push(
       '- **includeLandingPage**: true — create `landing.html` as a separate responsive marketing companion surface in addition to the selected product/app screens. Do not implement the landing page only as a section inside `index.html`, even for responsive-web-only projects. If there is a working product/app screen, create it as a separate file such as `app.html`, `dashboard.html`, or a domain-specific screen name. `index.html` should be a lightweight launcher/overview when multiple files exist. Include hero, value props, product screenshots/device mockups, proof/features, and an appropriate CTA such as waitlist, download, or contact sales.',
     );
   }
-  if (metadata.includeOsWidgets) {
+  if (factsOnly && metadata.includeOsWidgets) {
+    lines.push(
+      '- **includeOsWidgets**: true — add platform-native home/lock-screen widget surfaces (outside the app) with realistic sizes and direct quick actions.',
+    );
+  }
+  if (!factsOnly && metadata.includeOsWidgets) {
     lines.push(
       '- **includeOsWidgets**: true — add platform-native OS home-screen / lock-screen / quick-access widget surfaces where relevant. These are outside-the-app widgets (for example iOS WidgetKit, Android home screen widget, Live Activity/lock screen, tablet glance panel), not in-app cards. Include realistic widget sizes and direct quick actions for the domain.',
     );

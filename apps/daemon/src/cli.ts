@@ -513,6 +513,11 @@ if (argv[0] === 'tools' && argv[1] === 'live-artifacts') {
       process.stderr.write(`${JSON.stringify({ ok: false, error: { message } })}\n`);
       process.exitCode = 1;
     });
+} else if (argv[0] === 'tools' && argv[1] === 'directions') {
+  // Agent-facing pull layer for the direction library: the slim prompt
+  // carries only an id+label index and the agent fetches the chosen
+  // direction's full spec (palette, font stacks, posture) here.
+  runDirectionsToolCli(argv.slice(2));
 } else if (argv[0] === 'tools' && argv[1] === 'design-systems') {
   runDesignSystemsToolCli(argv.slice(2))
     .then(({ exitCode }) => {
@@ -527,6 +532,50 @@ if (argv[0] === 'tools' && argv[1] === 'live-artifacts') {
   await runDaemonCliStartup(argv, { printHelp: printRootHelp });
 }
 
+async function runDirectionsToolCli(args) {
+  const { DESIGN_DIRECTIONS, formatDirectionSpecText } = await import(
+    './prompts/directions.js'
+  );
+  const idIdx = args.indexOf('--id');
+  const labelIdx = args.indexOf('--label');
+  const wantJson = args.includes('--json');
+  const needle =
+    idIdx !== -1 ? args[idIdx + 1] : labelIdx !== -1 ? args[labelIdx + 1] : null;
+  if (needle) {
+    if (wantJson) {
+      const match = DESIGN_DIRECTIONS.find(
+        (d) =>
+          d.id.toLowerCase() === String(needle).trim().toLowerCase() ||
+          d.label.toLowerCase() === String(needle).trim().toLowerCase(),
+      );
+      if (!match) {
+        console.error(`unknown direction: ${needle}`);
+        process.exit(1);
+      }
+      process.stdout.write(JSON.stringify(match) + '\n');
+      return;
+    }
+    const spec = formatDirectionSpecText(String(needle));
+    if (!spec) {
+      console.error(
+        `unknown direction: ${needle}\nRun \`od tools directions\` to list ids.`,
+      );
+      process.exit(1);
+    }
+    process.stdout.write(spec + '\n');
+    return;
+  }
+  if (wantJson) {
+    process.stdout.write(
+      JSON.stringify(DESIGN_DIRECTIONS.map(({ id, label }) => ({ id, label }))) + '\n',
+    );
+    return;
+  }
+  for (const d of DESIGN_DIRECTIONS) {
+    console.log(`${d.id}\t${d.label}`);
+  }
+}
+
 function printRootHelp() {
   console.log(`Usage:
   od [--port <n>] [--host <addr>] [--no-open]
@@ -534,6 +583,10 @@ function printRootHelp() {
 
   od tools live-artifacts <create|list|update|refresh> [options]
       Manage live artifacts through daemon wrapper commands.
+
+  od tools directions [--id <id> | --label <label>] [--json]
+      List the built-in design directions, or print one direction's full
+      palette / font stacks / posture spec for binding into :root.
 
   od artifacts create --name <path> --input <file> [--project <id-or-name>]
       Create a normal project artifact through the local daemon.
