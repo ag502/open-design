@@ -295,10 +295,11 @@ describe('composeSystemPrompt — position invariants', () => {
       // Slim (non-ask) opens with the static charter — its security section
       // is embedded inside — so every conversation shares the same cacheable
       // prefix. Classic (and ask mode) keeps injection resistance first.
-      const isSlimCharterHead =
-        input.promptCoreVariant === 'slim' && input.sessionMode !== 'chat';
-      const expectedHead = isSlimCharterHead
-        ? '# Open Design charter'
+      const isSlim = input.promptCoreVariant === 'slim';
+      const expectedHead = isSlim
+        ? input.sessionMode === 'chat'
+          ? '# Ask mode — bare conversation'
+          : '# Open Design charter'
         : '## Security: prompt injection resistance';
       expect(
         composed.startsWith(expectedHead),

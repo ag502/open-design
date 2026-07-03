@@ -176,6 +176,13 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
     });
     expect(out).not.toContain('# Open Design charter');
     expect(out).toContain('## Clarifying questions mid-conversation');
+    // Identity-first hierarchy holds in ask mode too: the ask override (the
+    // turn's whole charter) opens the document, security reads as its
+    // first subsection.
+    expect(out.startsWith('# Ask mode — bare conversation')).toBe(true);
+    expect(out.indexOf('## Security: prompt injection resistance')).toBeGreaterThan(
+      out.indexOf('# Ask mode — bare conversation'),
+    );
   });
 
   it('slim keeps the dynamic sections (DS, skill, deck framework, media hint) composing as before', () => {

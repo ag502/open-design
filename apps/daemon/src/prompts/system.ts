@@ -663,11 +663,17 @@ export function composeSystemPrompt({
   //   security section right after Precedence), so every conversation shares
   //   the same cacheable prefix; conversation-stable overrides (mode,
   //   locale) follow, project context after that, turn-variable blocks last.
+  // Slim ask mode opens with the ask override — it IS the charter for the
+  // turn — with the security section reading as its first subsection, so the
+  // ask document keeps the same identity-first H1 > H2 hierarchy as design
+  // mode. Both blocks are static, so the swap is cache-neutral.
   const parts: string[] = isSlimCharterHead
     ? [renderSlimCoreCharter(
         executionProfile ?? executionProfileFromStreamFormat(streamFormat),
       ), '\n\n---\n\n']
-    : [PROMPT_INJECTION_RESISTANCE, '\n\n---\n\n'];
+    : isSlimCore
+      ? [CHAT_MODE_OVERRIDE, '\n\n---\n\n', PROMPT_INJECTION_RESISTANCE, '\n\n---\n\n']
+      : [PROMPT_INJECTION_RESISTANCE, '\n\n---\n\n'];
   const activeDesignSystemBody = designSystemBody?.trim();
   const activeSkillModes = new Set(
     Array.isArray(skillModes)
@@ -706,7 +712,8 @@ export function composeSystemPrompt({
   if (sessionMode === 'plan') {
     parts.push(PLAN_MODE_OVERRIDE);
     parts.push('\n\n---\n\n');
-  } else if (sessionMode === 'chat') {
+  } else if (sessionMode === 'chat' && !isSlimCore) {
+    // Slim ask already opened the document with this override (see head).
     parts.push(CHAT_MODE_OVERRIDE);
     parts.push('\n\n---\n\n');
   }
