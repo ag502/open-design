@@ -289,13 +289,24 @@ describe('composeSystemPrompt — scenario × section golden matrix', () => {
 });
 
 describe('composeSystemPrompt — position invariants', () => {
-  it('pins injection resistance first and the role-marker guard last in every scenario', () => {
+  it('pins the variant head first and the role-marker guard last in every scenario', () => {
     for (const [name, input] of SCENARIOS) {
       const composed = composeSystemPrompt(input);
+      // Slim (non-ask) opens with the static charter — its security section
+      // is embedded inside — so every conversation shares the same cacheable
+      // prefix. Classic (and ask mode) keeps injection resistance first.
+      const isSlimCharterHead =
+        input.promptCoreVariant === 'slim' && input.sessionMode !== 'chat';
+      const expectedHead = isSlimCharterHead
+        ? '# Open Design charter'
+        : '## Security: prompt injection resistance';
       expect(
-        composed.startsWith('## Security: prompt injection resistance'),
-        `${name}: injection resistance must open the prompt`,
+        composed.startsWith(expectedHead),
+        `${name}: prompt must open with ${expectedHead}`,
       ).toBe(true);
+      expect(composed, `${name}: security section missing`).toContain(
+        '## Security: prompt injection resistance',
+      );
       const guardIndex = composed.indexOf('## CRITICAL: Never fabricate conversation turns');
       expect(guardIndex, `${name}: role-marker guard missing`).toBeGreaterThan(-1);
       const lastHeadingIndex = Math.max(

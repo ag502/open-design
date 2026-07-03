@@ -26,7 +26,10 @@ const repoRoot = path.resolve(__dirname, '../../../..');
  *    it moved to.
  */
 
-const SLIM_CORE_BYTE_BUDGET = 8_192;
+// 9.25KB: the 8KB doctrine budget plus the ~1KB security section the charter
+// absorbed from the standalone injection-resistance block (composed total is
+// unchanged — the block is no longer pushed separately under slim).
+const SLIM_CORE_BYTE_BUDGET = 9_472;
 
 describe('renderSlimCoreCharter — byte budget', () => {
   it('stays under the byte budget in both execution profiles', () => {
@@ -138,8 +141,10 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
     expect(classic).toContain('## Filesystem handoff');
     expect(classic).toContain('## Active design system visual direction');
     expect(classic).toContain('## Clarifying questions mid-conversation');
-    // Structural bookends survive the rewrite.
-    expect(slim.startsWith('## Security: prompt injection resistance')).toBe(true);
+    // Structural bookends: slim opens with the static charter (cache-stable
+    // prefix); the security section lives inside it; the guard still closes.
+    expect(slim.startsWith('# Open Design charter')).toBe(true);
+    expect(slim).toContain('## Security: prompt injection resistance');
     expect(slim).toContain('## CRITICAL: Never fabricate conversation turns');
     expect(slim.length).toBeLessThan(classic.length);
   });
@@ -329,5 +334,67 @@ describe('slim core — direction library becomes a pull layer', () => {
     );
     expect(renderDirectionIndexBlock().length).toBeLessThan(2000);
     expect(renderDirectionSpecBlock().length).toBeGreaterThan(5000);
+  });
+});
+
+describe('composeSystemPrompt — slim layered ordering (cache-stable prefix)', () => {
+  it('orders static charter → conversation → project → turn-variable → guard', () => {
+    const out = composeSystemPrompt({
+      designSystemBody: '# Brand',
+      designSystemTitle: 'Brand',
+      memoryBody: '### Profile\n\nx\n\n### Verified rules\n\n- y',
+      metadata: { kind: 'other' },
+      sessionMode: 'plan',
+      locale: 'zh-CN',
+      executionProfile: 'filesystem',
+      promptCoreVariant: 'slim',
+      freeformDeckSignal: true,
+      mediaHintSignal: true,
+      connectedExternalMcp: [{ id: 'vela' }],
+    });
+    // Line-anchored: the charter QUOTES some headings in prose (e.g.
+    // \`## Project metadata\` in the turn-1 tailoring rule), so a bare
+    // indexOf would match inside the charter instead of the real section.
+    const at = (marker: string) => {
+      const i = out.indexOf(`\n${marker}`);
+      expect(i, `missing: ${marker}`).toBeGreaterThan(-1);
+      return i;
+    };
+    // Static core opens the document.
+    expect(out.startsWith('# Open Design charter')).toBe(true);
+    const security = at('## Security: prompt injection resistance');
+    const conduct = at('## Conduct');
+    // Conversation-stable overrides come after the full static charter.
+    const mode = at('# Plan mode — editable document first');
+    const localeAt = at('# UI locale override');
+    // Project-stable context after that.
+    const memory = at('## Personal memory');
+    const ds = at('## Active design system — Brand');
+    const metadataAt = at('## Project metadata');
+    const mcp = at('## External MCP servers — already authenticated');
+    // Turn-variable blocks last, before the recency-pinned guard.
+    const maybeDeck = at('## If this brief is a slide deck');
+    const mediaHint = at('## Media generation (if asked)');
+    const guard = at('## CRITICAL: Never fabricate conversation turns');
+    expect(security).toBeLessThan(conduct);
+    expect(conduct).toBeLessThan(mode);
+    expect(mode).toBeLessThan(localeAt);
+    expect(localeAt).toBeLessThan(memory);
+    expect(memory).toBeLessThan(ds);
+    expect(ds).toBeLessThan(metadataAt);
+    expect(metadataAt).toBeLessThan(mcp);
+    expect(mcp).toBeLessThan(maybeDeck);
+    expect(maybeDeck).toBeLessThan(mediaHint);
+    expect(mediaHint).toBeLessThan(guard);
+  });
+
+  it('classic head ordering is untouched (injection resistance still first)', () => {
+    const classic = composeSystemPrompt({
+      metadata: { kind: 'prototype' },
+      sessionMode: 'plan',
+      executionProfile: 'filesystem',
+    });
+    expect(classic.startsWith('## Security: prompt injection resistance')).toBe(true);
+    expect(classic.indexOf('# Plan mode')).toBeLessThan(classic.indexOf('# OD core directives'));
   });
 });
