@@ -819,7 +819,10 @@ test('[P1] home starters gallery inline Use applies the starter without opening 
   const card = home.locator('article.plugins-home__card[data-plugin-id="localized-plugin"]');
   await expect(card).toBeVisible();
 
-  await card.getByTestId('plugins-home-use-localized-plugin').dispatchEvent('click');
+  await card.hover();
+  const useButton = card.getByTestId('plugins-home-use-localized-plugin');
+  await expect(useButton).toBeVisible();
+  await useButton.click();
 
   await expect(page.getByRole('dialog').filter({ hasText: /Localized Plugin/i })).toHaveCount(0);
   await expect(page.getByTestId('home-hero-active-plugin')).toBeVisible();
@@ -995,7 +998,7 @@ test('[P2] home starters details modal opens from a gallery card and closes on E
   const home = await revealHomeTemplates(page);
   const card = home.locator('[data-plugin-id="localized-plugin"]').first();
   await expect(card).toBeVisible();
-  await home.getByTestId('plugins-home-details-localized-plugin').dispatchEvent('click');
+  await card.click();
 
   const dialog = page.getByRole('dialog', { name: /Localized Plugin details/i });
   await expect(dialog).toBeVisible();
@@ -1193,8 +1196,10 @@ test('[P2] home starters html details modal exposes header actions and closes fr
   });
 
   await gotoEntryHome(page);
-  await page.locator('article.plugins-home__card[data-plugin-id="html-details-plugin"]').hover();
-  await page.getByTestId('plugins-home-details-html-details-plugin').click({ force: true });
+  const home = await revealHomeTemplates(page);
+  const card = home.locator('article.plugins-home__card[data-plugin-id="html-details-plugin"]');
+  await expect(card).toBeVisible();
+  await card.click();
 
   const dialog = page.getByRole('dialog', { name: /HTML Details Plugin preview/i });
   await expect(dialog).toBeVisible();
@@ -1269,8 +1274,10 @@ test('[P2] home starters html details modal shows metadata links and supports co
   });
 
   await gotoEntryHome(page);
-  await expect(page.locator('article.plugins-home__card[data-plugin-id="html-metadata-plugin"]')).toBeVisible();
-  await page.getByTestId('plugins-home-details-html-metadata-plugin').dispatchEvent('click');
+  const home = await revealHomeTemplates(page);
+  const card = home.locator('article.plugins-home__card[data-plugin-id="html-metadata-plugin"]');
+  await expect(card).toBeVisible();
+  await card.click();
 
   const dialog = page.getByRole('dialog', { name: /HTML Metadata Plugin preview/i });
   await expect(dialog).toBeVisible();
@@ -1967,8 +1974,9 @@ test('[P1] rail can be collapsed again on coarse-pointer / non-hover devices', a
   // Without a hover, the collapse control must still be visible and tappable,
   // and tapping it must actually fold the rail back.
   const collapse = page.getByTestId('entry-nav-collapse');
+  await collapse.focus();
   await expect(collapse).toBeVisible();
-  await collapse.dispatchEvent('click');
+  await collapse.click();
   await expect(page.locator('.entry')).not.toHaveClass(/entry--rail-open/);
 });
 
@@ -1993,10 +2001,13 @@ async function gotoEntryHome(page: Page) {
 }
 
 async function revealHomeTemplates(page: Page) {
-  const home = page.getByTestId('entry-view-home');
+  const home = page.locator('[data-testid="entry-view-home"][data-active="true"]');
   const hint = home.getByTestId('home-templates-hint');
   if (await hint.count()) {
-    await hint.click({ force: true });
+    await page.mouse.wheel(0, 900);
+    if (!(await home.locator('.home-templates-reveal').evaluate((node) => node.classList.contains('is-revealed')).catch(() => false))) {
+      await hint.click();
+    }
     await expect(home.locator('.home-templates-reveal')).toHaveClass(/is-revealed/);
     await expect(home.locator('.home-templates-reveal__body')).not.toHaveAttribute('inert', '');
     await page.waitForTimeout(450);
@@ -2013,7 +2024,7 @@ async function openHomePluginDetails(
   page: Page,
   pluginId: string,
   name: RegExp,
-  scopedHome = page.getByTestId('entry-view-home'),
+  scopedHome = page.locator('[data-testid="entry-view-home"][data-active="true"]'),
 ) {
   let home = scopedHome;
   let card = home.locator(`article.plugins-home__card[data-plugin-id="${pluginId}"]`).first();

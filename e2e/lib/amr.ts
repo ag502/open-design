@@ -118,7 +118,7 @@ function currentProfile() {
   return (env.OPEN_DESIGN_AMR_PROFILE || env.VELA_PROFILE || 'local').trim() || 'local';
 }
 function fakeHomeDir() {
-  return (env.OPENCODE_TEST_HOME || homedir()).trim() || homedir();
+  return homedir();
 }
 function readLoginConfig() {
   const file = join(fakeHomeDir(), '.amr', 'config.json');
