@@ -39,6 +39,7 @@ const SECTION_MARKERS = [
   ['direction-library', '## Direction library — bind into'],
   ['shared-device-frames', '## Multi-device / multi-screen — shared frames'],
   ['identity-charter', '# Identity and workflow charter (background)'],
+  ['slim-core-charter', '# Open Design charter'],
   ['personal-memory', '## Personal memory (auto-extracted from past chats)'],
   ['memory-intent-gateway', '## Intent gateway — turn short asks into a brief'],
   ['memory-verify-scorecard', '## Self-verify against your verified rules'],
@@ -176,6 +177,33 @@ const SCENARIOS: ReadonlyArray<[name: string, input: ComposeInput]> = [
   [
     'media-image',
     { metadata: { kind: 'image' }, skillMode: 'image', executionProfile: 'filesystem' },
+  ],
+  // Slim rewritten core: one charter replaces discovery + identity charter +
+  // the absorbed tail overrides; dynamic sections compose unchanged.
+  [
+    'slim-design-full-stack',
+    {
+      ...designSystemInputs,
+      ...memoryInputs,
+      ...skillInputs,
+      craftBody: 'Letter-spacing: tighten display type.',
+      craftSections: ['typography'],
+      userInstructions: 'Prefer dark themes.',
+      projectInstructions: 'This project ships light theme only.',
+      metadata: { kind: 'prototype', platform: 'responsive' },
+      locale: 'zh-CN',
+      executionProfile: 'filesystem',
+      promptCoreVariant: 'slim',
+    },
+  ],
+  [
+    'slim-freeform-no-deck-signal',
+    {
+      metadata: { kind: 'other' },
+      executionProfile: 'filesystem',
+      freeformDeckSignal: false,
+      promptCoreVariant: 'slim',
+    },
   ],
   // Ask mode keeps memory/DS/skill but drops every artifact-oriented block.
   [

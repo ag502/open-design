@@ -5299,6 +5299,9 @@ export async function startServer({
       ...(activeStageBlocks ? { activeStageBlocks } : {}),
       userInstructions,
       freeformDeckSignal,
+      // Rollout switch for the rewritten single-document core charter.
+      // Default stays on the classic layered stack; flip per-daemon to A/B.
+      promptCoreVariant: process.env.OD_PROMPT_CORE === 'slim' ? 'slim' : undefined,
     });
     // The chat handler also needs to know where the active skill lives
     // on disk so it can stage a per-project copy of its side files

@@ -31,6 +31,7 @@
  */
 import { renderOfficialDesignerPrompt } from './official-system.js';
 import { renderDiscoveryAndPhilosophy, renderSharedFramesBlock } from './discovery.js';
+import { renderSlimCoreCharter } from './core-slim.js';
 import { renderDirectionSpecBlock } from './directions.js';
 import { DECK_FRAMEWORK_DIRECTIVE } from './deck-framework.js';
 import { renderMediaGenerationContract } from './media-contract.js';
@@ -574,6 +575,14 @@ export interface ComposeInput {
   // `true`/`undefined` keep it. Deck-kind projects ignore this — their
   // framework is unconditional.
   freeformDeckSignal?: boolean | undefined;
+  // Which always-on doctrine core to compose. `classic` (default) keeps the
+  // legacy DISCOVERY_AND_PHILOSOPHY + designer-charter stack plus its tail
+  // overrides. `slim` swaps all of that for the single rewritten charter in
+  // `core-slim.ts` (every rule stated once, explicit precedence ladder,
+  // ~6x smaller); the tail overrides it absorbed (filesystem handoff,
+  // active-DS direction, mid-conversation clarifying questions) are then
+  // skipped. Daemon callers select it via OD_PROMPT_CORE=slim.
+  promptCoreVariant?: 'classic' | 'slim' | undefined;
 }
 
 export function composeSystemPrompt({
@@ -614,6 +623,7 @@ export function composeSystemPrompt({
   byokMediaDefaults,
   executionProfile,
   freeformDeckSignal,
+  promptCoreVariant,
 }: ComposeInput): string {
   // Injection resistance goes FIRST — before everything else — so no later
   // section (skill body, user instructions, project instructions, tool result)
@@ -691,8 +701,15 @@ export function composeSystemPrompt({
     parts.push('\n\n---\n\n');
   }
 
+  // Slim core collapses the discovery layer + designer charter + their tail
+  // overrides into one charter document; the classic stack keeps the legacy
+  // layered composition until the A/B comparison signs off.
+  const isSlimCore = promptCoreVariant === 'slim';
+
   if (!isMediaSurfaceEarly && !isAskMode) {
-    parts.push(renderDiscoveryAndPhilosophy(resolvedExecutionProfile), '\n\n---\n\n');
+    if (!isSlimCore) {
+      parts.push(renderDiscoveryAndPhilosophy(resolvedExecutionProfile), '\n\n---\n\n');
+    }
     // Direction library is only useful when the agent must pick a visual
     // direction itself. When an active design system is present it is the
     // visual direction (see ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE
@@ -722,10 +739,14 @@ export function composeSystemPrompt({
   // Ask mode skips the multi-thousand-token designer charter entirely — the
   // CHAT_MODE_OVERRIDE above is its self-contained identity. Plan/Design keep it.
   if (!isAskMode) {
-    parts.push(
-      '# Identity and workflow charter (background)\n\n',
-      renderOfficialDesignerPrompt(resolvedExecutionProfile),
-    );
+    if (isSlimCore) {
+      parts.push(renderSlimCoreCharter(resolvedExecutionProfile));
+    } else {
+      parts.push(
+        '# Identity and workflow charter (background)\n\n',
+        renderOfficialDesignerPrompt(resolvedExecutionProfile),
+      );
+    }
   }
 
   if (memoryBody && memoryBody.trim().length > 0) {
@@ -949,14 +970,20 @@ export function composeSystemPrompt({
     parts.push('\n\n' + renderPanelPrompt({ cfg, brand: critiqueBrand, skill: critiqueSkill }));
   }
 
-  if (!isAskMode && activeDesignSystemBody && activeDesignSystemBody.length > 0) {
+  // The three tail overrides below exist to re-assert rules the classic
+  // layered stack states in softer or contradictory forms earlier. The slim
+  // core states each rule exactly once with binding precedence, so re-pinning
+  // them would reintroduce the duplication the rewrite removes. Ask mode
+  // composes no core charter, so it keeps the clarifying-questions tail as
+  // its only question-form guidance.
+  if (!isSlimCore && !isAskMode && activeDesignSystemBody && activeDesignSystemBody.length > 0) {
     parts.push(ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE);
   }
 
   const mcpDirective = renderConnectedExternalMcpDirective(connectedExternalMcp);
   if (mcpDirective) parts.push(mcpDirective);
 
-  if (resolvedExecutionProfile === 'filesystem') {
+  if (!isSlimCore && resolvedExecutionProfile === 'filesystem') {
     parts.push(FILESYSTEM_HANDOFF_OVERRIDE);
   }
 
@@ -965,7 +992,7 @@ export function composeSystemPrompt({
   // questions surface: the chat shows a banner, the form renders in the
   // right-hand Questions tab, and answers return as the next user message.
   // Applies to every agent — question-form is UI-parsed markup, not a tool.
-  parts.push(
+  if (!isSlimCore || isAskMode) parts.push(
     "\n\n---\n\n## Clarifying questions mid-conversation\n\nWhen you need a clarification AFTER turn 1 and the answer benefits from structured input, emit a `<question-form>` block — the same markup turn-1 discovery uses — instead of writing a bulleted list of options in markdown. The host renders it as a Questions banner the user opens in the side tab; a markdown list renders as plain text and forces the user to type a reply. Use the richest appropriate web form controls (`radio`, `checkbox`, `select`, `text`, `textarea`, `number`, `range`, `date`, `time`, `datetime-local`, `color`, `url`, `email`, `tel`, `file`, `switch`, or `direction-cards`). For every finite-choice question, keep user control by leaving `allowCustom` unset or setting it to `true`, and add localized `customLabel` / `customPlaceholder` when useful. Use free-form prose questions only when a form would add no structure. Do NOT also duplicate the form's questions as markdown text alongside it.\n\n`<question-form>` is assistant text for the Open Design UI, not a native tool call. If you need to clarify direction, emit the complete `<question-form>...</question-form>` block directly in the assistant message before any TodoWrite, file write/edit, Bash, or other native tool call. Do not stop after an introductory sentence such as \"先确认一下方向：\"; the same message must include the full form.",
   );
 
