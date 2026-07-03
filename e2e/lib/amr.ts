@@ -117,8 +117,11 @@ function writeNotification(method, params) {
 function currentProfile() {
   return (env.OPEN_DESIGN_AMR_PROFILE || env.VELA_PROFILE || 'local').trim() || 'local';
 }
+function fakeHomeDir() {
+  return (env.OPENCODE_TEST_HOME || homedir()).trim() || homedir();
+}
 function readLoginConfig() {
-  const file = join(homedir(), '.amr', 'config.json');
+  const file = join(fakeHomeDir(), '.amr', 'config.json');
   if (!existsSync(file)) return null;
   try {
     return JSON.parse(readFileSync(file, 'utf8'));
@@ -127,12 +130,13 @@ function readLoginConfig() {
   }
 }
 function hasRuntimeKey() {
+  if ((env.VELA_RUNTIME_KEY || '').trim() && (env.VELA_LINK_URL || '').trim()) return true;
   const profile = currentProfile();
   const cfg = readLoginConfig();
   return Boolean(cfg && cfg.profiles && cfg.profiles[profile] && cfg.profiles[profile].runtimeKey);
 }
 function shouldFailOnce(kind) {
-  const file = join(homedir(), '.amr', 'fake-vela-state.json');
+  const file = join(fakeHomeDir(), '.amr', 'fake-vela-state.json');
   let state = {};
   try {
     if (existsSync(file)) state = JSON.parse(readFileSync(file, 'utf8'));
@@ -148,7 +152,7 @@ function shouldFailOnce(kind) {
 }
 
 if (argv[2] === 'login') {
-  const file = join(homedir(), '.amr', 'config.json');
+  const file = join(fakeHomeDir(), '.amr', 'config.json');
   mkdirSync(dirname(file), { recursive: true });
   const profile = currentProfile();
   writeFileSync(file, JSON.stringify({

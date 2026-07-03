@@ -946,6 +946,7 @@ async function setupAmrWorkspace(
       amr: {
         VELA_BIN: velaBin,
         HOME: homeDir,
+        OPENCODE_TEST_HOME: homeDir,
         VELA_LINK_URL: 'http://localhost:18081',
         VELA_RUNTIME_KEY: 'fake-runtime-key',
         FAKE_VELA_SESSION_ID: fakeVelaSessionId,
