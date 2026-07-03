@@ -26,10 +26,12 @@ const repoRoot = path.resolve(__dirname, '../../../..');
  *    it moved to.
  */
 
-// 9.25KB: the 8KB doctrine budget plus the ~1KB security section the charter
-// absorbed from the standalone injection-resistance block (composed total is
-// unchanged — the block is no longer pushed separately under slim).
-const SLIM_CORE_BYTE_BUDGET = 9_472;
+// 10KB: the 8KB doctrine budget, plus the ~1KB security section the charter
+// absorbed from the standalone injection-resistance block (composed total
+// unchanged), plus ~0.7KB from the structure-review fixes — chiefly restoring
+// the full `output` question to the form example so it reads in forward
+// order (which also shores up few-shot density for weaker fleet models).
+const SLIM_CORE_BYTE_BUDGET = 10_240;
 
 describe('renderSlimCoreCharter — byte budget', () => {
   it('stays under the byte budget in both execution profiles', () => {
