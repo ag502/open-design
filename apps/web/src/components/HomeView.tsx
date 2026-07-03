@@ -1174,6 +1174,20 @@ export function HomeView({
 
   function useExamplePlugin(record: InstalledPluginRecord, chipId: string, promptText: string) {
     setError(null);
+    // P0 ui_click area=chat_composer element=example_prompt: the user picked an
+    // example-prompt card below the rail (a plugin-preset card — for the
+    // Website-clone chip these are the Clone Nexu / Clone Vercel / … cards).
+    // `chip_id` is the active task type (web-clone here), `plugin_id` the preset
+    // (e.g. example-clone-nexu) so the site-clone examples break down per site.
+    // Raw seed text is never sent (free-text / PII rule).
+    trackHomeChatComposerClick(analytics.track, {
+      page_name: 'home',
+      area: 'chat_composer',
+      element: 'example_prompt',
+      chip_id: chipId,
+      plugin_id: record.sourceMarketplaceEntryName ?? record.id,
+      plugin_type: record.marketplaceTrust ?? 'official',
+    });
     // Picking a preset card *binds* the plugin (not just a textarea fill):
     // active switches to this exact preset so submit resolves its snapshot and
     // injects the plugin's SKILL.md + example.html as generation context — the
@@ -1197,6 +1211,21 @@ export function HomeView({
 
   async function duplicateExamplePlugin(record: InstalledPluginRecord) {
     setError(null);
+    // P0 ui_click area=chat_composer element=example_open_project: the one-click
+    // "Remix" on an example card — creates and enters a project seeded from the
+    // example (for site-clone cards it drops the pre-built clone straight in as
+    // index.html) instead of only seeding the composer. Same chip_id/plugin_id
+    // attribution as `example_prompt`; `chip_id` from the active task type since
+    // preset cards only render under an active chip. The created project's own
+    // `project_kind` (web_clone) still rides project_create_result separately.
+    trackHomeChatComposerClick(analytics.track, {
+      page_name: 'home',
+      area: 'chat_composer',
+      element: 'example_open_project',
+      chip_id: active?.chipId ?? undefined,
+      plugin_id: record.sourceMarketplaceEntryName ?? record.id,
+      plugin_type: record.marketplaceTrust ?? 'official',
+    });
     setPendingDuplicatePluginId(record.id);
     try {
       const result = await duplicatePluginAsProject(record.id, {
