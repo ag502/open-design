@@ -35,8 +35,12 @@ const repoRoot = path.resolve(__dirname, '../../../..');
 // images product rule, the skill/DS domain-precedence clause, the expressive
 // form-control guidance, and the modern-CSS encouragement. All four were
 // classic behaviors the first compression pass wrongly classified as
-// model-competence filler.
-const SLIM_CORE_BYTE_BUDGET = 10_752;
+// model-competence filler. Plus ~0.45KB from the A/B-eval form fixes:
+// the blind pairwise eval (2026-07-04) showed slim forms lost 12:1 to
+// classic because the tailoring guidance was compressed to one word —
+// restored as an explicit mandate with per-brief examples, plus the
+// first-message-always-forms scope limit on session inheritance.
+const SLIM_CORE_BYTE_BUDGET = 11_264;
 
 describe('renderSlimCoreCharter — byte budget', () => {
   it('stays under the byte budget in both execution profiles', () => {
