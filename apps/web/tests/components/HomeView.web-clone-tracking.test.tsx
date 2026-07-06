@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 //
-// Web-clone example-card analytics (埋点文档 row 116 element=example_prompt, and
-// element=example_open_project for the one-click "Remix"). Picking a Website
-// clone example card (Clone Nexu / …) must fire a home chat_composer ui_click
-// with the site's plugin attribution, and remixing it must fire the
-// open-as-project variant. Both let the dashboard break the site-clone funnel
-// down per example, complementing the created project's `project_kind=web_clone`
-// on project_create_result.
+// Web-clone example-card analytics (埋点文档 row 116, element=example_prompt).
+// The Website-clone examples are plain text prompt cards (no embedded HTML / no
+// Remix — dropped to avoid reproducing copyrighted site markup). Picking one must
+// still fire a home chat_composer ui_click with chip_id=web-clone so the
+// site-clone funnel entry is tracked, complementing the created project's
+// project_kind=web_clone on project_create_result.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -40,9 +39,9 @@ vi.mock('../../src/analytics/provider', async (importOriginal) => {
   };
 });
 
-// The Website-clone chip's own base scenario (its action.pluginId). It stays a
-// normal visible plugin so clicking the chip binds; the preset rail hides it via
-// EXAMPLE_PRESET_HIDDEN_PLUGIN_IDS (not od.hidden), leaving only the site cards.
+// The Website-clone chip's base scenario (its action.pluginId). It only needs to
+// exist so clicking the chip binds; the site examples themselves are static text
+// prompt cards from HOME_PROMPT_EXAMPLES, not plugins.
 const WEB_CLONE_BASE = {
   id: 'example-web-clone',
   title: 'Website clone',
@@ -68,41 +67,15 @@ const WEB_CLONE_BASE = {
   },
 };
 
-// A concrete site-clone example card (the Clone Nexu tile). `preview.entry`
-// makes the Remix action available; `targetUrl` seeds the composer.
-const CLONE_NEXU = {
-  ...WEB_CLONE_BASE,
-  id: 'example-clone-nexu',
-  title: 'Clone Nexu',
-  source: '/tmp/clone-nexu',
-  fsPath: '/tmp/clone-nexu',
-  manifest: {
-    name: 'example-clone-nexu',
-    title: 'Clone Nexu',
-    version: '0.1.0',
-    description: 'Reproduce nexu.io.',
-    tags: ['web-clone', 'website-clone'],
-    od: {
-      kind: 'scenario',
-      taskKind: 'new-generation',
-      useCase: { query: 'Clone the website at {{targetUrl}}.' },
-      inputs: [{ name: 'targetUrl', default: 'https://nexu.io' }],
-      preview: { entry: './example.html' },
-    },
-  },
-};
-
 function stubPlugins() {
   vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
     const href = typeof url === 'string' ? url : url.toString();
     if (href === '/api/plugins') {
-      return new Response(JSON.stringify({ plugins: [WEB_CLONE_BASE, CLONE_NEXU] }), {
+      return new Response(JSON.stringify({ plugins: [WEB_CLONE_BASE] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
     }
-    // Everything else (recent-dirs, media providers, duplicate, …) is irrelevant
-    // to the click-time track calls, which fire before any await.
     return new Response(JSON.stringify({}), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -131,15 +104,31 @@ afterEach(() => {
 });
 
 describe('web-clone example-card tracking', () => {
-  it('fires element=example_prompt when a site-clone example card is picked', async () => {
+  it('renders the Website-clone examples as text prompt cards (no plugin preview / no remix)', async () => {
     writeHomeGuideStage('done');
     stubPlugins();
     renderHome();
 
     fireEvent.click(await screen.findByTestId('home-hero-rail-web-clone'));
-    const card = await screen.findByTestId('home-hero-plugin-preset-use-example-clone-nexu');
-    analyticsMocks.track.mockClear(); // ignore chip-pick ui_click; assert the card event
-    fireEvent.click(card);
+    // Text prompt cards, not plugin-preset cards.
+    const textCards = await screen.findAllByTestId('home-hero-prompt-example');
+    expect(textCards.length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('home-hero-plugin-presets')).toBeNull();
+    // No remix/duplicate affordance on the web-clone rail.
+    expect(document.querySelector('[data-testid^="home-hero-plugin-preset-duplicate"]')).toBeNull();
+    // The card fills the URL-clone prompt.
+    expect(textCards.some((c) => (c.textContent ?? '').includes('https://'))).toBe(true);
+  });
+
+  it('fires element=example_prompt with chip_id=web-clone when a text example is picked', async () => {
+    writeHomeGuideStage('done');
+    stubPlugins();
+    renderHome();
+
+    fireEvent.click(await screen.findByTestId('home-hero-rail-web-clone'));
+    const textCards = await screen.findAllByTestId('home-hero-prompt-example');
+    analyticsMocks.track.mockClear(); // ignore the chip-pick ui_click; assert the card event
+    fireEvent.click(textCards[0]!);
 
     await waitFor(() => {
       expect(lastClickProps('example_prompt')).toMatchObject({
@@ -147,32 +136,7 @@ describe('web-clone example-card tracking', () => {
         area: 'chat_composer',
         element: 'example_prompt',
         chip_id: 'web-clone',
-        plugin_id: 'example-clone-nexu',
-        plugin_type: 'official',
-      });
-    });
-  });
-
-  it('fires element=example_open_project when a site-clone example is remixed', async () => {
-    writeHomeGuideStage('done');
-    stubPlugins();
-    renderHome();
-
-    fireEvent.click(await screen.findByTestId('home-hero-rail-web-clone'));
-    const remix = await screen.findByTestId('home-hero-plugin-preset-duplicate-example-clone-nexu');
-    analyticsMocks.track.mockClear();
-    fireEvent.click(remix);
-
-    await waitFor(() => {
-      expect(lastClickProps('example_open_project')).toMatchObject({
-        page_name: 'home',
-        area: 'chat_composer',
-        element: 'example_open_project',
-        chip_id: 'web-clone',
-        plugin_id: 'example-clone-nexu',
-        plugin_type: 'official',
       });
     });
   });
 });
-

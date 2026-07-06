@@ -1174,12 +1174,12 @@ export function HomeView({
 
   function useExamplePlugin(record: InstalledPluginRecord, chipId: string, promptText: string) {
     setError(null);
-    // P0 ui_click area=chat_composer element=example_prompt: the user picked an
-    // example-prompt card below the rail (a plugin-preset card — for the
-    // Website-clone chip these are the Clone Nexu / Clone Vercel / … cards).
-    // `chip_id` is the active task type (web-clone here), `plugin_id` the preset
-    // (e.g. example-clone-nexu) so the site-clone examples break down per site.
-    // Raw seed text is never sent (free-text / PII rule).
+    // P0 ui_click area=chat_composer element=example_prompt: the user picked a
+    // plugin-preset example card below the rail. `chip_id` is the active task
+    // type, `plugin_id` the preset so example usage breaks down per plugin. (The
+    // Website-clone rail uses plain text prompt cards instead — those fire the
+    // same event from HomeHero's usePromptExample.) Raw seed text is never sent
+    // (free-text / PII rule).
     trackHomeChatComposerClick(analytics.track, {
       page_name: 'home',
       area: 'chat_composer',

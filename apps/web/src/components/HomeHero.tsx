@@ -2218,19 +2218,6 @@ function PluginPromptPresets({
   );
 }
 
-// A web-clone example card (clone-nexu, clone-vercel, …) carries the site it
-// reproduces as its `targetUrl` input default. Pull it out so the composer seed
-// can be the same short "clone this site:" scaffold the Website-clone chip uses,
-// with just the URL appended — never the multi-paragraph build spec.
-function webCloneCardTargetUrl(record: InstalledPluginRecord): string | null {
-  const inputs = record.manifest?.od?.inputs;
-  if (!Array.isArray(inputs)) return null;
-  const field = inputs.find((entry) => entry?.name === 'targetUrl');
-  const value = field?.default ?? field?.placeholder;
-  const url = typeof value === 'string' ? value.trim() : '';
-  return url.length > 0 ? url : null;
-}
-
 function PluginPromptPresetCard({
   active,
   chipId,
@@ -2262,16 +2249,9 @@ function PluginPromptPresetCard({
   const preview = useMemo(() => inferPluginPreview(record, { preferBaked: true }), [record]);
   // Home cards keep their richer structured-preview path as the last-resort
   // fallback (the detail modal injects a simpler one).
-  // Website-clone example cards seed the composer with the same short
-  // "clone this site: <url>" scaffold the Website-clone chip uses (localized
-  // prefix + the card's target URL), so picking "Clone Nexu" drops in
-  // `想要复刻的网站链接：https://nexu.io` rather than the full build spec.
-  const cloneTargetUrl = webCloneCardTargetUrl(record);
-  const seedPrompt = cloneTargetUrl
-    ? `${t('homeHero.chip.webClonePromptSeed')}${cloneTargetUrl}`
-    : examplePresetSeedPrompt(record, locale, () =>
-        pluginPresetPromptPreview(record, locale, chipId),
-      ).text;
+  const seedPrompt = examplePresetSeedPrompt(record, locale, () =>
+    pluginPresetPromptPreview(record, locale, chipId),
+  ).text;
   // Decks ship a fixed 16:9 stage; tag them so the preset thumbnail uses a 16:9
   // frame the iframe fills natively, instead of letterboxing the stage with a
   // dark band above it (matches the Community gallery deck treatment).
@@ -3559,9 +3539,9 @@ function homeHeroChipTitle(chip: HomeHeroChip, t: ReturnType<typeof useT>): stri
 // up pre-selected when a media mode is entered.
 //
 // `example-web-clone` is the Website clone chip's own base scenario, not a
-// concrete example — the per-site `example-clone-*` cards are the real
-// examples. Hide the base plugin so its generic "Recreate the site from a
-// real URL" preview doesn't sit redundantly alongside the site cards.
+// concrete example. The per-site examples are plain text prompt cards (from
+// HOME_PROMPT_EXAMPLES) rather than plugins, so hide the base plugin to keep the
+// preset rail empty for web-clone and let those text cards show instead.
 const EXAMPLE_PRESET_HIDDEN_PLUGIN_IDS = new Set<string>([
   'od-media-generation',
   'example-web-clone',
@@ -3928,6 +3908,15 @@ function fallbackPluginPresetPrompt(
 
 const HOME_PROMPT_EXAMPLES: Record<Locale, Record<string, string[]>> = {
   "en": {
+    "web-clone": [
+      "Website URL to clone: https://nexu.io",
+      "Website URL to clone: https://open-design.ai",
+      "Website URL to clone: https://anthropic.com",
+      "Website URL to clone: https://vercel.com",
+      "Website URL to clone: https://resend.com",
+      "Website URL to clone: https://linear.app",
+      "Website URL to clone: https://raycast.com",
+    ],
     prototype: [
       "Design a high-converting website for an AI CRM with a clear hero, feature story, proof points, and trial CTA",
       "Create a desktop dashboard for a team knowledge base with search, recent updates, permissions, and collaboration entry points",
@@ -4060,6 +4049,15 @@ const HOME_PROMPT_EXAMPLES: Record<Locale, Record<string, string[]>> = {
     ],
   },
   "zh-CN": {
+    "web-clone": [
+      "想要复刻的网站链接：https://nexu.io",
+      "想要复刻的网站链接：https://open-design.ai",
+      "想要复刻的网站链接：https://anthropic.com",
+      "想要复刻的网站链接：https://vercel.com",
+      "想要复刻的网站链接：https://resend.com",
+      "想要复刻的网站链接：https://linear.app",
+      "想要复刻的网站链接：https://raycast.com",
+    ],
     prototype: [
       "为 AI CRM 设计一个高转化官网，包含首屏、功能卖点、客户案例和清晰的试用入口",
       "为团队知识库做一个桌面端仪表盘，突出搜索、最近更新、权限状态和协作入口",
