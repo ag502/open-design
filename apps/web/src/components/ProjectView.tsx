@@ -5639,6 +5639,14 @@ export function ProjectView({
           projectFiles,
           { omitNativeImageAttachments: usesAnthropicProxy(config) },
         );
+        // Session-dimension hints on the BYOK-OpenCode path too, so
+        // run_created / run_finished carry the same session-global and
+        // project-scoped run sequence on every runtime (cli / amr / byok).
+        const byokSessionTurn = claimRunTurnIndex();
+        const byokProjectTurn = claimProjectTurnIndex(project.id);
+        const byokHasExistingArtifact = projectFilesRef.current.some(
+          (file) => Boolean(file.artifactManifest),
+        );
         void streamViaDaemon({
           agentId: 'byok-opencode',
           history: byokOpenCodeHistory,
@@ -5677,6 +5685,11 @@ export function ProjectView({
           locale,
           analyticsHints: {
             ...(meta?.entryFrom ? { entryFrom: meta.entryFrom } : {}),
+            ...(byokSessionTurn
+              ? { turnIndex: byokSessionTurn.turnIndex, isFirstRun: byokSessionTurn.isFirstRun }
+              : {}),
+            ...(byokProjectTurn ? { projectTurnIndex: byokProjectTurn.projectTurnIndex } : {}),
+            hasExistingArtifact: byokHasExistingArtifact,
             runtimeType: 'byok',
           },
           onRunCreated: (runId) => {
