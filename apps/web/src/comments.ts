@@ -269,6 +269,36 @@ export function resolveCommentAnchor(
   return { state: 'lost', snapshot: ghostPos ? ghostSnapshotFromComment(comment, ghostPos) : null };
 }
 
+export interface AnchorWriteBack {
+  commentId: string;
+  anchorState: PreviewCommentAnchorState;
+  lastGoodPosition: PreviewCommentSnapshot['position'];
+}
+
+/**
+ * The only durable fact the drift ladder needs to persist: when a comment first
+ * becomes `lost`, capture its last-good position so the ghost pin keeps a stable
+ * spot even after the anchoring content is gone (spec §D2). The anchored /
+ * reanchored / stale states are derived per-viewer against that viewer's live
+ * snapshots, so they are intentionally NOT written back — persisting them would
+ * let one member's view overwrite another's. This is idempotent: a comment that
+ * already carries a stored lastGoodPosition is skipped, so re-renders of the
+ * same lost comment never produce a write storm.
+ */
+export function planLostAnchorWriteBacks(
+  entries: Array<{ comment: PreviewComment; resolution: CommentAnchorResolution }>,
+): AnchorWriteBack[] {
+  const out: AnchorWriteBack[] = [];
+  for (const { comment, resolution } of entries) {
+    if (resolution.state !== 'lost') continue;
+    if (validPosition(comment.lastGoodPosition)) continue; // already durable — idempotent
+    const lastGoodPosition = resolution.snapshot ? validPosition(resolution.snapshot.position) : undefined;
+    if (!lastGoodPosition) continue; // no ghost position to anchor even a lost pin
+    out.push({ commentId: comment.id, anchorState: 'lost', lastGoodPosition });
+  }
+  return out;
+}
+
 function anchoredOrReanchored(
   comment: PreviewComment,
   currentVersion: number | undefined,

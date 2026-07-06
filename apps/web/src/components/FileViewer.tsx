@@ -140,9 +140,11 @@ import {
   liveCommentTargetMapsEqual,
   liveSnapshotForComment,
   overlayBoundsFromSnapshot,
+  planLostAnchorWriteBacks,
   resolveCommentAnchor,
   selectionKindLabel,
   targetFromSnapshot,
+  type AnchorWriteBack,
   type PreviewCommentSnapshot,
 } from '../comments';
 import { applyPodMemberRemoval } from '../lib/pod-members';
@@ -4516,6 +4518,7 @@ function CommentPreviewOverlays({
   activeSlideIndex = null,
   driftLadder = false,
   currentVersion,
+  onLostAnchors,
   onOpenComment,
 }: {
   comments: PreviewComment[];
@@ -4536,6 +4539,9 @@ function CommentPreviewOverlays({
   driftLadder?: boolean;
   /** Current content version, used by the ladder to flag reanchored (older vN). */
   currentVersion?: number;
+  /** Team-collab: persist the durable `lost` capture (last-good position) so the
+   *  ghost pin survives reload. Only fires in drift-ladder mode. */
+  onLostAnchors?: (writeBacks: AnchorWriteBack[]) => void;
   onOpenComment: (comment: PreviewComment, snapshot: PreviewCommentSnapshot) => void;
 }) {
   const overlayOffset = useMemo(() => ({ x: offsetX, y: offsetY }), [offsetX, offsetY]);
@@ -4568,6 +4574,24 @@ function CommentPreviewOverlays({
         .filter(({ comment }) => commentVisibleOnDeckSlide(comment, activeSlideIndex)),
     [comments, liveTargets, activeSlideIndex, driftLadder, currentVersion],
   );
+  // Team-collab durability: when a comment first drifts to `lost`, persist its
+  // last-good position once so the ghost pin survives reload. The ref set keeps
+  // pointermove re-renders (during pod drawing) from re-firing the same capture;
+  // the server COALESCEs too, so this is belt-and-suspenders idempotency.
+  const persistedLostRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!driftLadder || !onLostAnchors) return;
+    const plan = planLostAnchorWriteBacks(
+      visibleComments.map(({ comment, snapshot, anchorState }) => ({
+        comment,
+        resolution: { state: anchorState, snapshot },
+      })),
+    );
+    const fresh = plan.filter((writeBack) => !persistedLostRef.current.has(writeBack.commentId));
+    if (fresh.length === 0) return;
+    for (const writeBack of fresh) persistedLostRef.current.add(writeBack.commentId);
+    onLostAnchors(fresh);
+  }, [driftLadder, onLostAnchors, visibleComments]);
   // `onOpenComment` is an inline arrow from the parent (new identity every
   // render), so read it through a ref to keep the saved-marker memo below from
   // busting. The closure only calls stable state setters, so a current ref read
