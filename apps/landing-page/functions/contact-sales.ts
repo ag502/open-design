@@ -413,6 +413,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const teamSize = readString(payload.teamSize, MAX_SHORT);
   const budget = readString(payload.budget, MAX_SHORT);
   const seats = readString(payload.seats, MAX_SHORT);
+  const location = readString(payload.location, MAX_SHORT);
   const useCases = readUseCases(payload.useCases);
   // Unknown industry codes are dropped rather than persisted; the shared lead
   // form requires a known one below.
@@ -427,6 +428,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     !ALLOWED_TEAM_SIZES.has(teamSize) ||
     !ALLOWED_SEATS.has(seats) ||
     !ALLOWED_BUDGETS.has(budget) ||
+    !location ||
     useCases.length === 0
   ) {
     return json({ ok: false, error: "missing_fields" }, 400, origin);
@@ -448,7 +450,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     useCases,
     industry,
     role: readString(payload.role, MAX_SHORT),
-    location: readString(payload.location, MAX_SHORT),
+    location,
     seats,
     message: readString(payload.message, MAX_MESSAGE),
     source,

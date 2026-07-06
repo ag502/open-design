@@ -93,6 +93,11 @@ describe("contact-sales validation", () => {
     assert.equal((await call({ ...ENTERPRISE_OK, industry: "gaming" })).status, 200);
   });
 
+  it("requires location on both shared lead-form sources", async () => {
+    assert.equal((await call({ ...ENTERPRISE_OK, location: "" })).body.error, "missing_fields");
+    assert.equal((await call({ ...PRICING_TEAM_OK, location: "" })).body.error, "missing_fields");
+  });
+
   it("accepts a complete enterprise submission", async () => {
     const { status, body } = await call(ENTERPRISE_OK);
     assert.equal(status, 200);

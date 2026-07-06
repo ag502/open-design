@@ -61,13 +61,25 @@ const countryOptions = buildCountryOptions(locale);
             <option value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button type="button" class="ent-cselect__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ent-team-size-label">
-          <span class="ent-cselect__value is-placeholder" data-placeholder>{c.teamSizePlaceholder}</span>
+        <button
+          type="button"
+          class="ent-cselect__trigger"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="ent-team-size-menu"
+          aria-labelledby="ent-team-size-label ent-team-size-value"
+          aria-describedby="ent-team-size-error"
+          aria-errormessage="ent-team-size-error"
+          aria-required="true"
+          aria-invalid="false"
+        >
+          <span class="ent-cselect__value is-placeholder" id="ent-team-size-value" data-placeholder>{c.teamSizePlaceholder}</span>
           <span class="ent-select-chevron" aria-hidden="true">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </span>
         </button>
-        <ul class="ent-cselect__menu" role="listbox" aria-label={c.teamSizeLabel} hidden>
+        <ul class="ent-cselect__menu" id="ent-team-size-menu" role="listbox" aria-label={c.teamSizeLabel} hidden>
           {c.teamSizeOptions.map((opt) => (
             <li class="ent-cselect__opt" role="option" data-value={opt.value} aria-selected="false" tabindex="-1">{opt.label}</li>
           ))}
@@ -87,13 +99,25 @@ const countryOptions = buildCountryOptions(locale);
             <option value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button type="button" class="ent-cselect__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ent-seats-label">
-          <span class="ent-cselect__value is-placeholder" data-placeholder>{c.seatsPlaceholder}</span>
+        <button
+          type="button"
+          class="ent-cselect__trigger"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="ent-seats-menu"
+          aria-labelledby="ent-seats-label ent-seats-value"
+          aria-describedby="ent-seats-error"
+          aria-errormessage="ent-seats-error"
+          aria-required="true"
+          aria-invalid="false"
+        >
+          <span class="ent-cselect__value is-placeholder" id="ent-seats-value" data-placeholder>{c.seatsPlaceholder}</span>
           <span class="ent-select-chevron" aria-hidden="true">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </span>
         </button>
-        <ul class="ent-cselect__menu" role="listbox" aria-label={c.seatsLabel} hidden>
+        <ul class="ent-cselect__menu" id="ent-seats-menu" role="listbox" aria-label={c.seatsLabel} hidden>
           {c.seatsOptions.map((opt) => (
             <li class="ent-cselect__opt" role="option" data-value={opt.value} aria-selected="false" tabindex="-1">{opt.label}</li>
           ))}
@@ -110,13 +134,25 @@ const countryOptions = buildCountryOptions(locale);
             <option value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button type="button" class="ent-cselect__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ent-country-label">
-          <span class="ent-cselect__value is-placeholder" data-placeholder>{c.countryPlaceholder}</span>
+        <button
+          type="button"
+          class="ent-cselect__trigger"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="ent-country-menu"
+          aria-labelledby="ent-country-label ent-country-value"
+          aria-describedby="ent-country-error"
+          aria-errormessage="ent-country-error"
+          aria-required="true"
+          aria-invalid="false"
+        >
+          <span class="ent-cselect__value is-placeholder" id="ent-country-value" data-placeholder>{c.countryPlaceholder}</span>
           <span class="ent-select-chevron" aria-hidden="true">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </span>
         </button>
-        <ul class="ent-cselect__menu" role="listbox" aria-label={c.countryLabel} hidden>
+        <ul class="ent-cselect__menu" id="ent-country-menu" role="listbox" aria-label={c.countryLabel} hidden>
           {countryOptions.map((opt) => (
             <li class="ent-cselect__opt" role="option" data-value={opt.value} aria-selected="false" tabindex="-1">{opt.label}</li>
           ))}
@@ -136,13 +172,25 @@ const countryOptions = buildCountryOptions(locale);
             <option value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button type="button" class="ent-cselect__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ent-budget-label">
-          <span class="ent-cselect__value is-placeholder" data-placeholder>{c.budgetPlaceholder}</span>
+        <button
+          type="button"
+          class="ent-cselect__trigger"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="ent-budget-menu"
+          aria-labelledby="ent-budget-label ent-budget-value"
+          aria-describedby="ent-budget-error"
+          aria-errormessage="ent-budget-error"
+          aria-required="true"
+          aria-invalid="false"
+        >
+          <span class="ent-cselect__value is-placeholder" id="ent-budget-value" data-placeholder>{c.budgetPlaceholder}</span>
           <span class="ent-select-chevron" aria-hidden="true">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </span>
         </button>
-        <ul class="ent-cselect__menu" role="listbox" aria-label={c.budgetLabel} hidden>
+        <ul class="ent-cselect__menu" id="ent-budget-menu" role="listbox" aria-label={c.budgetLabel} hidden>
           {c.budgetOptions.map((opt) => (
             <li class="ent-cselect__opt" role="option" data-value={opt.value} aria-selected="false" tabindex="-1">{opt.label}</li>
           ))}
@@ -159,13 +207,25 @@ const countryOptions = buildCountryOptions(locale);
             <option value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button type="button" class="ent-cselect__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ent-use-case-label">
-          <span class="ent-cselect__value is-placeholder" data-placeholder>{c.useCasePlaceholder}</span>
+        <button
+          type="button"
+          class="ent-cselect__trigger"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="ent-use-case-menu"
+          aria-labelledby="ent-use-case-label ent-use-case-value"
+          aria-describedby="ent-use-case-error"
+          aria-errormessage="ent-use-case-error"
+          aria-required="true"
+          aria-invalid="false"
+        >
+          <span class="ent-cselect__value is-placeholder" id="ent-use-case-value" data-placeholder>{c.useCasePlaceholder}</span>
           <span class="ent-select-chevron" aria-hidden="true">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </span>
         </button>
-        <ul class="ent-cselect__menu" role="listbox" aria-label={c.useCaseLabel} hidden>
+        <ul class="ent-cselect__menu" id="ent-use-case-menu" role="listbox" aria-label={c.useCaseLabel} hidden>
           {c.useCaseOptions.map((opt) => (
             <li class="ent-cselect__opt" role="option" data-value={opt.value} aria-selected="false" tabindex="-1">{opt.label}</li>
           ))}
@@ -185,13 +245,25 @@ const countryOptions = buildCountryOptions(locale);
             <option value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button type="button" class="ent-cselect__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ent-industry-label">
-          <span class="ent-cselect__value is-placeholder" data-placeholder>{c.industryPlaceholder}</span>
+        <button
+          type="button"
+          class="ent-cselect__trigger"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="ent-industry-menu"
+          aria-labelledby="ent-industry-label ent-industry-value"
+          aria-describedby="ent-industry-error"
+          aria-errormessage="ent-industry-error"
+          aria-required="true"
+          aria-invalid="false"
+        >
+          <span class="ent-cselect__value is-placeholder" id="ent-industry-value" data-placeholder>{c.industryPlaceholder}</span>
           <span class="ent-select-chevron" aria-hidden="true">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </span>
         </button>
-        <ul class="ent-cselect__menu" role="listbox" aria-label={c.industryLabel} hidden>
+        <ul class="ent-cselect__menu" id="ent-industry-menu" role="listbox" aria-label={c.industryLabel} hidden>
           {c.industryOptions.map((opt) => (
             <li class="ent-cselect__opt" role="option" data-value={opt.value} aria-selected="false" tabindex="-1">{opt.label}</li>
           ))}
@@ -344,7 +416,12 @@ const countryOptions = buildCountryOptions(locale);
     const setInvalid = (id, bad) => {
       const input = fieldInput(id);
       const err = fieldErr(id);
-      if (input) input.classList.toggle('is-invalid', bad);
+      if (input) {
+        input.classList.toggle('is-invalid', bad);
+        input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+        const trigger = input.closest('[data-cselect]')?.querySelector('.ent-cselect__trigger');
+        if (trigger) trigger.setAttribute('aria-invalid', bad ? 'true' : 'false');
+      }
       if (err) err.hidden = !bad;
     };
     const validateField = (id) => {
