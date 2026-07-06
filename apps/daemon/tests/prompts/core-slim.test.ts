@@ -45,7 +45,12 @@ const repoRoot = path.resolve(__dirname, '../../../..');
 // + Discovery / Delivery / Craft & contracts pillars — with the lifecycle and
 // form/reference content grouped under H3s) added pillar headings; budget
 // raised to keep readability headroom, per the maintainer's direction.
-const SLIM_CORE_BYTE_BUDGET = 13_312;
+// 14KB. Headroom for the edit-adherence strengthening (forceful
+// do-exactly-what-was-asked + verify) and the constraint-override
+// clarification (a later explicit user request overrides a conflicting
+// earlier constraint — the blue->yellow example), per the maintainer's
+// direction to prioritize followability over byte count here.
+const SLIM_CORE_BYTE_BUDGET = 14_336;
 
 describe('renderSlimCoreCharter — byte budget', () => {
   it('stays under the byte budget in both execution profiles', () => {
