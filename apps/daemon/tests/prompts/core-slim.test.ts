@@ -35,6 +35,12 @@ const repoRoot = path.resolve(__dirname, '../../../..');
 // subsection): the budget was consciously expanded for human
 // maintainability/readability at the maintainer's direction, since a
 // write-only prompt only one author can safely edit is its own kind of debt.
+// The 2026-07-06 second pass (heading-style consistency, self-check sub-list,
+// split run-on sentences, precedence domain-collapse) plus the multi-turn
+// adherence section ("## On an edit or tweak" — DS binding as a standing
+// per-turn invariant and session constraints persisting across edits, from
+// production feedback that both drift during multi-turn edits) fit inside
+// this budget without a further raise.
 const SLIM_CORE_BYTE_BUDGET = 12_288;
 
 describe('renderSlimCoreCharter — byte budget', () => {
@@ -73,7 +79,7 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
   });
 
   it('states the verification budget once and without a re-score loop', () => {
-    expect(charter).toContain('one render is the whole budget');
+    expect(charter).toContain('One render is the whole budget');
     expect(charter).not.toContain('Two passes is normal');
   });
 
@@ -421,12 +427,26 @@ describe('slim core — regression-audit fixes vs classic', () => {
     );
   });
 
+  it('carries the multi-turn edit-adherence invariants (DS binding + locked constraints)', () => {
+    // Production feedback: DS tokens and explicit user constraints drift during
+    // multi-turn edits. The charter must state, in the edit path, that (a) the
+    // design system binds on EVERY turn (not just first build) and (b) locked
+    // constraints persist across later turns. Freeze both so a later
+    // compression pass cannot silently drop them.
+    const charter = renderSlimCoreCharter('filesystem');
+    expect(charter).toContain('## On an edit or tweak');
+    expect(charter).toContain('The design system stays bound on every turn');
+    expect(charter).toContain('Locked constraints persist');
+    // An edit changes only what was named — the anti-drift core.
+    expect(charter).toContain('touches ONLY what the user named');
+  });
+
   it('keeps the restored classic product rules in the charter', () => {
     const charter = renderSlimCoreCharter('filesystem');
     // Never hot-link user-attached images (product constraint, not filler).
     expect(charter).toContain('Never hot-link user-attached images');
     // Skill/DS precedence is per-domain, not a strict total order.
-    expect(charter).toContain('each rank highest in their own domain');
+    expect(charter).toContain('each highest in its own domain');
     // Expressive form controls + modern CSS encouragement survived.
     expect(charter).toContain('most expressive control');
     expect(charter).toContain('**Modern CSS welcome**');
