@@ -11600,7 +11600,7 @@ async function inlineRelativeAssets(
       fetchProjectRelativeText(projectId, fileName, src).then((asset) => {
         if (asset == null) return null;
         const js = projectFilePaths
-          ? rewriteInlinedScriptAssetRefs(asset.text, projectFilePaths, toRawUrl)
+          ? rewriteInlinedScriptAssetRefs(asset.text, asset.filePath, projectFilePaths, toRawUrl)
           : asset.text;
         const open = tag.match(/^<script\b[^>]*>/i)?.[0] ?? '<script>';
         const attrs = open

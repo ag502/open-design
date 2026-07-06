@@ -206,12 +206,34 @@ describe('rewriteInlinedCssAssetRefs', () => {
 });
 
 describe('rewriteInlinedScriptAssetRefs', () => {
-  const files = new Set(['reference-assets/data.json', 'images/bg.png']);
+  const files = new Set(['reference-assets/data.json', 'images/bg.png', 'js/data.json', 'js/worker.js']);
 
-  it('rewrites confirmed plain string literals only', () => {
+  it('rewrites confirmed root-relative string literals only', () => {
     const js = "fetch('/reference-assets/data.json').then(r => r.json());";
-    expect(rewriteInlinedScriptAssetRefs(js, files, toRawUrl)).toBe(
+    expect(rewriteInlinedScriptAssetRefs(js, 'index.html', files, toRawUrl)).toBe(
       "fetch('/api/projects/p1/raw/reference-assets/data.json').then(r => r.json());",
+    );
+  });
+
+  it('rebases relative sibling refs against the inlined script directory', () => {
+    // js/app.js is inlined into the HTML entry; its `./data.json` and
+    // `./worker.js` must resolve against js/, not the HTML root.
+    const js = "fetch('./data.json'); new Worker('./worker.js');";
+    expect(rewriteInlinedScriptAssetRefs(js, 'js/app.js', files, toRawUrl)).toBe(
+      "fetch('/api/projects/p1/raw/js/data.json'); new Worker('/api/projects/p1/raw/js/worker.js');",
+    );
+  });
+
+  it('rebases parent-relative refs and drops those that escape or miss the file list', () => {
+    const js = [
+      "fetch('../reference-assets/data.json');", // js/../reference-assets/... = reference-assets/data.json ✓
+      "fetch('./missing.json');", // js/missing.json — not a project file
+    ].join('\n');
+    expect(rewriteInlinedScriptAssetRefs(js, 'js/app.js', files, toRawUrl)).toBe(
+      [
+        "fetch('/api/projects/p1/raw/reference-assets/data.json');",
+        "fetch('./missing.json');",
+      ].join('\n'),
     );
   });
 
@@ -221,6 +243,6 @@ describe('rewriteInlinedScriptAssetRefs', () => {
       "const b = '/api/users';",
       "const c = '/missing.json';",
     ].join('\n');
-    expect(rewriteInlinedScriptAssetRefs(js, files, toRawUrl)).toBe(js);
+    expect(rewriteInlinedScriptAssetRefs(js, 'index.html', files, toRawUrl)).toBe(js);
   });
 });

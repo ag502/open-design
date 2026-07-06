@@ -272,6 +272,12 @@ export function composeSystemPrompt({
   // wording later in the official base prompt.
   const parts: string[] = [];
   const activeDesignSystemBody = designSystemBody?.trim();
+  // Website Clone runs reproduce an existing site, so its palette/typography must
+  // win — an active design system being declared "authoritative" would pull the
+  // model away from faithful reproduction. Mirror the daemon (apps/daemon/src/
+  // server.ts suppresses the design-system sections for intent==='web-clone') so
+  // API/BYOK web-clone prompts drop the same guidance.
+  const isWebCloneRun = metadata?.intent === 'web-clone';
   const isMediaSurfaceEarly =
     skillMode === 'image' ||
     skillMode === 'video' ||
@@ -402,7 +408,7 @@ export function composeSystemPrompt({
     );
   }
 
-  if (activeDesignSystemBody && activeDesignSystemBody.length > 0) {
+  if (!isWebCloneRun && activeDesignSystemBody && activeDesignSystemBody.length > 0) {
     parts.push(
       `\n\n## Active design system${designSystemTitle ? ` — ${designSystemTitle}` : ''}\n\nTreat the following DESIGN.md as authoritative for color, typography, spacing, and component rules. Do not invent tokens outside this palette. When you copy the active skill's seed template, bind these tokens into its \`:root\` block before generating any layout.\n\n${activeDesignSystemBody}`,
     );
@@ -471,7 +477,7 @@ export function composeSystemPrompt({
     parts.push(MEDIA_GENERATION_CONTRACT);
   }
 
-  if (!isAskMode && activeDesignSystemBody && activeDesignSystemBody.length > 0) {
+  if (!isAskMode && !isWebCloneRun && activeDesignSystemBody && activeDesignSystemBody.length > 0) {
     parts.push(ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE);
   }
 

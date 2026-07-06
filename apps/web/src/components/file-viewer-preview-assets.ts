@@ -265,26 +265,50 @@ export function rewriteInlinedCssAssetRefs(
 }
 
 /**
- * Rewrite root-relative project asset refs inside a script that is about to
- * be inlined (`fetch('/reference-assets/data.json')` and friends). Scripts
- * are opaque, so this is deliberately the narrowest pass of the three: only
- * plain string literals, only when the literal contains no interpolation or
- * brace characters, and only when the decoded path is confirmed against the
- * project file list.
+ * Rewrite project asset refs inside a script that is about to be inlined
+ * (`fetch('/reference-assets/data.json')`, `new Worker('./worker.js')`,
+ * `import('./chunk.js')` and friends). Scripts are opaque, so this is
+ * deliberately the narrowest pass of the three: only plain string literals,
+ * only when the literal contains no interpolation or brace characters, and
+ * only when the resolved path is confirmed against the project file list.
+ *
+ * Two ref shapes are handled, both membership-confirmed:
+ *   - root-relative (`/reference-assets/x`): confirmed as-is;
+ *   - relative (`./data.json`, `../lib/y.js`): inlining moves the script out of
+ *     its own directory into the HTML entry, so a sibling lookup would resolve
+ *     against the wrong base — rebase against the SOURCE script's directory
+ *     (mirrors the CSS pass's `resolveRelativeAssetPath(cssFilePath, …)`), then
+ *     confirm the resolved path is a real project file before rewriting.
+ * Bare specifiers (`worker.js`, `data.json`) are left untouched — too ambiguous
+ * to rewrite safely inside opaque JS.
  */
 export function rewriteInlinedScriptAssetRefs(
   js: string,
+  scriptFilePath: string,
   projectFilePaths: ReadonlySet<string>,
   toRawUrl: (projectPath: string) => string,
 ): string {
   return js.replace(
-    /(['"`])(\/(?!\/)[^'"`\s]*)\1/g,
+    /(['"`])((?:\.\.?\/|\/(?!\/))[^'"`\s]*)\1/g,
     (match, quote: string, value: string) => {
       if (/[{}$]/.test(value)) return match;
-      const projectPath = rootRelativeProjectAssetPath(value, projectFilePaths);
+      const projectPath = value.startsWith('/')
+        ? rootRelativeProjectAssetPath(value, projectFilePaths)
+        : confirmedRelativeScriptRef(value, scriptFilePath, projectFilePaths);
       if (!projectPath) return match;
       const { suffix } = splitRefSuffix(value);
       return `${quote}${toRawUrl(projectPath)}${suffix}${quote}`;
     },
   );
+}
+
+// Resolve a relative ref against the inlined script's own directory and confirm
+// membership — null (leave untouched) unless it names a real project file.
+function confirmedRelativeScriptRef(
+  ref: string,
+  scriptFilePath: string,
+  projectFilePaths: ReadonlySet<string>,
+): string | null {
+  const resolved = resolveRelativeAssetPath(scriptFilePath, ref);
+  return resolved && projectFilePaths.has(resolved) ? resolved : null;
 }
