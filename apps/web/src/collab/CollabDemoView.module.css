@@ -69,16 +69,15 @@
   color: var(--color-muted, #6b7280);
 }
 
-.nameInput,
-.field input,
-select {
+.view input,
+.view select {
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--color-border, #e5e7eb);
   font-size: 13px;
 }
 
-button {
+.view button {
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--color-border, #e5e7eb);
@@ -88,28 +87,23 @@ button {
   transition: background 0.14s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-button:hover:not(:disabled) {
+.view button:hover:not(:disabled) {
   background: var(--color-code-bg, #f3f4f6);
 }
 
-button:disabled {
+.view button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.pull {
+.view .pull {
   border-color: #2563eb;
   color: #2563eb;
   font-weight: 600;
 }
 
-.leave,
-.actions button {
+.leave {
   margin-left: auto;
-}
-
-.actions button {
-  margin-left: 0;
 }
 
 .actions .label {

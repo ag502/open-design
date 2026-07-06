@@ -1,4 +1,4 @@
-import type { CollabPresenceMember } from './collab-client.js';
+import type { CollabPresenceMember } from './collab-client';
 import styles from './PresenceBar.module.css';
 
 export interface PresenceBarProps {

@@ -1,4 +1,4 @@
-import type { AnchorWriteBack } from '../comments.js';
+import type { AnchorWriteBack } from '../comments';
 
 export interface PersistCommentAnchorArgs {
   projectId: string;

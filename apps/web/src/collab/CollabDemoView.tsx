@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CollabMemberRole } from '@open-design/contracts';
 import { navigate } from '../router';
-import { useCollab } from './useCollab.js';
-import { PresenceBar } from './PresenceBar.js';
+import { useCollab } from './useCollab';
+import { PresenceBar } from './PresenceBar';
 import styles from './CollabDemoView.module.css';
 
 const ROLES: CollabMemberRole[] = ['owner', 'admin', 'member'];

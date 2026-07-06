@@ -976,7 +976,10 @@ function AppInner() {
         // banner keys off `privacyDecisionAt`. They may coexist on the
         // first launch; the banner sits above the modal layer so it
         // stays actionable regardless of the active view.
-        if (!next.onboardingCompleted) {
+        // The collab demo is an explicit deep-link entry; don't let the
+        // first-run onboarding redirect hijack it so it stays reachable
+        // without completing onboarding first.
+        if (!next.onboardingCompleted && !window.location.pathname.startsWith('/collab-demo')) {
           navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
         }
         setDaemonConfigLoaded(true);
