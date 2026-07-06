@@ -491,11 +491,15 @@ const jsonLd = [
 
         const openModal = () => {
           lastFocus = document.activeElement;
+          // Drop any stale error state from a previous failed attempt before
+          // re-presenting the form (entered values and the sticky success
+          // panel are intentionally preserved).
+          const form = modal.querySelector('#ent-form');
+          if (form) form.dispatchEvent(new Event('od:lead-reset'));
           modal.hidden = false;
           modal.setAttribute('aria-hidden', 'false');
           document.body.style.overflow = 'hidden';
           const first = modal.querySelector('#ent-email');
-          const form = modal.querySelector('#ent-form');
           if (first && form && !form.hidden) setTimeout(() => first.focus(), 40);
         };
         const closeModal = () => {

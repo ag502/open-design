@@ -365,6 +365,15 @@ const countryOptions = buildCountryOptions(locale);
       if (sel) sel.addEventListener('change', () => setInvalid(id, false));
     });
 
+    // Host shells (the pricing modal) re-present the form when reopening;
+    // this hook lets them drop transient error UI first — the submit-failure
+    // banner and per-field messages — without touching entered field values
+    // or the sticky success panel.
+    form.addEventListener('od:lead-reset', () => {
+      if (errorEl) errorEl.hidden = true;
+      ['email', 'team-size', 'seats', 'country', 'budget', 'use-case', 'industry'].forEach((id) => setInvalid(id, false));
+    });
+
     // Lightweight analytics wrapper around the shared PostHog delegate
     // (window.__odTrack, installed by sub-page-layout). page_name matches the
     // host page (enterprise / pricing) so the two funnels stay separable.
