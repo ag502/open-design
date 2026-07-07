@@ -6,11 +6,11 @@
 /**
  * The sync state of a project's content.
  *
- * - `local_only` — personal / not shared; never uploaded.
+ * - `local_only`     — personal / not shared; never uploaded.
  * - `pending_upload` — a team share was requested; the upload is not yet
- * confirmed visible to other members.
- * - `synced` — the published head is uploaded and members can pull it.
- * - `sync_failed` — the last publish attempt failed; the prior head stands.
+ *                      confirmed visible to other members.
+ * - `synced`         — the published head is uploaded and members can pull it.
+ * - `sync_failed`    — the last publish attempt failed; the prior head stands.
  */
 export type ProjectSyncState = 'local_only' | 'pending_upload' | 'synced' | 'sync_failed';
 
@@ -18,9 +18,9 @@ export type ProjectSyncState = 'local_only' | 'pending_upload' | 'synced' | 'syn
  * Sync-intent events emitted when a project's visibility changes, so the sync
  * trigger knows whether to publish the project's content for the team.
  *
- * - `project_visibility_changed` — visibility flipped in either direction.
+ * - `project_visibility_changed`   — visibility flipped in either direction.
  * - `project_team_share_requested` — a project became team-visible; publish its
- * content so members can pull it.
+ *                                    content so members can pull it.
  */
 export type ProjectSyncIntentEvent = 'project_visibility_changed' | 'project_team_share_requested';
 
