@@ -574,9 +574,9 @@ import { registerCollabPresenceRoutes } from './routes/collab-presence.js';
 import { registerCollabSyncRoutes } from './routes/collab-sync.js';
 import { registerCollabContextRoutes } from './routes/collab-context.js';
 import { registerTeamResourceRoutes } from './routes/team-resources.js';
-import { registerTeamDesignSystemRoutes } from './routes/team-design-systems.js';
+import { registerTeamResourceShareRoutes } from './routes/team-resource-share.js';
 import { createCollabRuntime } from './collab/runtime.js';
-import { createTeamDesignSystemShareService } from './collab/team-design-system-share.js';
+import { createTeamResourceShareService } from './collab/team-resource-share.js';
 import { contextToResourceHubPrincipal } from './collab/resource-hub-publish-adapter.js';
 import { registerTelemetryRoutes } from './routes/telemetry.js';
 import {
@@ -3814,16 +3814,49 @@ export async function startServer({
   registerCollabContextRoutes(app, { workspaceContext: collab.workspaceContext });
   registerTeamResourceRoutes(app, { teamResources: collab.teamResources });
 
-  // Team design-system sharing: promote a personal design system into the team
-  // scope through the resource hub. The principal derives from the same one
-  // workspace context the project sync uses, so a single signed-in identity
-  // drives every share.
-  const teamDesignSystemShare = createTeamDesignSystemShareService({
-    resolveDesignSystemDir: (id) =>
-      path.join(USER_DESIGN_SYSTEMS_DIR, stripPrefixAndValidateId(id, 'user:') ?? '__invalid__'),
-    getPrincipal: async () => contextToResourceHubPrincipal(await collab.workspaceContext.current({})),
+  // Team resource sharing: promote a personal design system, plugin, or skill
+  // into the team scope through the resource hub. All three derive the principal
+  // from the same one workspace context the project sync uses, so a single
+  // signed-in identity drives every share; each packs the resource's own
+  // directory under its own hub kind.
+  const teamShareGetPrincipal = async () =>
+    contextToResourceHubPrincipal(await collab.workspaceContext.current({}));
+  registerTeamResourceShareRoutes(app, {
+    basePath: 'design-systems',
+    share: createTeamResourceShareService({
+      kind: 'design_system',
+      idPrefix: 'ds',
+      resolveDir: (id) =>
+        path.join(USER_DESIGN_SYSTEMS_DIR, stripPrefixAndValidateId(id, 'user:') ?? '__invalid__'),
+      getPrincipal: teamShareGetPrincipal,
+    }),
   });
-  registerTeamDesignSystemRoutes(app, { share: teamDesignSystemShare });
+  registerTeamResourceShareRoutes(app, {
+    basePath: 'plugins',
+    share: createTeamResourceShareService({
+      kind: 'plugin',
+      idPrefix: 'plugin',
+      resolveDir: (id) => {
+        const plugin = getInstalledPlugin(db, id);
+        if (!plugin || typeof plugin.fsPath !== 'string') throw new Error('plugin not found');
+        return plugin.fsPath;
+      },
+      getPrincipal: teamShareGetPrincipal,
+    }),
+  });
+  registerTeamResourceShareRoutes(app, {
+    basePath: 'skills',
+    share: createTeamResourceShareService({
+      kind: 'skill',
+      idPrefix: 'skill',
+      resolveDir: async (id) => {
+        const skill = findSkillById(await listAllSkills(), id);
+        if (!skill || typeof skill.dir !== 'string') throw new Error('skill not found');
+        return skill.dir;
+      },
+      getPrincipal: teamShareGetPrincipal,
+    }),
+  });
 
   registerMemoryRoutes(app, {
     http: { createSseResponse, requireLocalDaemonRequest },

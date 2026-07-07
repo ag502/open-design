@@ -35,9 +35,9 @@ export interface ResourceHubPublishAdapterOptions {
   /** Resolve the current principal (null = no team identity → degrade to no-op). */
   getPrincipal: () => ResourceHubPrincipal | null | Promise<ResourceHubPrincipal | null>;
   /** The project's source directory to publish (managed-project root). */
-  resolveProjectDir: (projectId: string) => string;
+  resolveProjectDir: (projectId: string) => string | Promise<string>;
   /** Where a member materializes pulled content. Defaults to the project dir. */
-  resolvePullDir?: (projectId: string) => string;
+  resolvePullDir?: (projectId: string) => string | Promise<string>;
   /** projectId → hub resourceId. Colon-free (the hub routes it as a path param). */
   resourceIdFor?: (projectId: string) => string;
   /**
@@ -77,7 +77,7 @@ export function createResourceHubPublishAdapter(
     async publish({ projectId }) {
       const principal = await getPrincipal();
       if (!principal) return null; // no team identity → nothing to publish
-      const packed = await packTree(resolveProjectDir(projectId));
+      const packed = await packTree(await resolveProjectDir(projectId));
       const resourceId = await ensureResourceId(principal, projectId);
       // pushTree uploads only missing blobs, publishes a version, and moves the
       // `published` ref atomically (content-first, pointer-last).
@@ -104,7 +104,7 @@ export function createResourceHubPublishAdapter(
     async pull({ projectId }) {
       const principal = await getPrincipal();
       if (!principal) return; // no team identity → nothing to pull
-      await materializeRef(client, principal, resourceIdFor(projectId), PUBLISHED_REF, resolvePullDir(projectId));
+      await materializeRef(client, principal, resourceIdFor(projectId), PUBLISHED_REF, await resolvePullDir(projectId));
     },
   };
 }
@@ -117,7 +117,7 @@ export function createResourceHubPublishAdapter(
  * falls back to the provisional env principal.
  */
 export function createResourceHubPublishAdapterFromEnv(
-  resolveProjectDir: (projectId: string) => string,
+  resolveProjectDir: (projectId: string) => string | Promise<string>,
   getPrincipal?: () => ResourceHubPrincipal | null | Promise<ResourceHubPrincipal | null>,
   env: NodeJS.ProcessEnv = process.env,
 ): ResourcePublishAdapter | null {
