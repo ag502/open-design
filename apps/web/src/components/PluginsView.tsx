@@ -566,7 +566,7 @@ export function PluginsView({
           />
         ) : null}
 
-        {activeTab === 'team' ? <TeamPanel t={t} /> : null}
+        {activeTab === 'team' ? <TeamPanel t={t} plugins={userPlugins} /> : null}
       </div>
 
       <AnimatePresence>
@@ -2081,19 +2081,100 @@ function normalizePluginName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function TeamPanel({ t }: { t: ReturnType<typeof useI18n>['t'] }) {
+// Team plugins: the member's installed plugins, each shareable to the team so
+// teammates can pull them. Shared plugins are pushed to the resource hub under
+// the `plugin` kind (the same content-shared source of truth as design systems).
+// Off-team the fetch degrades to an empty collection.
+function TeamPanel({
+  t,
+  plugins,
+}: {
+  t: ReturnType<typeof useI18n>['t'];
+  plugins: InstalledPluginRecord[];
+}) {
+  const [sharedIds, setSharedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/workspace/plugins/team');
+        if (!res.ok) return;
+        const body = (await res.json()) as { ids?: unknown };
+        if (!cancelled && Array.isArray(body.ids)) {
+          setSharedIds(new Set(body.ids.filter((id): id is string => typeof id === 'string')));
+        }
+      } catch {
+        // Off-team / offline → empty team collection.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function share(record: InstalledPluginRecord) {
+    if (sharingId) return;
+    setSharingId(record.id);
+    setFailed(false);
+    try {
+      const res = await fetch(`/api/workspace/plugins/${encodeURIComponent(record.id)}/share`, {
+        method: 'POST',
+      });
+      const body = (await res.json().catch(() => ({}))) as { shared?: boolean };
+      if (res.ok && body.shared) {
+        setSharedIds((prev) => new Set(prev).add(record.id));
+      } else {
+        setFailed(true);
+      }
+    } catch {
+      setFailed(true);
+    } finally {
+      setSharingId(null);
+    }
+  }
+
   return (
-    <section className="plugins-view__team" aria-labelledby="plugins-team-title">
-      <span className="plugins-view__future-icon" aria-hidden>
-        <Icon name="sparkles" size={18} />
-      </span>
-      <div>
-        <p className="plugins-view__kicker">{t('tasks.comingSoon')}</p>
+    <section className="plugins-view__team-collection" aria-labelledby="plugins-team-title">
+      <header className="plugins-view__team-header">
         <h2 id="plugins-team-title">{t('pluginsView.teamTitle')}</h2>
-        <p>
-          {t('pluginsView.teamBody')}
-        </p>
-      </div>
+        <p>{t('pluginsView.teamBody')}</p>
+        {failed ? <p role="alert">{t('dsManager.shareToTeamFailed')}</p> : null}
+      </header>
+      {plugins.length > 0 ? (
+        <div className="plugins-view__available-list">
+          {plugins.map((record) => {
+            const shared = sharedIds.has(record.id);
+            return (
+              <article key={record.id} className="plugins-view__available-card">
+                <div className="plugins-view__available-main">
+                  <div className="plugins-view__row-title">
+                    <span>{record.title}</span>
+                  </div>
+                </div>
+                <div className="plugins-view__row-actions">
+                  {shared ? (
+                    <span className="plugins-view__shared-badge">
+                      <Icon name="check" size={13} /> {t('pluginsView.tab.team')}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="plugins-view__primary"
+                      onClick={() => void share(record)}
+                      disabled={sharingId === record.id}
+                    >
+                      {t('dsManager.shareToTeam')}
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
     </section>
   );
 }
