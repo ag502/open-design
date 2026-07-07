@@ -53,6 +53,28 @@ describe('onboarding entry (id-keyed session hand-off)', () => {
     });
   });
 
+  // Reopen-before-send regression (PR #5111 review): the seed prompt is cached
+  // WITH the entry, so a later remount of the same project (project.pendingPrompt
+  // already wiped) keeps the original comparison base for has_prefilled_prompt.
+  it('carries the seed prompt across a remount (reopen-before-send)', () => {
+    const id = nextProjectId();
+    stashOnboardingEntryForProject(id, {
+      source: 'home_recommendation',
+      productType: 'product_ui',
+      recommendationId: 'product_ui_prototype',
+      seedPrompt: 'Design a pricing page',
+    });
+    // First mount consumes and caches.
+    expect(consumeOnboardingEntryForProject(id)).toMatchObject({
+      seedPrompt: 'Design a pricing page',
+    });
+    // Reopen (remount): the seed is still present from the cache even though the
+    // sessionStorage slot (and project.pendingPrompt) are gone.
+    expect(consumeOnboardingEntryForProject(id)).toMatchObject({
+      seedPrompt: 'Design a pricing page',
+    });
+  });
+
   it('carries the survey answers when present', () => {
     const id = nextProjectId();
     stashOnboardingEntryForProject(id, {

@@ -30,6 +30,13 @@ export interface OnboardingEntry {
   // they live in this session slot, never in project data.
   role?: string;
   useCases?: string[];
+  // The prompt the recommendation prefilled into the Studio composer, captured
+  // at create time. Cached WITH the entry so it survives ProjectView remounts:
+  // `project.pendingPrompt` is wiped by `onClearPendingPrompt()` on the first
+  // mount, so a reopen-before-send would otherwise lose the comparison base and
+  // report `has_prefilled_prompt=false` even when the user sends the original
+  // recommended draft unchanged (spec §7.4 / §8.2).
+  seedPrompt?: string;
 }
 
 const KEY_PREFIX = 'open-design:onboarding-entry:';
@@ -129,6 +136,7 @@ export function consumeOnboardingEntryForProject(
         parsed.useCases.every((u) => typeof u === 'string')
           ? { useCases: parsed.useCases }
           : {}),
+        ...(typeof parsed.seedPrompt === 'string' ? { seedPrompt: parsed.seedPrompt } : {}),
       };
       parsedEntryCache.set(projectId, entry);
       return entry;

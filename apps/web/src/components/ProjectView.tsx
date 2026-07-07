@@ -1352,16 +1352,20 @@ export function ProjectView({
   // successful generation of a recommendation-started project.
   const onboardingEntryInitRef = useRef(false);
   const onboardingEntryRef = useRef<OnboardingEntry | null>(null);
-  // Snapshot the prompt the recommendation prefilled into the composer, taken
-  // at mount before `onClearPendingPrompt` wipes it. The first-prompt-sent
-  // funnel event compares the actually-sent prompt against this seed so
-  // `has_prefilled_prompt` reflects real behavior — the user is free to edit,
-  // clear, or replace the suggestion before sending (spec §7.4 / §8.2).
+  // The prompt the recommendation prefilled into the composer. Prefer the seed
+  // cached WITH the onboarding entry (it survives a reopen-before-send, whereas
+  // `project.pendingPrompt` is wiped by `onClearPendingPrompt` on the first
+  // mount); fall back to `pendingPrompt` for the very first mount / any project
+  // without a cached seed. The first-prompt-sent funnel event compares the
+  // actually-sent prompt against this seed so `has_prefilled_prompt` reflects
+  // real behavior — the user is free to edit, clear, or replace the suggestion
+  // before sending (spec §7.4 / §8.2).
   const onboardingSeedPromptRef = useRef('');
   if (!onboardingEntryInitRef.current) {
     onboardingEntryInitRef.current = true;
     onboardingEntryRef.current = consumeOnboardingEntryForProject(project.id);
-    onboardingSeedPromptRef.current = (project.pendingPrompt ?? '').trim();
+    onboardingSeedPromptRef.current =
+      onboardingEntryRef.current?.seedPrompt ?? (project.pendingPrompt ?? '').trim();
   }
   // The once-per-project funnel guards live in the onboarding-entry module
   // (project-keyed), not mount-local refs: ProjectView remounts on every

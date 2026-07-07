@@ -1588,7 +1588,15 @@ function AppInner() {
       // project mid-create could steal the personalized funnel context, and
       // means a failed/aborted create leaves nothing behind.
       if (input.onboardingEntry) {
-        stashOnboardingEntryForProject(result.project.id, input.onboardingEntry);
+        // Cache the prefilled seed prompt WITH the entry so the first-prompt
+        // funnel's `has_prefilled_prompt` comparison base survives a
+        // reopen-before-send (project.pendingPrompt is wiped on first mount).
+        stashOnboardingEntryForProject(result.project.id, {
+          ...input.onboardingEntry,
+          ...(derivedPendingPrompt
+            ? { seedPrompt: derivedPendingPrompt.trim() }
+            : {}),
+        });
       }
       const project = result.appliedPluginSnapshotId
         ? {
