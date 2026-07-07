@@ -182,6 +182,14 @@ describe('GET /api/projects/:id/raw/* range request route', () => {
     await writeFile(path.join(dir, 'clip.mp4'), Buffer.alloc(FILE_SIZE, 0x42));
     await writeFile(path.join(dir, 'audio.mp3'), Buffer.alloc(FILE_SIZE, 0x43));
     await writeFile(path.join(dir, 'page.html'), Buffer.from('<html/>'));
+    await writeFile(
+      path.join(dir, 'large.html'),
+      Buffer.from(`<!doctype html><html><body><main>Large Preview</main>${'x'.repeat((2 * 1024 * 1024) + 256)}</body></html>`),
+    );
+    await writeFile(
+      path.join(dir, 'large-powered.html'),
+      Buffer.from(`<!doctype html><html><body>${'x'.repeat((2 * 1024 * 1024) + 256)}<script>new Worker("worker.js")</script></body></html>`),
+    );
     await writeFile(path.join(dir, 'body.html'), Buffer.from('<html><body><main>Preview</main></body></html>'));
     await writeFile(
       path.join(dir, 'bridged.html'),
@@ -262,12 +270,68 @@ describe('GET /api/projects/:id/raw/* range request route', () => {
     expect(res.headers.get('content-range')).toBe(`bytes */${FILE_SIZE}`);
   });
 
-  it('does not stream non-media files (HTML returns full 200 without Accept-Ranges)', async () => {
+  it('does not stream small transformed HTML files (HTML returns full 200 without Accept-Ranges)', async () => {
     const res = await fetch(rawUrl('page.html'));
     expect(res.status).toBe(200);
     expect(res.headers.get('accept-ranges')).toBeNull();
     const text = await res.text();
     expect(text).toBe('<html/>');
+  });
+
+  it('returns a truncated text preview for large HTML without reading the full file', async () => {
+    const res = await fetch(`${baseUrl}/api/projects/${projectId}/text-preview/large.html?limit=64`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      text: string;
+      truncated: boolean;
+      size: number;
+      limit: number;
+      mime: string;
+      poweredPreview: {
+        required: boolean;
+        scannedBytes: number;
+        complete: boolean;
+      };
+    };
+    expect(body.text).toContain('<!doctype html>');
+    expect(body.text.length).toBeLessThanOrEqual(1024);
+    expect(body.truncated).toBe(true);
+    expect(body.size).toBeGreaterThan(2 * 1024 * 1024);
+    expect(body.limit).toBe(1024);
+    expect(body.mime).toContain('text/html');
+    expect(body.poweredPreview.required).toBe(false);
+    expect(body.poweredPreview.complete).toBe(true);
+  });
+
+  it('returns powered-preview hints even when the Worker/WASM signal is late in a large HTML file', async () => {
+    const res = await fetch(`${baseUrl}/api/projects/${projectId}/text-preview/large-powered.html?limit=64`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      text: string;
+      poweredPreview: {
+        required: boolean;
+        scannedBytes: number;
+        complete: boolean;
+      };
+    };
+    expect(body.text.length).toBeLessThanOrEqual(1024);
+    expect(body.text).not.toContain('new Worker');
+    expect(body.poweredPreview.required).toBe(true);
+    expect(body.poweredPreview.scannedBytes).toBeGreaterThan(2 * 1024 * 1024);
+  });
+
+  it('skips URL preview bridge injection for large HTML so first paint can stream', async () => {
+    const res = await fetch(`${rawUrl('large.html')}?odPreviewBridge=scroll&odPreviewBridge=selection&odPreviewBridge=snapshot`, {
+      headers: { Range: 'bytes=0-127' },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
+    expect(res.headers.get('content-range')).toMatch(/^bytes 0-127\//);
+    const html = await res.text();
+    expect(html).toContain('Large Preview');
+    expect(html).not.toContain('data-od-url-scroll-bridge');
+    expect(html).not.toContain('data-od-url-selection-bridge');
+    expect(html).not.toContain('data-od-url-snapshot-bridge');
   });
 
   it('injects the URL preview scroll bridge only when requested', async () => {

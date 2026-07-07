@@ -39,8 +39,7 @@ export type ChipScenarioPluginId =
   // their own bundled example plugins under plugins/_official/examples/, so —
   // like example-hyperframes — they carry their plugin id directly rather than
   // routing through the default kind→plugin table.
-  | 'example-webgl-experience'
-  | 'example-worker-visualizer';
+  | 'example-webgl-experience';
 
 export type ChipAction =
   | {
@@ -249,28 +248,6 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     },
   },
   {
-    id: 'worker',
-    label: 'Worker visualizer',
-    icon: 'grid',
-    group: 'create',
-    description: 'Off-thread sims, particles & data viz',
-    hint: 'Build a real-time visualizer whose heavy compute runs in a Web Worker (with SharedArrayBuffer).',
-    // Powered-preview scenario: binds the bundled `example-worker-visualizer`
-    // plugin. The artifact auto-detects into powered preview via its
-    // `new Worker(...)` / `SharedArrayBuffer` usage, which the opaque sandbox
-    // cannot run.
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-worker-visualizer',
-      projectKind: 'prototype',
-      projectMetadata: {
-        kind: 'prototype',
-        intent: 'worker-visualizer',
-        fidelity: 'high-fidelity',
-      },
-    },
-  },
-  {
     id: 'live-artifact',
     label: 'Live artifact',
     icon: 'refresh',
@@ -395,7 +372,6 @@ export const CREATE_RAIL_ORDER = [
   'document',
   'hyperframes',
   'webgl',
-  'worker',
   'live-artifact',
   'image',
   'video',

@@ -7,6 +7,7 @@ import {
   type ChatSessionMode,
   type PluginManifest,
   type ProjectFile,
+  type ProjectFileTextPreviewResponse,
   type ProjectFileVersion,
   type ProjectFileVersionPromptSource,
   type ProjectFileVersionSource,
@@ -2392,6 +2393,8 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
   const { validateArtifactManifestInput } = ctx.artifacts;
   const { projectPreviewScopes } = ctx;
   const projectPreviewIframeSandbox = 'allow-scripts allow-forms';
+  const HTML_PREVIEW_BRIDGE_MAX_BYTES = 2 * 1024 * 1024;
+  const HTML_POWERED_PREVIEW_HINT_SCAN_MAX_BYTES = 128 * 1024 * 1024;
   const projectPreviewCsp = [
     `sandbox ${projectPreviewIframeSandbox}`,
     "default-src 'self' data: blob:",
@@ -2655,6 +2658,58 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     return Number.isFinite(since) && Math.floor(mtimeMs / 1000) * 1000 <= since;
   }
 
+  function htmlHasPoweredPreviewSignal(source: string): boolean {
+    if (/\bSharedArrayBuffer\b/.test(source)) return true;
+    if (/\bnew\s+(?:Worker|SharedWorker)\s*\(/.test(source)) return true;
+    if (/\bimportScripts\s*\(/.test(source)) return true;
+    if (/\bWebAssembly\s*\.\s*(?:instantiateStreaming|compileStreaming)\b/.test(source)) return true;
+    if (/\.wasm\b/.test(source)) return true;
+    if (/getContext\s*\(\s*["'`]webgl2["'`]/.test(source)) return true;
+    if (/\bOffscreenCanvas\b/.test(source)) return true;
+    if (/\bnavigator\s*\.\s*gpu\b/.test(source)) return true;
+    return false;
+  }
+
+  async function detectPoweredPreviewHint(meta: {
+    filePath: string;
+    mime: string;
+    size: number;
+  }): Promise<ProjectFileTextPreviewResponse['poweredPreview']> {
+    if (!/^text\/html(?:;|$)/i.test(meta.mime)) {
+      return { required: false, scannedBytes: 0, complete: true };
+    }
+    const scanLimit = Math.min(meta.size, HTML_POWERED_PREVIEW_HINT_SCAN_MAX_BYTES);
+    if (scanLimit <= 0) {
+      return { required: false, scannedBytes: 0, complete: true };
+    }
+
+    let scannedBytes = 0;
+    let tail = '';
+    for await (const chunk of fs.createReadStream(meta.filePath, {
+      start: 0,
+      end: scanLimit - 1,
+      highWaterMark: 256 * 1024,
+    })) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      scannedBytes += buffer.byteLength;
+      const sample = tail + buffer.toString('utf8');
+      if (htmlHasPoweredPreviewSignal(sample)) {
+        return {
+          required: true,
+          scannedBytes,
+          complete: scannedBytes >= meta.size,
+        };
+      }
+      tail = sample.slice(-512);
+    }
+
+    return {
+      required: false,
+      scannedBytes,
+      complete: scannedBytes >= meta.size,
+    };
+  }
+
   async function sendProjectFile(
     req: any,
     res: Response,
@@ -2674,6 +2729,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     beforeSend?.(meta.mime);
 
     const isStreamed = meta.mime.startsWith('video/') || meta.mime.startsWith('audio/');
+    const shouldStreamBody = isStreamed || !transformFile;
     // A transform (the Vite dev-entry -> dist/index.html substitution, or preview
     // bridge injection) can replace the response bytes — but only for HTML. For
     // HTML the source file's mtime/size is NOT a valid validator, so its ETag is
@@ -2691,7 +2747,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       }
     }
 
-    if (isStreamed) {
+    if (shouldStreamBody) {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Content-Type', meta.mime);
 
@@ -2970,6 +3026,58 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     }
   });
 
+  app.get(/^\/api\/projects\/([^/]+)\/text-preview\/(.+)$/u, async (req, res) => {
+    let handle: import('fs/promises').FileHandle | null = null;
+    try {
+      const params = req.params as unknown as { 0?: string; 1?: string };
+      const projectId = String(params[0] ?? '');
+      const relPath = String(params[1] ?? '');
+      if (rejectInternalVersionPath(res, relPath)) return;
+      const requestedLimit = Number(req.query.limit);
+      const limit = Math.max(
+        1024,
+        Math.min(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 96 * 1024, 512 * 1024),
+      );
+      const project = getProject(db, projectId);
+      const meta = await resolveProjectFilePath(
+        PROJECTS_DIR,
+        projectId,
+        relPath,
+        project?.metadata,
+      );
+      const bytesToRead = Math.min(meta.size, limit);
+      const buffer = Buffer.allocUnsafe(bytesToRead);
+      const opened = await fs.promises.open(meta.filePath, 'r');
+      handle = opened;
+      const result = bytesToRead > 0
+        ? await opened.read(buffer, 0, bytesToRead, 0)
+        : { bytesRead: 0 };
+      const text = buffer.subarray(0, result.bytesRead).toString('utf8');
+      const poweredPreview = await detectPoweredPreviewHint(meta);
+      const body: ProjectFileTextPreviewResponse = {
+        text,
+        truncated: meta.size > result.bytesRead,
+        size: meta.size,
+        limit,
+        mime: meta.mime,
+        kind: meta.kind,
+        poweredPreview,
+      };
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(body);
+    } catch (err: any) {
+      const status = err && err.code === 'ENOENT' ? 404 : 400;
+      sendApiError(
+        res,
+        status,
+        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
+        String(err),
+      );
+    } finally {
+      await handle?.close().catch(() => undefined);
+    }
+  });
+
   app.get(/^\/api\/projects\/([^/]+)\/preview\/([^/]+)\/(.+)$/u, async (req, res) => {
     try {
       const params = req.params as unknown as { 0?: string; 1?: string; 2?: string };
@@ -3046,6 +3154,14 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       if (req.headers.origin === 'null') {
         res.header('Access-Control-Allow-Origin', '*');
       }
+      const meta = await resolveProjectFilePath(
+        PROJECTS_DIR,
+        projectId,
+        relPath,
+        project?.metadata,
+      );
+      const skipHtmlPreviewBridge =
+        /^text\/html(?:;|$)/i.test(meta.mime) && meta.size > HTML_PREVIEW_BRIDGE_MAX_BYTES;
 
       await sendProjectFile(
         req,
@@ -3054,7 +3170,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         relPath,
         project?.metadata,
         undefined,
-        async (file) => {
+        skipHtmlPreviewBridge ? undefined : async (file) => {
           let transformed = await maybeResolveVitePreviewHtml({
             file,
             projectId,
@@ -3125,6 +3241,14 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const relPath = String(params[1] ?? '');
       if (rejectInternalVersionPath(res, relPath)) return;
       const project = getProject(db, projectId);
+      const meta = await resolveProjectFilePath(
+        PROJECTS_DIR,
+        projectId,
+        relPath,
+        project?.metadata,
+      );
+      const skipPoweredTransform =
+        /^text\/html(?:;|$)/i.test(meta.mime) && meta.size > HTML_PREVIEW_BRIDGE_MAX_BYTES;
       await sendProjectFile(
         req,
         res,
@@ -3132,15 +3256,15 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         relPath,
         project?.metadata,
         () => setPoweredPreviewHeaders(res),
-        async (file) =>
+        skipPoweredTransform ? undefined : async (file) =>
           maybeResolveVitePreviewHtml({
             file,
             projectId,
-            relPath,
-            metadata: project?.metadata,
-            projectsRoot: PROJECTS_DIR,
-            readProjectFile,
-          }),
+              relPath,
+              metadata: project?.metadata,
+              projectsRoot: PROJECTS_DIR,
+              readProjectFile,
+            }),
       );
     } catch (err: any) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;

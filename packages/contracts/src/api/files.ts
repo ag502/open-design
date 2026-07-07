@@ -184,6 +184,20 @@ export interface ProjectFileResponse {
   versionWarning?: ProjectFileVersionWarning;
 }
 
+export interface ProjectFileTextPreviewResponse {
+  text: string;
+  truncated: boolean;
+  size: number;
+  limit: number;
+  mime: string;
+  kind: ProjectFileKind;
+  poweredPreview: {
+    required: boolean;
+    scannedBytes: number;
+    complete: boolean;
+  };
+}
+
 export interface ProjectFolderResponse {
   folder: ProjectFolder;
 }
