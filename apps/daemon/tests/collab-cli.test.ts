@@ -64,6 +64,10 @@ async function startCollabStubServer(): Promise<StubServer> {
         res.end(JSON.stringify({ ok: true, syncState: 'pending_upload' }));
         return;
       }
+      if (method === 'POST' && url === '/api/projects/p1/collab/pull') {
+        res.end(JSON.stringify({ ok: true, version: 3 }));
+        return;
+      }
       res.statusCode = 404;
       res.end(JSON.stringify({ error: { code: 'unexpected-request', message: url } }));
     });

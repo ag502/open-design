@@ -5,7 +5,7 @@ import type { CollabRuntime } from '../collab/runtime.js';
 export interface RegisterCollabSyncRoutesDeps {
   collab: Pick<
     CollabRuntime,
-    'scheduler' | 'publishedVersion' | 'projectSyncState' | 'requestTeamShare'
+    'scheduler' | 'publishedVersion' | 'projectSyncState' | 'requestTeamShare' | 'pullLatest'
   >;
 }
 
@@ -22,7 +22,7 @@ const SYNC_INTENT_EVENTS: ReadonlySet<ProjectSyncIntentEvent> = new Set([
  * we only coalesce and flush.
  */
 export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncRoutesDeps): void {
-  const { scheduler, publishedVersion, projectSyncState, requestTeamShare } = deps.collab;
+  const { scheduler, publishedVersion, projectSyncState, requestTeamShare, pullLatest } = deps.collab;
 
   // An author-side edit landed. The publish is coalesced within the scheduler's
   // window so a burst of edits collapses into one publish.
@@ -51,6 +51,13 @@ export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncR
     }
     if (event === 'project_team_share_requested') requestTeamShare(req.params.id);
     res.json({ ok: true, syncState: projectSyncState(req.params.id) });
+  });
+
+  // Member pull trigger (C owns *when*; E fetches + extracts the bytes behind the
+  // adapter). Returns the head version that was pulled.
+  app.post('/api/projects/:id/collab/pull', async (req, res) => {
+    const result = await pullLatest(req.params.id);
+    res.json({ ok: true, version: result.version });
   });
 
   // Members poll this to learn the published head version they should pull and

@@ -19,6 +19,14 @@ export interface ResourcePublishAdapter {
    * there was nothing to publish.
    */
   publish(input: { projectId: string; reason: string }): Promise<{ version: number } | null>;
+  /**
+   * Read the currently-published head for a project (E v1.0 §2.4
+   * `syncLatest` = getRef('published')). C owns *when* a member pulls; the
+   * adapter reports what head is available. Optional: the local stub reports the
+   * in-memory head; the real E client resolves the ref + fetches missing blobs.
+   * Returns null when nothing has been published yet.
+   */
+  syncLatest?(input: { projectId: string }): Promise<{ version: number } | null>;
 }
 
 export interface CollabPublishSchedulerOptions {

@@ -123,4 +123,16 @@ describe('collab sync routes', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('pulls the published head for a member (null before any publish)', async () => {
+    const api = await startSyncServer();
+    const before = await api.json('/api/projects/p1/collab/pull', { method: 'POST' });
+    expect(before.status).toBe(200);
+    expect(before.body.version).toBeNull();
+
+    await api.json('/api/projects/p1/collab/publish', { method: 'POST' });
+    await api.awaitPublishedVersion('/api/projects/p1/collab/status', null);
+    const after = await api.json('/api/projects/p1/collab/pull', { method: 'POST' });
+    expect(after.body.version).toBe(1);
+  });
 });

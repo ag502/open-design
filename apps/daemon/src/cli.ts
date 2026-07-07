@@ -701,6 +701,7 @@ function printCollabHelp() {
   od collab changed <projectId> [--json]
   od collab publish <projectId> [--json]
   od collab share <projectId> [--json]
+  od collab pull <projectId> [--json]
 
 Team-edition collaboration (C lane): presence overlay + sync trigger. The
 client is authoritative about whether it is in a shared context, so it drives
@@ -785,6 +786,11 @@ async function runCollab(args) {
         projectId,
       });
       return emit(body, () => console.log(`ok\tsyncState=${body?.syncState ?? '-'}`));
+    }
+    case 'pull': {
+      // Member pull: fetch the published head (E extracts the bytes behind C's trigger).
+      const body = await request('POST', '/collab/pull');
+      return emit(body, () => console.log(`pulled\tversion=${body?.version ?? '-'}`));
     }
     case 'presence': {
       const body = await request('GET', '/presence');

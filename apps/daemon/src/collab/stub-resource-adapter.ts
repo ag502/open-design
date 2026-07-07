@@ -16,5 +16,11 @@ export function createStubResourcePublishAdapter(): ResourcePublishAdapter {
       versions.set(projectId, next);
       return { version: next };
     },
+    // Read-only: report the current head without advancing it (getRef stand-in).
+    // The real E client also fetches + extracts the missing blobs locally.
+    async syncLatest({ projectId }) {
+      const current = versions.get(projectId);
+      return current === undefined ? null : { version: current };
+    },
   };
 }

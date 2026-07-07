@@ -35,6 +35,12 @@ export interface CollabRuntime {
    * orchestrates the publish, which drives E's resource mechanism behind it.
    */
   requestTeamShare(projectId: string): void;
+  /**
+   * Member pull trigger (C owns *when* to pull). Reads the published head via
+   * the adapter (E's `syncLatest`); E's client also fetches + extracts the
+   * bytes locally. Returns the head version, or null if nothing is published.
+   */
+  pullLatest(projectId: string): Promise<{ version: number | null }>;
   dispose(): void;
 }
 
@@ -89,6 +95,13 @@ export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): C
       syncStates.set(projectId, 'pending_upload');
       scheduler.notifyChanged(projectId, 'share');
       scheduler.runBoundary(projectId);
+    },
+    async pullLatest(projectId) {
+      // Fall back to the tracked head when the adapter can't read it (older stub).
+      const head = adapter.syncLatest
+        ? await adapter.syncLatest({ projectId })
+        : { version: published.get(projectId) ?? null };
+      return { version: head?.version ?? null };
     },
     dispose() {
       scheduler.dispose();
