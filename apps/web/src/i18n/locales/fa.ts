@@ -2291,6 +2291,7 @@ export const fa: Dict = {
   'workspace.showChat': 'نمایش گفت‌وگو',
   'workspace.closeTab': 'بستن تب',
   'workspace.deleteFileConfirm': 'آیا «{name}» از پوشه پروژه حذف شود؟',
+  'workspace.readonlyNotice': 'Shared project (read-only): you can view and comment, but not edit files or change artifacts through chat.',
   'workspace.deleteSelectedFilesConfirm': 'آیا {n} فایل انتخاب‌شده از پوشه پروژه حذف شوند؟',
   'workspace.deleteSelectedFilesPartial': 'حذف {n} فایل ناموفق بود.',
   'workspace.openFromDesignFiles': 'باز کردن یک فایل از',

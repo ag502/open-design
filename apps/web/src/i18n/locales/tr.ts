@@ -2291,6 +2291,7 @@ export const tr: Dict = {
   'workspace.showChat': 'Sohbeti göster',
   'workspace.closeTab': 'Sekmeyi kapat',
   'workspace.deleteFileConfirm': '"{name}"ı proje klasöründen sil?',
+  'workspace.readonlyNotice': 'Shared project (read-only): you can view and comment, but not edit files or change artifacts through chat.',
   'workspace.deleteSelectedFilesConfirm': 'Seçili {n} dosya proje klasöründen silinsin mi?',
   'workspace.deleteSelectedFilesPartial': '{n} dosya silinemedi.',
   'workspace.openFromDesignFiles': 'bir dosya aç',

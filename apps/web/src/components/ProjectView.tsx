@@ -8274,6 +8274,7 @@ export function ProjectView({
         ) : null}
         <FileWorkspace
           projectId={project.id}
+          viewerOnly={projectCollab.viewerOnly}
           projectKind={projectKindFromMetadataToTracking(currentProject.metadata) ?? 'prototype'}
           rootDirName={(() => {
             const baseDir = currentProject.metadata?.baseDir;

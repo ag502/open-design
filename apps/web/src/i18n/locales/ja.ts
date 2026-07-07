@@ -2291,6 +2291,7 @@ export const ja: Dict = {
   'workspace.showChat': 'チャットを表示',
   'workspace.closeTab': 'タブを閉じる',
   'workspace.deleteFileConfirm': 'プロジェクトフォルダーから "{name}" を削除しますか？',
+  'workspace.readonlyNotice': '共有プロジェクト（読み取り専用）：閲覧とコメントはできますが、ファイルの編集やチャットでのアーティファクト変更はできません。',
   'workspace.deleteSelectedFilesConfirm': 'プロジェクトフォルダーから選択した {n} 個のファイルを削除しますか？',
   'workspace.deleteSelectedFilesPartial': '{n} 個のファイルの削除に失敗しました。',
   'workspace.openFromDesignFiles': 'ファイルを開く: ',

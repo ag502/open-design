@@ -3057,6 +3057,7 @@ export interface Dict {
   'workspace.showChat': string;
   'workspace.closeTab': string;
   'workspace.deleteFileConfirm': string;
+  'workspace.readonlyNotice': string;
   'workspace.deleteSelectedFilesConfirm': string;
   'workspace.deleteSelectedFilesPartial': string;
   'workspace.openFromDesignFiles': string;

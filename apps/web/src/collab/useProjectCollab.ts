@@ -51,6 +51,15 @@ export interface ProjectCollab {
   present: CollabPresenceMember[];
   publishedVersion: number | null;
   syncState: ReturnType<typeof useCollab>['syncState'];
+  /**
+   * Whether the viewer should see this project single-writer/read-only: a team
+   * member looking at a project that has been shared to the team. The precise
+   * "am I this project's owner" check belongs to the project-visibility owner
+   * (project origin/ownership); until that lands, a non-managing role viewing a
+   * shared project is the working signal — an owner/admin still edits, and a
+   * personal or unshared project is never read-only.
+   */
+  viewerOnly: boolean;
   reportChange: () => void;
   requestPublish: () => void;
 }
@@ -77,12 +86,17 @@ export function useProjectCollab(
     ...(options.heartbeatMs !== undefined ? { heartbeatMs: options.heartbeatMs } : {}),
     ...(options.statusPollMs !== undefined ? { statusPollMs: options.statusPollMs } : {}),
   });
+  // A non-managing member viewing a project shared to the team sees it
+  // read-only. Owners/admins keep editing; a personal or unshared project
+  // (syncState `local_only`) is never read-only.
+  const viewerOnly = context?.role === 'member' && collab.syncState !== 'local_only';
   return {
     enabled: decision.enabled,
     member: decision.member,
     present: collab.present,
     publishedVersion: collab.publishedVersion,
     syncState: collab.syncState,
+    viewerOnly,
     reportChange: collab.reportChange,
     requestPublish: collab.requestPublish,
   };
