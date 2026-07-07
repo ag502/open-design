@@ -3,19 +3,17 @@
 // env-scoped config (so this file — not app-config.ts — owns OD_RESOURCE_HUB_*),
 // and a default singleton.
 //
-// SCOPE (Tier-1 skeleton): the INDEX surface the hub already serves is wired for
-// real (resources / versions / refs / find-missing). Two things are deliberate
-// seams, not final:
-//   - Auth: how the daemon proves the workspace principal to the hub is an open
-//     topology decision (daemon-direct + services/api-issued scoped token, vs
-//     internal-token forwarding). Here it attaches whatever env-configured
-//     credentials it has; swapping schemes changes only buildAuthHeaders.
-//   - Blob BYTE transfer: pending the transport decision (presigned vs proxy).
-//     Only find-missing (index) is implemented; byte push/pull throw until then.
-// Shared DTOs will move to @open-design/contracts once the platform publishes
-// the canonical resource contracts; the local types below are provisional.
+// The index surface (resources / versions / refs / manifests) and blob byte
+// transfer (presigned client-direct: pushBlob/pullBlob) are both wired for real.
+// One deliberate seam remains: auth — how the daemon proves the workspace
+// principal is an open topology decision (services/api authenticates the daemon
+// and resolves the principal, vs internal-token forwarding). It currently
+// attaches whatever env-configured credentials it has; swapping schemes changes
+// only buildAuthHeaders. Shared DTOs will move to @open-design/contracts once
+// the platform publishes the canonical resource contracts; the local types
+// below are provisional.
 
-const DEFAULT_RESOURCE_HUB_URL = 'http://127.0.0.1:18082';
+const DEFAULT_RESOURCE_HUB_URL = 'http://127.0.0.1:18080';
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 
 type FetchLike = typeof fetch;
