@@ -211,10 +211,13 @@ function classifyVelaLoginFailureCode(
     [signal.message, signal.stderr, signal.stdout].filter(Boolean).join('\n'),
   );
 
-  if (
-    signal.browserOpenFailed ||
-    text.includes('could not open browser automatically')
-  ) {
+  // BROWSER_OPEN_FAILED maps to a `manual-link` recovery, which is only
+  // actionable while the activation URL is still present in the status
+  // response (i.e. the login is in flight). It is therefore driven ONLY by the
+  // explicit `browserOpenFailed` flag a live caller sets — never inferred from
+  // stderr text — so a finished login can never emit a manual-link action with
+  // no URL behind it. resolveVelaLoginExitFailure drops the flag for exits.
+  if (signal.browserOpenFailed) {
     return 'AMR_LOGIN_BROWSER_OPEN_FAILED';
   }
 
@@ -293,10 +296,17 @@ export function classifyVelaLoginFailure(
 // is not worth surfacing: a clean exit (code 0 — vela wrote the runtime key and
 // sign-in succeeded) or a user/timeout-initiated cancel. Used by the status
 // read so a benign cancel never renders as an error.
+//
+// A finished login has no live activation URL in the status response, so any
+// stale `browserOpenFailed` from the in-flight capture is dropped here: the
+// exit must classify by its real terminal cause (interrupted / network / …),
+// never as BROWSER_OPEN_FAILED, whose `manual-link` recovery would point at a
+// URL that is no longer surfaced.
 export function resolveVelaLoginExitFailure(
   signal: VelaLoginFailureSignal,
 ): AmrLoginFailure | null {
   if (signal.canceled) return null;
   if (signal.exitCode === 0 && !signal.signal) return null;
-  return classifyVelaLoginFailure(signal);
+  const { browserOpenFailed: _browserOpenFailed, ...exitSignal } = signal;
+  return classifyVelaLoginFailure(exitSignal);
 }

@@ -17,17 +17,24 @@ describe('AMR sign-in failure classification (issue #426)', () => {
     });
   });
 
-  it('classifies the browser-open warning as a manual-link recovery', () => {
+  it('classifies an explicit in-flight browser-open flag as a manual-link recovery', () => {
     expect(classifyVelaLoginFailure({ browserOpenFailed: true })).toMatchObject({
       code: 'AMR_LOGIN_BROWSER_OPEN_FAILED',
       recovery: 'manual-link',
     });
-    expect(
-      classifyVelaLoginFailure({
-        stderr:
-          'Warning: could not open browser automatically: exec: "open": not found',
-      }),
-    ).toMatchObject({ code: 'AMR_LOGIN_BROWSER_OPEN_FAILED' });
+  });
+
+  it('does not infer manual-link from stderr text (no URL guarantee)', () => {
+    // The browser-open warning alone must not produce a manual-link action:
+    // without the explicit in-flight flag there may be no activation URL to
+    // open. It falls through to the real terminal cause instead.
+    const failure = classifyVelaLoginFailure({
+      exitCode: 1,
+      stderr:
+        'Warning: could not open browser automatically: exec: "open": not found',
+    });
+    expect(failure.code).not.toBe('AMR_LOGIN_BROWSER_OPEN_FAILED');
+    expect(failure.recovery).not.toBe('manual-link');
   });
 
   it('classifies the corporate-proxy 502 shape as proxy-blocked before generic network', () => {
@@ -140,5 +147,22 @@ describe('resolveVelaLoginExitFailure surfacing guard', () => {
     expect(
       resolveVelaLoginExitFailure({ exitCode: 1, signal: null }),
     ).toMatchObject({ code: 'AMR_LOGIN_INTERRUPTED' });
+  });
+
+  it('never emits manual-link for a finished login (no live activation URL)', () => {
+    // Regression guard for the review blocker: a terminated login can carry a
+    // stale browserOpenFailed from its in-flight capture, but the status read
+    // no longer surfaces the activation URL — so the exit must classify by its
+    // real terminal cause, never as a manual-link the UI/CLI can't perform.
+    const failure = resolveVelaLoginExitFailure({
+      exitCode: 1,
+      signal: null,
+      browserOpenFailed: true,
+      stderr: '502: Invalid IP address: undefined',
+    });
+    expect(failure).not.toBeNull();
+    expect(failure?.code).not.toBe('AMR_LOGIN_BROWSER_OPEN_FAILED');
+    expect(failure?.recovery).not.toBe('manual-link');
+    expect(failure).toMatchObject({ code: 'AMR_LOGIN_PROXY_BLOCKED' });
   });
 });
