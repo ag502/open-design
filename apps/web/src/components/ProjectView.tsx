@@ -202,6 +202,8 @@ import { HandoffButton } from './HandoffButton';
 import { Icon } from './Icon';
 import { localizePluginTitle } from './plugins-home/localization';
 import { DesignSystemPicker } from './DesignSystemPicker';
+import { PresenceBar } from '../collab/PresenceBar';
+import { useProjectCollab } from '../collab/useProjectCollab';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { ChatPane } from './ChatPane';
@@ -1314,6 +1316,10 @@ export function ProjectView({
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
   const iframeKeepAlivePool = useIframeKeepAlivePool();
+  // Team-collab (C lane): presence for a shared project. Dormant (no heartbeat,
+  // renders nothing) unless the workspace context marks the viewer an active
+  // team member — safe to mount unconditionally.
+  const projectCollab = useProjectCollab(project?.id ?? null);
   const handleThemeChange = onThemeChange ?? (() => {});
   const projectDetail = useProjectDetail(project.id);
   const detailedProject = projectDetail.project?.id === project.id ? projectDetail.project : null;
@@ -8201,6 +8207,12 @@ export function ProjectView({
                   </span>
                   {projectTypeLabel ? (
                     <span className="meta" data-testid="project-meta">{projectTypeLabel}</span>
+                  ) : null}
+                  {projectCollab.enabled ? (
+                    <PresenceBar
+                      members={projectCollab.present}
+                      {...(projectCollab.member ? { selfMemberId: projectCollab.member.memberId } : {})}
+                    />
                   ) : null}
                 </span>
               )}
