@@ -3,6 +3,7 @@ import type { CollabMemberRole } from '@open-design/contracts';
 import { navigate } from '../router';
 import { useCollab } from './useCollab';
 import { PresenceBar } from './PresenceBar';
+import { CommentDriftDemo } from './CommentDriftDemo';
 import styles from './CollabDemoView.module.css';
 
 const ROLES: CollabMemberRole[] = ['owner', 'admin', 'member'];
@@ -141,6 +142,8 @@ export function CollabDemoView({ projectId }: { projectId: string | null }) {
           </div>
         </div>
       )}
+
+      <CommentDriftDemo />
     </div>
   );
 }
