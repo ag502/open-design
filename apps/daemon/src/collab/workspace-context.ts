@@ -62,6 +62,9 @@ export function parseWorkspaceCollabContext(input: unknown): WorkspaceCollabCont
   if (typeof raw.teamId === 'string' && raw.teamId.trim()) {
     context.teamId = raw.teamId.trim();
   }
+  if (typeof raw.teamName === 'string' && raw.teamName.trim()) {
+    context.teamName = raw.teamName.trim();
+  }
   if (typeof raw.displayName === 'string' && raw.displayName.trim()) {
     context.displayName = raw.displayName.trim();
   }

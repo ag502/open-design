@@ -74,6 +74,8 @@ export interface WorkspaceCollabContext {
   /** Team id — present for a team workspace, absent for a personal one. Lets the
    *  resource-hub principal derive from this one context (single identity source). */
   teamId?: string;
+  /** Human-friendly team name for the workspace switcher (falls back to teamId). */
+  teamName?: string;
   /** Display name for the presence overlay (optional; falls back to the id). */
   displayName?: string;
 }
