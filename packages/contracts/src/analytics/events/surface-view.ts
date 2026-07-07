@@ -149,6 +149,20 @@ export interface FileVersionModalSurfaceViewProps {
   artifact_kind: TrackingArtifactKind;
 }
 
+// Fires once when an HTML artifact is recognized as a slide deck and the
+// slide-specific viewing chrome (thumbnail rail, slide navigation, speaker
+// notes panel) mounts in the file viewer. This is the entry/denominator for
+// the deck experience funnel: how many opened artifacts actually reach the
+// slides surface vs. plain HTML preview. `slide_count` is the deck's detected
+// slide total at mount (0 when not yet resolved).
+export interface DeckViewerSurfaceViewProps {
+  page_name: 'artifact';
+  area: 'deck_viewer';
+  artifact_id: string;
+  artifact_kind: TrackingArtifactKind;
+  slide_count?: number;
+}
+
 export type SurfaceViewProps =
   | RunFailedToastSurfaceViewProps
   | HelpPopoverSurfaceViewProps
@@ -166,5 +180,6 @@ export type SurfaceViewProps =
   | UpdateIndicatorSurfaceViewProps
   | ReferenceBoardSurfaceViewProps
   | UpdatePromptSurfaceViewProps
-  | FileVersionModalSurfaceViewProps;
+  | FileVersionModalSurfaceViewProps
+  | DeckViewerSurfaceViewProps;
 

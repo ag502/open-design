@@ -86,6 +86,8 @@ import type {
   ArtifactHeaderClickProps,
   HandoffClickProps,
   PresentPopoverClickProps,
+  DeckViewerClickProps,
+  DeckViewerSurfaceViewProps,
   ShareOptionPopoverClickProps,
   FileVersionModalClickProps,
   FileVersionModalSurfaceViewProps,
@@ -118,6 +120,7 @@ import type {
   RunFinishedProps,
   FileUploadResultProps,
   ContextLinkResultProps,
+  SpeakerNotesSaveResultProps,
   ArtifactExportResultProps,
   ArtifactDeployResultProps,
   FeedbackSubmitResultProps,
@@ -724,6 +727,27 @@ export function trackPresentPopoverClick(
   props: PresentPopoverClickProps,
 ): void {
   send(track, 'ui_click', props);
+}
+
+export function trackDeckViewerSurfaceView(
+  track: Track,
+  props: DeckViewerSurfaceViewProps,
+): void {
+  send(track, 'surface_view', props);
+}
+
+export function trackDeckViewerClick(
+  track: Track,
+  props: DeckViewerClickProps,
+): void {
+  send(track, 'ui_click', props);
+}
+
+export function trackSpeakerNotesSaveResult(
+  track: Track,
+  props: SpeakerNotesSaveResultProps,
+): void {
+  send(track, 'speaker_notes_save_result', props);
 }
 
 export function trackShareOptionPopoverClick(

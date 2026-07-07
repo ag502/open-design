@@ -31,6 +31,9 @@ import {
   trackFileVersionRestoreResult,
   trackPageView,
   trackPresentPopoverClick,
+  trackDeckViewerSurfaceView,
+  trackDeckViewerClick,
+  trackSpeakerNotesSaveResult,
   trackShareOptionPopoverClick,
 } from '../analytics/events';
 import { MarkdownRenderer, artifactRendererRegistry } from '../artifacts/renderer-registry';
@@ -6037,6 +6040,35 @@ function HtmlViewer({
       artifact_kind: artifactKindToTracking({ fileKind: file.kind ?? null }),
     });
   };
+  const fireDeckViewerClick = (
+    element:
+      | 'slide_prev'
+      | 'slide_next'
+      | 'slide_reset'
+      | 'thumbnail_select'
+      | 'thumbnail_rail_toggle'
+      | 'speaker_notes_edit',
+    extra?: {
+      action?: 'expand' | 'collapse';
+      slide_index?: number;
+      slide_count?: number;
+    },
+  ) => {
+    trackDeckViewerClick(analytics.track, {
+      page_name: 'artifact',
+      area: 'deck_viewer',
+      element,
+      artifact_id: anonymizeArtifactId({ projectId, fileName: file.name }),
+      artifact_kind: artifactKindToTracking({ fileKind: file.kind ?? null }),
+      ...(extra?.action ? { action: extra.action } : {}),
+      ...(typeof extra?.slide_index === 'number'
+        ? { slide_index: extra.slide_index }
+        : {}),
+      ...(typeof extra?.slide_count === 'number'
+        ? { slide_count: extra.slide_count }
+        : {}),
+    });
+  };
   const fireCommentPopoverClick = (
     element: 'save_comment' | 'send_to_chat' | 'add_note',
   ) => {
@@ -6811,6 +6843,27 @@ function HtmlViewer({
   const showSpeakerNotesPanel = source !== null && effectiveDeck && mode === 'preview';
   const activeSpeakerNote = speakerNotes[activeDeckSlideIndex] ?? '';
   const deckSlideTotal = Math.max(deckSlideCount, speakerNotes.length, showDeckNavigation ? 1 : 0);
+  // Fire the deck_viewer surface_view once per opened artifact, the first time
+  // its HTML is recognized as a slide deck and the slide chrome mounts. This is
+  // the entry/denominator for the deck experience funnel. Keyed by
+  // project+file so navigating between decks re-arms it.
+  const deckSurfaceSeenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!effectiveDeck || source === null) return;
+    const key = `${projectId}::${file.name}`;
+    if (deckSurfaceSeenRef.current === key) return;
+    deckSurfaceSeenRef.current = key;
+    trackDeckViewerSurfaceView(analytics.track, {
+      page_name: 'artifact',
+      area: 'deck_viewer',
+      artifact_id: anonymizeArtifactId({ projectId, fileName: file.name }),
+      artifact_kind: artifactKindToTracking({ fileKind: file.kind ?? null }),
+      slide_count: deckSlideTotal,
+    });
+    // deckSlideTotal intentionally omitted from deps: we snapshot it at first
+    // recognition and don't want later count updates to refire the view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveDeck, source, projectId, file.name, file.kind]);
   useEffect(() => {
     setSpeakerNotesDraft(activeSpeakerNote);
     setSpeakerNotesEditMode(false);
@@ -8446,6 +8499,15 @@ function HtmlViewer({
   }, [inspectMode, isOurPreviewIframeSource]);
 
   function postSlide(action: 'next' | 'prev' | 'first' | 'last' | 'go', index?: number) {
+    // Track prev/next here so every entry point (top toolbar, floating nav,
+    // more-menu, keyboard) reports a single deck_viewer slide move. Tracked on
+    // intent, before the iframe-readiness guard below.
+    if (action === 'prev' || action === 'next') {
+      fireDeckViewerClick(action === 'prev' ? 'slide_prev' : 'slide_next', {
+        slide_index: activeDeckSlideIndex,
+        slide_count: deckSlideTotal,
+      });
+    }
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
     win.postMessage({
@@ -8471,11 +8533,37 @@ function HtmlViewer({
     win.postMessage({ type: 'od:slide', action: 'go', index: active }, '*');
   }
 
-  async function saveSpeakerNotes(nextNotes: readonly string[]) {
+  function fireSpeakerNotesSaveResult(
+    editSurface: 'preview' | 'presenter',
+    result: 'success' | 'failed',
+    hasContent: boolean,
+    errorCode?: string,
+  ) {
+    trackSpeakerNotesSaveResult(analytics.track, {
+      page_name: 'artifact',
+      area: 'deck_viewer',
+      edit_surface: editSurface,
+      artifact_id: anonymizeArtifactId({ projectId, fileName: file.name }),
+      artifact_kind: artifactKindToTracking({ fileKind: file.kind ?? null }),
+      slide_count: deckSlideTotal,
+      has_content: hasContent,
+      result,
+      ...(errorCode ? { error_code: errorCode } : {}),
+    });
+  }
+
+  async function saveSpeakerNotes(
+    nextNotes: readonly string[],
+    options?: { editSurface?: 'preview' | 'presenter' },
+  ) {
+    const editSurface = options?.editSurface ?? 'preview';
     const currentSource = sourceRef.current ?? source;
     if (!currentSource) return false;
     const normalized = normalizeSpeakerNotes(nextNotes, Math.max(deckSlideCount, nextNotes.length));
     const nextSource = upsertSpeakerNotesInHtml(currentSource, normalized);
+    // "has content" = the note for the slide being edited is non-empty, so we
+    // can separate real authoring from clearing a note.
+    const hasContent = (normalized[activeDeckSlideIndex] ?? '').trim().length > 0;
     setSpeakerNotesSaving(true);
     setSpeakerNotesStatus(null);
     try {
@@ -8488,10 +8576,17 @@ function HtmlViewer({
       setInlinedSource(null);
       setSpeakerNotesStatus('saved');
       await onFileSaved?.();
+      fireSpeakerNotesSaveResult(editSurface, 'success', hasContent);
       return true;
     } catch (err) {
       console.error('[speaker-notes] save failed:', err);
       setSpeakerNotesStatus('error');
+      fireSpeakerNotesSaveResult(
+        editSurface,
+        'failed',
+        hasContent,
+        err instanceof Error ? err.message : 'speaker_notes_save_failed',
+      );
       return false;
     } finally {
       setSpeakerNotesSaving(false);
@@ -8502,12 +8597,16 @@ function HtmlViewer({
     const next = normalizeSpeakerNotes(speakerNotes, Math.max(deckSlideCount, activeDeckSlideIndex + 1));
     while (next.length <= activeDeckSlideIndex) next.push('');
     next[activeDeckSlideIndex] = speakerNotesDraft;
-    const ok = await saveSpeakerNotes(next);
+    const ok = await saveSpeakerNotes(next, { editSurface: 'preview' });
     if (ok && options?.close !== false) setSpeakerNotesEditMode(false);
     return ok;
   }
 
   function beginSpeakerNotesEdit() {
+    fireDeckViewerClick('speaker_notes_edit', {
+      slide_index: activeDeckSlideIndex,
+      slide_count: deckSlideTotal,
+    });
     setSpeakerNotesEditMode(true);
     setSpeakerNotesDraft(activeSpeakerNote);
     setSpeakerNotesStatus(null);
@@ -8677,6 +8776,10 @@ function HtmlViewer({
         postSlide('last');
       } else if (shortcut === 'reset') {
         e.preventDefault();
+        fireDeckViewerClick('slide_reset', {
+          slide_index: activeDeckSlideIndex,
+          slide_count: deckSlideTotal,
+        });
         goToSlide(0);
       }
     }
@@ -8708,7 +8811,7 @@ function HtmlViewer({
         return;
       }
       if (data.type === 'od:presenter-notes-save' && Array.isArray(data.notes)) {
-        void saveSpeakerNotes(data.notes);
+        void saveSpeakerNotes(data.notes, { editSurface: 'presenter' });
       }
     }
     window.addEventListener('message', onPresenterMessage);
@@ -10804,7 +10907,14 @@ function HtmlViewer({
               title={deckThumbnailsCollapsed ? t('designFiles.expandGroup') : t('designFiles.collapseGroup')}
               data-tooltip={deckThumbnailsCollapsed ? t('designFiles.expandGroup') : t('designFiles.collapseGroup')}
               data-tooltip-placement="bottom"
-              onClick={() => setDeckThumbnailsCollapsed((value) => !value)}
+              onClick={() => {
+                fireDeckViewerClick('thumbnail_rail_toggle', {
+                  action: deckThumbnailsCollapsed ? 'expand' : 'collapse',
+                  slide_index: activeDeckSlideIndex,
+                  slide_count: deckSlideTotal,
+                });
+                setDeckThumbnailsCollapsed((value) => !value);
+              }}
             >
               <Icon name="panel-left" size={15} />
             </button>
@@ -11553,7 +11663,13 @@ function HtmlViewer({
                 labelTotal={deckNavTotal}
                 buildThumbSrcDoc={buildDeckThumbnailSrcDoc}
                 parsedDeck={parsedDeckThumbnails}
-                onSelect={handleDeckThumbnailSelect}
+                onSelect={(index) => {
+                  fireDeckViewerClick('thumbnail_select', {
+                    slide_index: index,
+                    slide_count: deckSlideTotal,
+                  });
+                  handleDeckThumbnailSelect(index);
+                }}
               />
             ) : null}
             <div
@@ -11796,7 +11912,13 @@ function HtmlViewer({
                   <button
                     type="button"
                     className="deck-floating-reset"
-                    onClick={() => goToSlide(0)}
+                    onClick={() => {
+                      fireDeckViewerClick('slide_reset', {
+                        slide_index: activeDeckSlideIndex,
+                        slide_count: deckSlideTotal,
+                      });
+                      goToSlide(0);
+                    }}
                     disabled={activeDeckSlideIndex <= 0}
                   >
                     {t('fileViewer.presenterReset')}
