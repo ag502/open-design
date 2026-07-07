@@ -51,6 +51,7 @@ import {
   beginAmrAuthTracking,
   resolveAmrAuthTracking,
 } from '../analytics/amr-auth';
+import { setOnboardingAttributionPersonProperties } from '../analytics/source-attribution';
 import {
   clearOnboardingSessionId,
   getOrCreateOnboardingSessionId,
@@ -2049,21 +2050,20 @@ function OnboardingView({
     if (!onboardingSessionId) return;
     aboutYouReportedRef.current = true;
     const snapshot = profileRef.current;
-    // Persist the survey so later AMR entries (outside onboarding) can forward
-    // the visitor's profile to AMR for paid-conversion segmentation.
-    saveOnboardingProfile({
+    const submittedAt = new Date();
+    const attributionProfile = {
       role: snapshot.role,
       orgSize: snapshot.orgSize,
       useCase: snapshot.useCase,
       source: snapshot.source,
-    });
+      completedAt: submittedAt.toISOString(),
+    };
+    // Persist the survey so later AMR entries (outside onboarding) can forward
+    // the visitor's profile to AMR for paid-conversion segmentation.
+    saveOnboardingProfile(attributionProfile, submittedAt);
+    setOnboardingAttributionPersonProperties(attributionProfile, submittedAt);
     syncAmrAttributionWithOnboardingProfile(
-      {
-        role: snapshot.role,
-        orgSize: snapshot.orgSize,
-        useCase: snapshot.useCase,
-        source: snapshot.source,
-      },
+      attributionProfile,
       {
         metricsConsent: config.telemetry?.metrics === true,
         odDeviceId: amrHandoffDeviceId({
@@ -3225,8 +3225,12 @@ function renderOnboardingProviderTestMessage(
       return t('settings.testInvalidBaseUrl');
     case 'rate_limited':
       return t('settings.testRateLimited');
-    case 'upstream_unavailable':
-      return t('settings.testUpstream', { status: result.status ?? 0 });
+    case 'upstream_unavailable': {
+      const baseMessage = t('settings.testUpstream', {
+        status: result.status ?? 0,
+      });
+      return result.detail ? `${baseMessage} ${result.detail}` : baseMessage;
+    }
     case 'timeout':
       return t('settings.testTimeout', { ms });
     default:
@@ -3252,8 +3256,12 @@ function renderOnboardingProviderModelsMessage(
       return t('settings.testInvalidBaseUrl');
     case 'rate_limited':
       return t('settings.testRateLimited');
-    case 'upstream_unavailable':
-      return t('settings.testUpstream', { status: result.status ?? 0 });
+    case 'upstream_unavailable': {
+      const baseMessage = t('settings.testUpstream', {
+        status: result.status ?? 0,
+      });
+      return result.detail ? `${baseMessage} ${result.detail}` : baseMessage;
+    }
     case 'timeout':
       return t('settings.testTimeout', {
         ms: Math.max(0, Math.round(result.latencyMs)),
