@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import express from 'express';
 import http from 'node:http';
+import { TeamResourceCopyForbiddenError } from '@open-design/contracts';
 import { registerTeamResourceRoutes } from '../src/routes/team-resources.js';
-import { createDevTeamResourceStateProvider } from '../src/collab/team-resource-state.js';
+import {
+  createDevTeamResourceStateProvider,
+  enforceTeamResourceCopyAllowed,
+} from '../src/collab/team-resource-state.js';
 
 let server: http.Server | null = null;
 
@@ -75,5 +79,22 @@ describe('team resource routes (D1 state + D3 enforcement)', () => {
     const api = await startServer();
     const res = await api.req('/api/workspace/resources/nonsense/x/state');
     expect(res.status).toBe(400);
+  });
+});
+
+describe('enforceTeamResourceCopyAllowed (route-layer guard the copy-out routes call)', () => {
+  it('passes for an unregistered (personal) resource', async () => {
+    const provider = createDevTeamResourceStateProvider();
+    await expect(
+      enforceTeamResourceCopyAllowed(provider, { kind: 'plugin', resourceId: 'p1' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws a coded error for a frozen team resource', async () => {
+    const provider = createDevTeamResourceStateProvider();
+    provider.set?.({ kind: 'plugin', resourceId: 'p1' }, { scope: 'team', state: 'frozen' });
+    await expect(
+      enforceTeamResourceCopyAllowed(provider, { kind: 'plugin', resourceId: 'p1' }),
+    ).rejects.toBeInstanceOf(TeamResourceCopyForbiddenError);
   });
 });

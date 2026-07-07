@@ -4702,6 +4702,7 @@ export async function startServer({
 
   registerPluginRoutes(app, {
     db,
+    teamResources: collab.teamResources,
     paths: { PROJECTS_DIR, PLUGIN_REGISTRY_ROOTS, PLUGIN_LOCKFILE_PATH },
     ids: idDeps,
     projectStore: projectStoreDeps,

@@ -1,4 +1,8 @@
-import type { TeamResourceCopyTarget, TeamResourceState } from '@open-design/contracts';
+import {
+  assertTeamResourceCopyAllowed,
+  type TeamResourceCopyTarget,
+  type TeamResourceState,
+} from '@open-design/contracts';
 
 // Team-resource state seam (D1 state model). Reports whether a design system /
 // plugin / skill is a team resource and its lifecycle state, so the copy
@@ -45,4 +49,18 @@ export function createDevTeamResourceStateProvider(): TeamResourceStateProvider 
       else registry.delete(mapKey(key));
     },
   };
+}
+
+/**
+ * Resolve a resource's state and enforce the copy red-line (D3) at a copy-out
+ * route. Throws {@link TeamResourceCopyForbiddenError} (which routes map to 403)
+ * when the resource is a frozen/deleted team resource. A one-liner the escape
+ * routes (plugin duplicate, DS copy, skill edit-shadow) call before copying.
+ */
+export async function enforceTeamResourceCopyAllowed(
+  provider: TeamResourceStateProvider,
+  key: TeamResourceKey,
+): Promise<void> {
+  const target = await provider.resolve(key);
+  assertTeamResourceCopyAllowed(target);
 }
