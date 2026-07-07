@@ -1079,7 +1079,12 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       let ownerHtml: string;
       if (versionId) {
         try {
-          ownerHtml = await readExportVersionSource(req.params.id, relPath, versionId, project?.metadata) ?? '';
+          ownerHtml = await readExportVersionSource(
+            req.params.id,
+            relPath,
+            versionId,
+            project?.metadata,
+          ) ?? '';
         } catch (err: any) {
           const status = err && err.code === 'ENOENT' ? 404 : 400;
           return sendApiError(
@@ -1089,12 +1094,13 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
             String(err),
           );
         }
-        if (Buffer.byteLength(ownerHtml, 'utf8') > MAX_INLINE_OWNER_BYTES) {
+        const ownerBytes = Buffer.byteLength(ownerHtml, 'utf8');
+        if (ownerBytes > MAX_INLINE_OWNER_BYTES) {
           return sendApiError(
             res,
             413,
             'PAYLOAD_TOO_LARGE',
-            `owner html ${Buffer.byteLength(ownerHtml, 'utf8')} bytes exceeds MAX_INLINE_OWNER_BYTES ${MAX_INLINE_OWNER_BYTES}`,
+            `owner html ${ownerBytes} bytes exceeds MAX_INLINE_OWNER_BYTES ${MAX_INLINE_OWNER_BYTES}`,
           );
         }
       } else {

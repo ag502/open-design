@@ -7,27 +7,35 @@ import { readExpandedIndexCss } from '../helpers/read-expanded-css';
 
 const {
   captureHostIframeSnapshotMock,
+  downloadImageDataUrlMock,
   exportAsHtmlMock,
   exportAsPdfMock,
   exportAsZipMock,
   exportProjectAsHtmlMock,
+  exportProjectImageDataUrlMock,
   exportProjectAsPdfMock,
   exportProjectAsZipMock,
   exportProjectScreenshotPdfMock,
   exportSnapshotAsPdfMock,
+  imageDataUrlToBlobMock,
   isOpenDesignHostAvailableMock,
+  prepareImageExportTargetMock,
   requestPreviewSnapshotMock,
 } = vi.hoisted(() => ({
   captureHostIframeSnapshotMock: vi.fn(),
+  downloadImageDataUrlMock: vi.fn(),
   exportAsHtmlMock: vi.fn(),
   exportAsPdfMock: vi.fn(),
   exportAsZipMock: vi.fn(),
   exportProjectAsHtmlMock: vi.fn(),
+  exportProjectImageDataUrlMock: vi.fn(),
   exportProjectAsPdfMock: vi.fn(),
   exportProjectAsZipMock: vi.fn(),
   exportProjectScreenshotPdfMock: vi.fn(),
   exportSnapshotAsPdfMock: vi.fn(),
+  imageDataUrlToBlobMock: vi.fn(),
   isOpenDesignHostAvailableMock: vi.fn(() => false),
+  prepareImageExportTargetMock: vi.fn(),
   requestPreviewSnapshotMock: vi.fn(),
 }));
 
@@ -38,15 +46,19 @@ vi.mock('../../src/runtime/exports', async () => {
   return {
     ...actual,
     captureHostIframeSnapshot: captureHostIframeSnapshotMock,
+    downloadImageDataUrl: downloadImageDataUrlMock,
     exportAsHtml: exportAsHtmlMock,
     exportAsPdf: exportAsPdfMock,
     exportAsZip: exportAsZipMock,
     exportProjectAsHtml: exportProjectAsHtmlMock,
+    exportProjectImageDataUrl: exportProjectImageDataUrlMock,
     exportProjectAsPdf: exportProjectAsPdfMock,
     exportProjectAsZip: exportProjectAsZipMock,
     exportProjectScreenshotPdf: exportProjectScreenshotPdfMock,
     exportSnapshotAsPdf: exportSnapshotAsPdfMock,
+    imageDataUrlToBlob: imageDataUrlToBlobMock,
     isOpenDesignHostAvailable: isOpenDesignHostAvailableMock,
+    prepareImageExportTarget: prepareImageExportTargetMock,
     requestPreviewSnapshot: requestPreviewSnapshotMock,
   };
 });
@@ -176,16 +188,16 @@ describe('FileViewer version download actions', () => {
         title: 'index',
       }));
     });
+    expect(exportProjectScreenshotPdfMock.mock.calls[0]?.[0]).not.toHaveProperty('versionId');
     expect(requestPreviewSnapshotMock).not.toHaveBeenCalled();
     expect(exportSnapshotAsPdfMock).not.toHaveBeenCalled();
     expect(exportProjectAsPdfMock).not.toHaveBeenCalled();
     expect(exportAsPdfMock).not.toHaveBeenCalled();
   });
 
-  it('exports version PDFs from the rendered version preview container', async () => {
-    const snapshot = { dataUrl: 'data:image/png;base64,c25hcHNob3Q=', w: 400, h: 800 };
-    requestPreviewSnapshotMock.mockResolvedValueOnce(snapshot);
-    exportSnapshotAsPdfMock.mockResolvedValueOnce(undefined);
+  it('routes historical version PDFs through the main download PDF exporter', async () => {
+    isOpenDesignHostAvailableMock.mockReturnValue(true);
+    exportProjectScreenshotPdfMock.mockResolvedValueOnce({ ok: true });
     const { file } = setupVersionFetch();
     const versionDialog = await renderVersionDialog(file);
 
@@ -193,54 +205,87 @@ describe('FileViewer version download actions', () => {
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as PDF' }));
 
     await waitFor(() => {
-      expect(exportSnapshotAsPdfMock).toHaveBeenCalledWith(snapshot, 'index-v1');
+      expect(exportProjectScreenshotPdfMock).toHaveBeenCalledWith(expect.objectContaining({
+        deck: false,
+        fileName: 'index.html',
+        projectId: 'project-1',
+        title: 'index-v1',
+        versionId: 'v1',
+      }));
     });
-    expect(requestPreviewSnapshotMock).toHaveBeenCalledWith(expect.any(HTMLIFrameElement), expect.any(Number), {
-      full: true,
-    });
+    expect(requestPreviewSnapshotMock).not.toHaveBeenCalled();
     expect(captureHostIframeSnapshotMock).not.toHaveBeenCalled();
+    expect(exportSnapshotAsPdfMock).not.toHaveBeenCalled();
     expect(exportAsPdfMock).not.toHaveBeenCalled();
   });
 
-  it('shows an export error when the rendered version preview cannot be captured', async () => {
-    requestPreviewSnapshotMock.mockResolvedValueOnce(null);
+  it('shows main export errors for historical version PDFs', async () => {
+    isOpenDesignHostAvailableMock.mockReturnValue(true);
+    exportProjectScreenshotPdfMock.mockResolvedValueOnce({ ok: false, error: 'version renderer failed' });
     const { file } = setupVersionFetch();
     const versionDialog = await renderVersionDialog(file);
 
     openVersionDownloadMenu(versionDialog);
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as PDF' }));
 
-    expect(await screen.findByText(/Export failed/)).toBeTruthy();
-    expect(requestPreviewSnapshotMock).toHaveBeenCalledWith(expect.any(HTMLIFrameElement), expect.any(Number), {
-      full: true,
-    });
+    expect(await screen.findByText(/version renderer failed/)).toBeTruthy();
+    expect(requestPreviewSnapshotMock).not.toHaveBeenCalled();
     expect(captureHostIframeSnapshotMock).not.toHaveBeenCalled();
     expect(exportSnapshotAsPdfMock).not.toHaveBeenCalled();
     expect(exportAsPdfMock).not.toHaveBeenCalled();
   });
 
   it('does not show a close button while a version export is still running', async () => {
-    requestPreviewSnapshotMock.mockReturnValueOnce(new Promise(() => {}));
+    isOpenDesignHostAvailableMock.mockReturnValue(true);
+    exportProjectScreenshotPdfMock.mockReturnValueOnce(new Promise(() => {}));
     const { file } = setupVersionFetch();
     const versionDialog = await renderVersionDialog(file);
 
     openVersionDownloadMenu(versionDialog);
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as PDF' }));
 
-    const toastMessage = await screen.findByText('Export started');
+    const toastMessage = await screen.findByText(/Exporting/);
     const toast = toastMessage.closest('.od-toast');
     expect(toast).toBeTruthy();
     expect(within(toast as HTMLElement).queryByRole('button', { name: 'Dismiss' })).toBeNull();
   });
 
-  it('opens the version image export dialog from the download menu', async () => {
+  it('exports historical version images through the main image exporter', async () => {
+    isOpenDesignHostAvailableMock.mockReturnValue(true);
+    exportProjectImageDataUrlMock.mockResolvedValueOnce({
+      ok: true,
+      snapshot: { dataUrl: 'data:image/png;base64,c25hcHNob3Q=', w: 1, h: 1 },
+    });
+    imageDataUrlToBlobMock.mockResolvedValueOnce(new Blob(['snapshot'], { type: 'image/png' }));
+    prepareImageExportTargetMock.mockResolvedValueOnce({
+      filename: 'index-v1.png',
+      method: 'download',
+      save: vi.fn(),
+    });
     const { file } = setupVersionFetch();
     const versionDialog = await renderVersionDialog(file);
 
     openVersionDownloadMenu(versionDialog);
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as image' }));
 
-    expect(await screen.findByRole('dialog', { name: 'Export as image' })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Versions' })).toBeNull();
+    });
+    const imageDialog = await screen.findByRole('dialog', { name: 'Export as image' });
+    fireEvent.click(within(imageDialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(exportProjectImageDataUrlMock).toHaveBeenCalledWith(expect.objectContaining({
+        deck: false,
+        fileName: 'index.html',
+        projectId: 'project-1',
+        versionId: 'v1',
+      }));
+    });
+    expect(imageDataUrlToBlobMock).toHaveBeenCalledWith('data:image/png;base64,c25hcHNob3Q=', 'png');
+    expect(prepareImageExportTargetMock).toHaveBeenCalledWith('index-v1', 'png', { useNativePicker: false });
+    expect(downloadImageDataUrlMock).toHaveBeenCalledWith('data:image/png;base64,c25hcHNob3Q=', 'index-v1.png');
+    expect(requestPreviewSnapshotMock).not.toHaveBeenCalled();
   });
 
   it('opens the main image export dialog for the current version', async () => {
@@ -265,15 +310,29 @@ describe('FileViewer version download actions', () => {
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as standalone HTML' }));
 
     await waitFor(() => {
-      expect(exportAsHtmlMock).toHaveBeenCalledWith(priorContent, 'index-v1');
+      expect(exportProjectAsHtmlMock).toHaveBeenCalledWith(expect.objectContaining({
+        fallbackHtml: priorContent,
+        fallbackTitle: 'index-v1',
+        filePath: 'index.html',
+        projectId: 'project-1',
+        versionId: 'v1',
+      }));
     });
 
     openVersionDownloadMenu(versionDialog);
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Download as .zip' }));
 
     await waitFor(() => {
-      expect(exportAsZipMock).toHaveBeenCalledWith(priorContent, 'index-v1');
+      expect(exportProjectAsZipMock).toHaveBeenCalledWith(expect.objectContaining({
+        fallbackHtml: priorContent,
+        fallbackTitle: 'index-v1',
+        filePath: 'index.html',
+        projectId: 'project-1',
+        versionId: 'v1',
+      }));
     });
+    expect(exportAsHtmlMock).not.toHaveBeenCalled();
+    expect(exportAsZipMock).not.toHaveBeenCalled();
   });
 
   it('routes current version HTML and ZIP actions through the main download exporters', async () => {
@@ -291,6 +350,7 @@ describe('FileViewer version download actions', () => {
         projectId: 'project-1',
       }));
     });
+    expect(exportProjectAsHtmlMock.mock.calls[0]?.[0]).not.toHaveProperty('versionId');
 
     openVersionDownloadMenu(versionDialog, 2);
     fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Download as .zip' }));
@@ -303,6 +363,7 @@ describe('FileViewer version download actions', () => {
         projectId: 'project-1',
       }));
     });
+    expect(exportProjectAsZipMock.mock.calls[0]?.[0]).not.toHaveProperty('versionId');
     expect(exportAsHtmlMock).not.toHaveBeenCalled();
     expect(exportAsZipMock).not.toHaveBeenCalled();
   });

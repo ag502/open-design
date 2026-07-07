@@ -9696,9 +9696,10 @@ function HtmlViewer({
   const showMarkdownExport = source !== null && isMarkdownArtifact;
   const showImageExport = canShare;
 
-  function deckExportSignalForContext(context?: HtmlVersionExportContext | null): boolean {
-    return context ? isDeckArtifact || sourceLooksLikeExportableDeck(context.content) : deckExportSignal;
-  }
+  const deckExportSignalForContext = useCallback((context?: HtmlVersionExportContext | null): boolean => {
+    if (!context?.versionId) return deckExportSignal;
+    return isDeckArtifact || sourceLooksLikeExportableDeck(context.content);
+  }, [deckExportSignal, isDeckArtifact]);
 
   async function exportHtmlPdf(context?: HtmlVersionExportContext | null) {
     const pdfTitle = context?.title ?? exportTitle;
@@ -9944,6 +9945,7 @@ function HtmlViewer({
     srcDocShellReady,
     useLazySrcDocTransport,
     useUrlLoadPreview,
+    deckExportSignalForContext,
     slideState?.active,
     previewStateKey,
     projectId,

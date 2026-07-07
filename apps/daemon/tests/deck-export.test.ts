@@ -125,6 +125,31 @@ describe('buildDeckRenderInput', () => {
       rmSync(projectsRoot, { recursive: true, force: true });
     }
   });
+
+  it('uses supplied sourceHtml for version exports instead of reading the current file', async () => {
+    const projectsRoot = mkdtempSync(path.join(tmpdir(), 'od-deck-render-input-'));
+    const projectId = 'project-1';
+    const projectDir = path.join(projectsRoot, projectId);
+    mkdirSync(projectDir, { recursive: true });
+    await writeFile(path.join(projectDir, 'deck.html'), '<html><body>Current deck</body></html>');
+
+    try {
+      const request = await buildDeckRenderInput({
+        daemonUrl: 'http://127.0.0.1:60636',
+        deck: true,
+        fileName: 'deck.html',
+        projectId,
+        projectsRoot,
+        sourceHtml: '<html><body>Historical deck version</body></html>',
+      });
+
+      expect(request.input.html).toContain('Historical deck version');
+      expect(request.input.html).not.toContain('Current deck');
+      expect(request.input.baseHref).toBe('http://127.0.0.1:60636/api/projects/project-1/raw/');
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('buildScreenshotPptx', () => {
