@@ -39,6 +39,27 @@ const features = page.features;
 const ctaHref = (a: { href: string; external?: boolean }) =>
   a.external ? a.href : href(a.href);
 
+// Comparison pages lead with the desktop download. Drop the generic
+// "get started" CTA (the /quickstart/ action) and surface only Download —
+// emphasized as the primary button — plus Star on GitHub as the secondary.
+// Actions are matched by their locale-stable hrefs (the English base uses
+// /download/, older translated copy uses the /releases link; both are kept),
+// so this holds across every translation without editing per-locale copy.
+type CtaAction = { label: string; href: string; variant?: string; external?: boolean };
+const GET_STARTED_HREF = '/quickstart/';
+const isStar = (a: CtaAction) => a.href === REPO;
+const downloadFirstCtas = (actions: readonly CtaAction[]): CtaAction[] => {
+  const kept = actions.filter((a) => a.href !== GET_STARTED_HREF);
+  const download = kept.find((a) => !isStar(a));
+  const star = kept.find(isStar);
+  if (!download) return [...actions]; // unexpected shape: leave untouched
+  const out: CtaAction[] = [{ ...download, variant: 'primary' }];
+  if (star) out.push({ ...star, variant: 'ghost' });
+  return out;
+};
+const heroCtas: CtaAction[] = rich ? downloadFirstCtas(rich.heroCtaActions) : [];
+const finalCtas: CtaAction[] = rich ? downloadFirstCtas(rich.ctaActions) : [];
+
 const faqEntries = (rich?.faq ?? page.faq).map(({ name, text }) => ({ name, text }));
 
 const homeUrl = new URL(href('/'), SITE).toString();
@@ -93,7 +114,7 @@ const jsonLd = [
             <h1 class="v4h1">{page.heading}</h1>
             <p class="v4dek">{rich.heroCtaLead}</p>
             <div class="v4cta-row">
-              {rich.heroCtaActions.map((a) => (
+              {heroCtas.map((a) => (
                 <a
                   class={a.variant === 'primary' ? 'v4btn-p' : 'v4btn-g'}
                   href={ctaHref(a)}
@@ -203,7 +224,7 @@ const jsonLd = [
             <h2 class="v4final-h">{rich.ctaTitle}</h2>
             <p class="v4final-p">{rich.ctaBody}</p>
             <div class="v4cta-row">
-              {rich.ctaActions.map((a) => (
+              {finalCtas.map((a) => (
                 <a
                   class={a.variant === 'primary' ? 'v4btn-coral' : 'v4btn-gd'}
                   href={ctaHref(a)}
