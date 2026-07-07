@@ -55,19 +55,22 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
   const analytics = useAnalytics();
   const [card, setCard] = useState<CardModel | null>(null);
   const surfaceTrackedRef = useRef(false);
-  const fetchRequestedRef = useRef(false);
+  // Flips only once a decision is actually REACHED, never merely when a fetch
+  // starts. A fetch torn down before it resolves — React StrictMode's
+  // double-invoke, or the user leaving Home mid-flight — therefore leaves the
+  // guard down so the next Home activation retries, instead of the teardown
+  // re-arming a start-time guard and permanently swallowing the card.
+  const decisionMadeRef = useRef(false);
 
   useEffect(() => {
-    if (!active || fetchRequestedRef.current) return;
-    fetchRequestedRef.current = true;
+    if (!active || decisionMadeRef.current) return;
     let cancelled = false;
     void fetchWhatsNew().then((info) => {
-      if (cancelled) {
-        // The user left Home mid-fetch; re-arm so the next Home visit retries.
-        fetchRequestedRef.current = false;
-        return;
-      }
-      if (info == null) return;
+      // `cancelled` guards state updates after this effect invocation is torn
+      // down; it does NOT re-arm the fetch, so a superseded fetch simply drops
+      // and the surviving one records the decision.
+      if (cancelled || info == null) return;
+      decisionMadeRef.current = true;
       const decision = resolveWhatsNewPrompt(info, readLastSeenWhatsNewVersion());
       if (decision === 'baseline') {
         markWhatsNewSeen(info.version);
