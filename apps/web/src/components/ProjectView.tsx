@@ -204,6 +204,7 @@ import { localizePluginTitle } from './plugins-home/localization';
 import { DesignSystemPicker } from './DesignSystemPicker';
 import { PresenceBar } from '../collab/PresenceBar';
 import { useProjectCollab } from '../collab/useProjectCollab';
+import { CollabProvider } from '../collab/collab-context';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { ChatPane } from './ChatPane';
@@ -8025,6 +8026,7 @@ export function ProjectView({
   );
 
   return (
+    <CollabProvider value={projectCollab}>
     <div className="app">
       <CritiqueTheaterMount
         projectId={project.id}
@@ -8440,6 +8442,7 @@ export function ProjectView({
         ) : null}
       </AnimatePresence>
     </div>
+    </CollabProvider>
   );
 }
 

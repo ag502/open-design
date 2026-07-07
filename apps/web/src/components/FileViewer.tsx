@@ -147,6 +147,7 @@ import {
   type AnchorWriteBack,
   type PreviewCommentSnapshot,
 } from '../comments';
+import { useProjectCollabContext } from '../collab/collab-context';
 import { applyPodMemberRemoval } from '../lib/pod-members';
 import { AnnotationHoverPopover, BoardComposerPopover } from './BoardComposerPopover';
 import {
@@ -5483,6 +5484,11 @@ function HtmlViewer({
 }) {
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
+  // Team-collab (C lane): resolve comment anchors through the drift ladder when
+  // the viewer is a team member of a shared project. Off (exact-match, single
+  // user) otherwise. From the ProjectView-provided collab context — no props to
+  // thread, no second collab client.
+  const collab = useProjectCollabContext();
   // Latest per-slide capture progress for the programmatic exporters, read by
   // the loading-toast ticker in fireShareExport to render elapsed time + ETA.
   const exportProgressRef = useRef<{ done: number; total: number } | null>(null);
@@ -10838,6 +10844,8 @@ function HtmlViewer({
               {boardMode ? (
                 <CommentPreviewOverlays
                   comments={commentCreateMode ? visibleSideComments : []}
+                  driftLadder={collab.enabled}
+                  currentVersion={collab.publishedVersion ?? undefined}
                   liveTargets={liveCommentTargets}
                   hoveredTarget={hoveredCommentTarget}
                   hoveredPodMemberId={hoveredPodMemberId}
