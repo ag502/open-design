@@ -1156,6 +1156,10 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     lifecycleState: 'active' | 'billing_past_due' | 'locked' | 'deleting' | 'deleted';
     writeEnabled: boolean;
   };
+
+  // Temporary adapter until the B-owned CurrentWorkspaceContext is wired into
+  // the daemon. Keep D's project CRUD behind this seam so the header fallback
+  // can be replaced without changing visibility and permission logic.
   function headerValue(req: any, name: string): string | null {
     const value = req.get(name);
     return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -1177,6 +1181,13 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   }
   function isWorkspaceLocked(ctx: WorkspaceProjectContext): boolean {
     return ctx.lifecycleState === 'locked' || ctx.lifecycleState === 'deleted' || !ctx.writeEnabled;
+  }
+  function pendingSyncIntent(projectId: string, workspaceId: string, visibility: 'personal' | 'team') {
+    return {
+      event: visibility === 'team' ? 'project_team_share_requested' : 'project_visibility_changed',
+      projectId,
+      workspaceId,
+    };
   }
   function projectAccess(wp: any, ctx: WorkspaceProjectContext) {
     const frozen = wp.resourceState === 'frozen' || wp.resourceState === 'deleted' || isWorkspaceLocked(ctx);
@@ -1238,8 +1249,13 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       resourceState,
       createdByWorkspaceMemberId: row.createdByWorkspaceMemberId ?? null,
       updatedByWorkspaceMemberId: row.updatedByWorkspaceMemberId ?? null,
+      resourceHubResourceId: row.resourceHubResourceId ?? null,
+      cloudTombstonedAt: row.cloudTombstonedAt ?? null,
       currentUserAccess: projectAccess(wp, ctx),
       syncState: row.syncState ?? 'local_only',
+      ...(row.syncState === 'pending_upload'
+        ? { pendingSyncIntent: pendingSyncIntent(project.id, row.workspaceId, row.workspaceVisibility) }
+        : {}),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       metadata,
@@ -1256,6 +1272,8 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       createdByWorkspaceMemberId: ctx.workspaceMemberId,
       updatedByWorkspaceMemberId: ctx.workspaceMemberId,
       syncState: 'local_only',
+      resourceHubResourceId: null,
+      cloudTombstonedAt: null,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     });
@@ -1614,6 +1632,8 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         workspaceId: ctx.workspaceId,
         visibility,
         updatedByWorkspaceMemberId: ctx.workspaceMemberId,
+        resourceHubResourceId: visibility === 'team' ? wp.resourceHubResourceId ?? null : null,
+        cloudTombstonedAt: visibility === 'team' ? null : Date.now(),
         syncState: visibility === 'team' ? 'pending_upload' : 'local_only',
       });
       const updatedRow = listWorkspaceProjects(db, ctx.workspaceId).find((item: any) => item.id === project.id);
@@ -1647,6 +1667,8 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
             workspaceId: ctx.workspaceId,
             visibility,
             updatedByWorkspaceMemberId: ctx.workspaceMemberId,
+            resourceHubResourceId: visibility === 'team' ? undefined : null,
+            cloudTombstonedAt: visibility === 'team' ? null : Date.now(),
             syncState: visibility === 'team' ? 'pending_upload' : 'local_only',
           });
         }

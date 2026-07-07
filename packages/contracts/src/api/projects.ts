@@ -313,11 +313,24 @@ export type ProjectVisibility = 'personal' | 'team';
 
 export type TeamResourceState = 'active' | 'frozen' | 'deleted';
 
+// Local D-lane placeholders until the B-owned CurrentWorkspaceContext is
+// imported into open-design. The route adapter keeps these replaceable.
 export type WorkspaceProjectRole = 'owner' | 'admin' | 'member';
 
 export type WorkspaceLifecycleState = 'active' | 'billing_past_due' | 'locked' | 'deleting' | 'deleted';
 
+// C owns project sync orchestration. D exposes this on its read model and emits
+// intent metadata when visibility changes, but it does not upload or mirror
+// project content directly.
 export type ProjectSyncState = 'local_only' | 'pending_upload' | 'synced' | 'sync_failed';
+
+export type WorkspaceProjectSyncIntentEvent = 'project_visibility_changed' | 'project_team_share_requested';
+
+export interface WorkspaceProjectSyncIntent {
+  event: WorkspaceProjectSyncIntentEvent;
+  projectId: string;
+  workspaceId: string;
+}
 
 export type ProjectDisabledReason =
   | 'workspace_locked'
@@ -347,8 +360,17 @@ export interface WorkspaceProjectSummary {
   resourceState: TeamResourceState;
   createdByWorkspaceMemberId: string | null;
   updatedByWorkspaceMemberId?: string | null;
+  /**
+   * E resource-hub mapping seam. Personal projects are local-only and normally
+   * keep this null; team-visible projects receive a cloud resource through C's
+   * orchestration of E's upload/version/mirror mechanism.
+   */
+  resourceHubResourceId?: string | null;
+  /** Set when a previously shared cloud resource should be tombstoned. */
+  cloudTombstonedAt?: number | null;
   currentUserAccess: ProjectAccessFlags;
   syncState?: ProjectSyncState;
+  pendingSyncIntent?: WorkspaceProjectSyncIntent;
   createdAt: number;
   updatedAt: number;
   metadata?: ProjectMetadata;

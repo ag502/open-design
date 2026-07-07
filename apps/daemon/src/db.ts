@@ -72,6 +72,8 @@ function migrate(db: SqliteDb): void {
       resource_state TEXT NOT NULL CHECK (resource_state IN ('active', 'frozen', 'deleted')),
       created_by_workspace_member_id TEXT,
       updated_by_workspace_member_id TEXT,
+      resource_hub_resource_id TEXT,
+      cloud_tombstoned_at INTEGER,
       sync_state TEXT,
       version INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL,
@@ -276,6 +278,13 @@ function migrate(db: SqliteDb): void {
   }
   if (!cols.some((c: DbRow) => c.name === 'custom_instructions')) {
     db.exec(`ALTER TABLE projects ADD COLUMN custom_instructions TEXT`);
+  }
+  const workspaceProjectCols = db.prepare(`PRAGMA table_info(workspace_projects)`).all() as DbRow[];
+  if (!workspaceProjectCols.some((c: DbRow) => c.name === 'resource_hub_resource_id')) {
+    db.exec(`ALTER TABLE workspace_projects ADD COLUMN resource_hub_resource_id TEXT`);
+  }
+  if (!workspaceProjectCols.some((c: DbRow) => c.name === 'cloud_tombstoned_at')) {
+    db.exec(`ALTER TABLE workspace_projects ADD COLUMN cloud_tombstoned_at INTEGER`);
   }
   const conversationCols = db.prepare(`PRAGMA table_info(conversations)`).all() as DbRow[];
   if (!conversationCols.some((c: DbRow) => c.name === 'session_mode')) {
@@ -634,6 +643,8 @@ export function getWorkspaceProject(db: SqliteDb, projectId: string) {
               resource_state AS resourceState,
               created_by_workspace_member_id AS createdByWorkspaceMemberId,
               updated_by_workspace_member_id AS updatedByWorkspaceMemberId,
+              resource_hub_resource_id AS resourceHubResourceId,
+              cloud_tombstoned_at AS cloudTombstonedAt,
               sync_state AS syncState,
               version,
               created_at AS createdAt,
@@ -663,6 +674,8 @@ export function listWorkspaceProjects(db: SqliteDb, workspaceId: string) {
               wp.resource_state AS resourceState,
               wp.created_by_workspace_member_id AS createdByWorkspaceMemberId,
               wp.updated_by_workspace_member_id AS updatedByWorkspaceMemberId,
+              wp.resource_hub_resource_id AS resourceHubResourceId,
+              wp.cloud_tombstoned_at AS cloudTombstonedAt,
               wp.sync_state AS syncState,
               wp.version AS workspaceVersion,
               wp.created_at AS workspaceCreatedAt,
@@ -683,8 +696,9 @@ export function ensureWorkspaceProject(db: SqliteDb, input: DbRow) {
     `INSERT INTO workspace_projects
        (project_id, workspace_id, visibility, resource_state,
         created_by_workspace_member_id, updated_by_workspace_member_id,
+        resource_hub_resource_id, cloud_tombstoned_at,
         sync_state, version, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.projectId,
     input.workspaceId,
@@ -692,6 +706,8 @@ export function ensureWorkspaceProject(db: SqliteDb, input: DbRow) {
     input.resourceState ?? 'active',
     input.createdByWorkspaceMemberId ?? null,
     input.updatedByWorkspaceMemberId ?? input.createdByWorkspaceMemberId ?? null,
+    input.resourceHubResourceId ?? null,
+    input.cloudTombstonedAt ?? null,
     input.syncState ?? 'local_only',
     input.version ?? 1,
     input.createdAt ?? now,
@@ -706,6 +722,12 @@ export function updateWorkspaceProject(db: SqliteDb, projectId: string, patch: D
   const next: DbRow = {
     ...existing,
     ...patch,
+    resourceHubResourceId: patch.resourceHubResourceId === undefined
+      ? existing.resourceHubResourceId
+      : patch.resourceHubResourceId,
+    cloudTombstonedAt: patch.cloudTombstonedAt === undefined
+      ? existing.cloudTombstonedAt
+      : patch.cloudTombstonedAt,
     updatedAt: typeof patch.updatedAt === 'number' ? patch.updatedAt : Date.now(),
   };
   db.prepare(
@@ -715,6 +737,8 @@ export function updateWorkspaceProject(db: SqliteDb, projectId: string, patch: D
             resource_state = ?,
             created_by_workspace_member_id = ?,
             updated_by_workspace_member_id = ?,
+            resource_hub_resource_id = ?,
+            cloud_tombstoned_at = ?,
             sync_state = ?,
             version = ?,
             updated_at = ?
@@ -725,6 +749,8 @@ export function updateWorkspaceProject(db: SqliteDb, projectId: string, patch: D
     next.resourceState,
     next.createdByWorkspaceMemberId ?? null,
     next.updatedByWorkspaceMemberId ?? null,
+    next.resourceHubResourceId ?? null,
+    next.cloudTombstonedAt ?? null,
     next.syncState ?? null,
     next.version ?? 1,
     next.updatedAt,

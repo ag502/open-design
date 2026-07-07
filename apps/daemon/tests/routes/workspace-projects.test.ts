@@ -83,8 +83,30 @@ describe('workspace project routes', () => {
       id: moveProjectId,
       visibility: 'team',
       syncState: 'pending_upload',
+      resourceHubResourceId: null,
+      cloudTombstonedAt: null,
       createdByWorkspaceMemberId: 'member-direct',
+      pendingSyncIntent: {
+        event: 'project_team_share_requested',
+        projectId: moveProjectId,
+        workspaceId,
+      },
     });
+
+    const moveBackResp = await fetch(`${baseUrl}/api/workspaces/${workspaceId}/projects/${moveProjectId}/move`, {
+      method: 'POST',
+      headers: headers('member-direct'),
+      body: JSON.stringify({ visibility: 'personal' }),
+    });
+    expect(moveBackResp.status).toBe(200);
+    const movedBack = await moveBackResp.json() as { project: any };
+    expect(movedBack.project).toMatchObject({
+      id: moveProjectId,
+      visibility: 'personal',
+      syncState: 'local_only',
+      resourceHubResourceId: null,
+    });
+    expect(typeof movedBack.project.cloudTombstonedAt).toBe('number');
 
     const deleteResp = await fetch(`${baseUrl}/api/workspaces/${workspaceId}/projects/batch-delete`, {
       method: 'POST',
