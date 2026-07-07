@@ -234,6 +234,26 @@ describe('FileViewer preview scale', () => {
     );
   });
 
+  it('keeps the preview viewport trigger flat by default', () => {
+    const css = readExpandedIndexCss();
+    const rules = Array.from(css.matchAll(/\.viewer-viewport-trigger\s*\{[^}]+\}/g), (match) => match[0]);
+
+    expect(rules.some((rule) => rule.includes('color: var(--text-muted);'))).toBe(true);
+    expect(rules.every((rule) => !rule.includes('color: var(--text);'))).toBe(true);
+    expect(rules.some((rule) => rule.includes('box-shadow: none;'))).toBe(true);
+    expect(rules.every((rule) => !rule.includes('box-shadow: var(--shadow-xs);'))).toBe(true);
+  });
+
+  it('clips deck thumbnail loading overlays to the thumbnail frame radius', () => {
+    const css = readExpandedIndexCss();
+    const rule = css.match(/\.deck-thumbnail-loading\s*\{[^}]+\}/)?.[0] ?? '';
+
+    expect(rule).toContain('inset: 0;');
+    expect(rule).toContain('border-radius: inherit;');
+    expect(rule).toContain('clip-path: inset(0 round 8px);');
+    expect(rule).toContain('overflow: hidden;');
+  });
+
   it('keeps manual edit canvas layout aligned with comment preview on device viewports (#2960)', () => {
     const css = readExpandedIndexCss();
 
@@ -1864,6 +1884,74 @@ describe('FileViewer SVG artifacts', () => {
     expect(editor?.value).toBe('Intro note');
   });
 
+  it('does not reload deck preview or thumbnails when speaker notes save on blur', async () => {
+    const file = baseFile({
+      name: 'deck.html',
+      path: 'deck.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Deck',
+        entry: 'deck.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url === '/api/projects/project-1/files' && init?.method === 'POST') {
+        return new Response(JSON.stringify({ file: { ...file, mtime: file.mtime + 1 } }), { status: 200 });
+      }
+      return new Response('', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { container } = render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={file}
+        isDeck
+        liveHtml={[
+          '<!doctype html><html><body>',
+          '<section class="slide">one</section>',
+          '<section class="slide">two</section>',
+          '</body></html>',
+        ].join('')}
+      />,
+    );
+
+    const previewFrame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    const previewSrcDocBefore = previewFrame.srcdoc;
+    const thumbnailFrame = container.querySelector('.deck-thumbnail-frame iframe') as HTMLIFrameElement | null;
+    expect(thumbnailFrame).toBeTruthy();
+    const thumbnailSrcDocBefore = thumbnailFrame!.srcdoc;
+
+    const notesPreview = screen.getByTestId('speaker-notes-panel').querySelector('.speaker-notes-preview') as HTMLElement;
+    fireEvent.click(notesPreview);
+    const editor = screen.getByTestId('speaker-notes-panel').querySelector('.speaker-notes-editor textarea') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'Keep this private' } });
+    fireEvent.blur(editor);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/projects/project-1/files',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    const [, request] = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      return url === '/api/projects/project-1/files' && init?.method === 'POST';
+    }) ?? [];
+    expect(String(request?.body)).toContain('Keep this private');
+    expect(String(request?.body)).toContain('speaker-notes');
+    expect((screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement).srcdoc).toBe(previewSrcDocBefore);
+    const thumbnailFrameAfter = container.querySelector('.deck-thumbnail-frame iframe') as HTMLIFrameElement | null;
+    expect(thumbnailFrameAfter?.srcdoc).toBe(thumbnailSrcDocBefore);
+  });
+
   it('shows Cloudflare Pages as a deploy action without requiring a project name input', async () => {
     const file = baseFile({
       name: 'index.html',
@@ -2936,6 +3024,129 @@ describe('FileViewer SVG artifacts', () => {
 
     expect(options.deck).toBe(true);
     expect(options.baseHref).toBe('/api/projects/project-1/raw/');
+  });
+
+  it('exposes selected-version download actions and exports that version content', async () => {
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    let capturedBlob: Blob | null = null;
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn((blob: Blob) => {
+        capturedBlob = blob;
+        return 'blob:version-export';
+      }),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const file = baseFile({
+      name: 'index.html',
+      path: 'index.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Page',
+        entry: 'index.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+    const currentVersion = {
+      id: 'v2',
+      fileName: 'index.html',
+      version: 2,
+      label: 'Current checkpoint',
+      createdAt: 1_725_000_000_000,
+      source: 'manual',
+      prompt: 'Current prompt',
+      size: 42,
+      mime: 'text/html',
+      kind: 'html',
+      current: true,
+    };
+    const priorVersion = {
+      ...currentVersion,
+      id: 'v1',
+      version: 1,
+      label: 'Prior checkpoint',
+      prompt: 'Prior prompt',
+      current: false,
+    };
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      const method = init?.method ?? 'GET';
+      if (url === '/api/projects/project-1/files/index.html/versions' && method === 'GET') {
+        return new Response(JSON.stringify({ file, versions: [currentVersion, priorVersion] }), { status: 200 });
+      }
+      if (url === '/api/projects/project-1/files/index.html/versions/v1' && method === 'GET') {
+        return new Response(JSON.stringify({
+          version: priorVersion,
+          content: '<html><body><h1>Prior version export</h1></body></html>',
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      render(
+        <FileViewer
+          projectId="project-1"
+          projectKind="prototype"
+          file={file}
+          liveHtml="<html><body><h1>Current</h1></body></html>"
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Versions' }));
+      const versionDialog = await screen.findByRole('dialog', { name: 'Versions' });
+      fireEvent.click(within(versionDialog).getByRole('option', { name: /Prior prompt/ }));
+      await waitFor(() => {
+        expect(within(versionDialog).getByRole('button', { name: 'Download Version 1' })).toBeTruthy();
+      });
+      fireEvent.click(within(versionDialog).getByRole('button', { name: 'Download Version 1' }));
+
+      const menuItems = within(versionDialog).getAllByRole('menuitem').map((item) => item.textContent ?? '');
+      expect(menuItems).toEqual([
+        'Export as PDF',
+        'Export as image',
+        'Download as .zip',
+        'Export as standalone HTML',
+      ]);
+      expect(menuItems).not.toContain('Save as template…');
+
+      fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as standalone HTML' }));
+
+      await waitFor(() => {
+        expect(capturedBlob).toBeTruthy();
+      });
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/projects/project-1/files/index.html/versions/v1')).toBe(true);
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/projects/project-1/export/index.html?inline=1')).toBe(false);
+      expect(await capturedBlob!.text()).toContain('Prior version export');
+    } finally {
+      if (originalCreateObjectUrl) {
+        Object.defineProperty(URL, 'createObjectURL', {
+          configurable: true,
+          value: originalCreateObjectUrl,
+        });
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL');
+      }
+      if (originalRevokeObjectUrl) {
+        Object.defineProperty(URL, 'revokeObjectURL', {
+          configurable: true,
+          value: originalRevokeObjectUrl,
+        });
+      } else {
+        Reflect.deleteProperty(URL, 'revokeObjectURL');
+      }
+    }
   });
 
   it('closes the version modal and shows success feedback after switching versions', async () => {

@@ -76,9 +76,13 @@ import {
 import type { ProjectFilePreview } from '../providers/registry';
 import {
   downloadImageDataUrl,
+  exportArtifactAsPdf,
+  exportArtifactImageDataUrl,
+  exportAsHtml,
   exportAsJsx,
   exportAsMd,
   exportAsPdf,
+  exportAsZip,
   exportProjectAsHtml,
   exportProjectAsPdf,
   exportProjectAsPptx,
@@ -110,6 +114,7 @@ import {
   buildSpeakerNotesPresenterHtml,
   extractSpeakerNotesFromHtml,
   normalizeSpeakerNotes,
+  removeSpeakerNotesFromHtml,
   upsertSpeakerNotesInHtml,
 } from '../runtime/speaker-notes';
 import {
@@ -2558,6 +2563,11 @@ export function fileVersionPreviewOptions(
   };
 }
 
+function fileVersionExportTitle(fileName: string, version: ProjectFileVersion): string {
+  const base = fileName.replace(/\.html?$/i, '') || fileName;
+  return `${base}-v${version.version}`;
+}
+
 export type DeckKeyboardShortcut = 'next' | 'prev' | 'first' | 'last' | 'reset';
 
 type DeckKeyboardShortcutEvent = Pick<
@@ -2573,6 +2583,12 @@ export function deckKeyboardShortcutForEvent(event: DeckKeyboardShortcutEvent): 
   if (event.key === 'End') return 'last';
   if (event.key.toLowerCase() === 'r') return 'reset';
   return null;
+}
+
+function normalizeDeckVisualSource(source: string): string {
+  return source
+    .replace(/\s+(?=<\/body\s*>)/gi, '')
+    .trimEnd();
 }
 
 function FileVersionManagerModal({
@@ -2607,6 +2623,15 @@ function FileVersionManagerModal({
   const [confirmRestore, setConfirmRestore] = useState(false);
   const restoreWrapRef = useRef<HTMLDivElement | null>(null);
   const restorePopoverId = useId();
+  const [downloadMenuVersionId, setDownloadMenuVersionId] = useState<string | null>(null);
+  const [versionExportToast, setVersionExportToast] = useState<{
+    message: string;
+    tone: 'loading' | 'success' | 'error';
+  } | null>(null);
+  const [versionImageExportVersionId, setVersionImageExportVersionId] = useState<string | null>(null);
+  const [versionImageExportFormat, setVersionImageExportFormat] = useState<ImageExportFormat>('png');
+  const [versionImageExportInFlight, setVersionImageExportInFlight] = useState(false);
+  const versionImageExportTitleId = useId();
   const [previewFrameRef, previewFrameSize] = usePreviewCanvasSize<HTMLDivElement>();
   // Track which srcDoc the iframe has finished rendering. Deriving readiness by
   // comparing to the current srcDoc during render (rather than toggling a bool
@@ -2668,6 +2693,9 @@ function FileVersionManagerModal({
   const selectedDate = selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : file.name;
   const selectedRestoredFrom = selectedVersion?.restoreFromVersionId
     ? versionById.get(selectedVersion.restoreFromVersionId)
+    : null;
+  const versionImageExportVersion = versionImageExportVersionId
+    ? versionById.get(versionImageExportVersionId) ?? null
     : null;
   const selectedContentMatchesVersion = Boolean(selectedId && selectedContentVersionId === selectedId && selectedContent);
   const restoreDisabled =
@@ -2738,7 +2766,20 @@ function FileVersionManagerModal({
     setCopied(false);
     setConfirmRestore(false);
     setPromptOpen(false);
+    setDownloadMenuVersionId(null);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!downloadMenuVersionId) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('.file-version-download-wrap')) return;
+      setDownloadMenuVersionId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [downloadMenuVersionId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -2789,6 +2830,14 @@ function FileVersionManagerModal({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (versionImageExportVersionId) {
+        if (!versionImageExportInFlight) setVersionImageExportVersionId(null);
+        return;
+      }
+      if (downloadMenuVersionId) {
+        setDownloadMenuVersionId(null);
+        return;
+      }
       if (confirmRestore) {
         setConfirmRestore(false);
         return;
@@ -2801,7 +2850,14 @@ function FileVersionManagerModal({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, promptOpen, confirmRestore]);
+  }, [
+    onClose,
+    promptOpen,
+    confirmRestore,
+    downloadMenuVersionId,
+    versionImageExportVersionId,
+    versionImageExportInFlight,
+  ]);
 
   useEffect(() => {
     if (!promptOpen) return;
@@ -2829,6 +2885,102 @@ function FileVersionManagerModal({
     if (!ok) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  async function ensureVersionContent(version: ProjectFileVersion): Promise<string | null> {
+    const cached = contentCacheRef.current.get(version.id);
+    if (cached !== undefined) return cached;
+    await primeVersionContent(version.id);
+    const content = contentCacheRef.current.get(version.id);
+    if (content === undefined) {
+      setError(t('fileViewer.versions.previewFailed'));
+      return null;
+    }
+    return content;
+  }
+
+  async function runVersionExport(
+    version: ProjectFileVersion,
+    action: (content: string, title: string) => Promise<unknown> | unknown,
+  ): Promise<void> {
+    setDownloadMenuVersionId(null);
+    setError(null);
+    setVersionExportToast({ message: t('fileViewer.exportStarted'), tone: 'loading' });
+    const content = await ensureVersionContent(version);
+    if (!content) {
+      setVersionExportToast({ message: t('fileViewer.exportFailed'), tone: 'error' });
+      return;
+    }
+    try {
+      const result = await action(content, fileVersionExportTitle(file.name, version));
+      if (result === 'cancelled') {
+        setVersionExportToast(null);
+        return;
+      }
+      setVersionExportToast({ message: t('fileViewer.exportDone'), tone: 'success' });
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : t('fileViewer.exportFailed');
+      setVersionExportToast({ message, tone: 'error' });
+    }
+  }
+
+  function onVersionExportProgress(done: number, total: number) {
+    if (total > 1) {
+      setVersionExportToast({
+        message: t('fileViewer.exportSlideProgress', { current: done, total }),
+        tone: 'loading',
+      });
+    }
+  }
+
+  async function exportVersionPdf(version: ProjectFileVersion) {
+    await runVersionExport(version, (content, title) => {
+      const previewOptions = fileVersionPreviewOptions(projectId, file.name, content);
+      return exportArtifactAsPdf(content, title, {
+        deck: previewOptions.deck,
+        onProgress: onVersionExportProgress,
+      });
+    });
+  }
+
+  async function exportVersionImage(version: ProjectFileVersion, format: ImageExportFormat) {
+    await runVersionExport(version, async (content, title) => {
+      const previewOptions = fileVersionPreviewOptions(projectId, file.name, content);
+      const snapshot = await exportArtifactImageDataUrl(content, {
+        deck: previewOptions.deck,
+        onProgress: onVersionExportProgress,
+      });
+      const blob = await imageDataUrlToBlob(snapshot.dataUrl, format);
+      if (blob.size <= 0) throw new Error(t('fileViewer.exportImageFailed'));
+      const target = await prepareImageExportTarget(title, format, { useNativePicker: false });
+      if (!target) return 'cancelled';
+      if (target.method === 'download' && format === 'png') {
+        downloadImageDataUrl(snapshot.dataUrl, target.filename);
+      } else {
+        await target.save(blob);
+      }
+    });
+  }
+
+  async function handleVersionImageExportSave() {
+    if (!versionImageExportVersion || versionImageExportInFlight) return;
+    setVersionImageExportInFlight(true);
+    const version = versionImageExportVersion;
+    const format = versionImageExportFormat;
+    setVersionImageExportVersionId(null);
+    try {
+      await exportVersionImage(version, format);
+    } finally {
+      setVersionImageExportInFlight(false);
+    }
+  }
+
+  function openVersionImageExport(version: ProjectFileVersion) {
+    setDownloadMenuVersionId(null);
+    setSelectedId(version.id);
+    void primeVersionContent(version.id);
+    setVersionImageExportFormat('png');
+    setVersionImageExportVersionId(version.id);
   }
 
   function openVersionInNewTab() {
@@ -2866,19 +3018,20 @@ function FileVersionManagerModal({
   }
 
   return createPortal(
-    <div
-      className="modal-backdrop viewer-modal-backdrop file-version-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <>
       <div
-        className="file-version-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('fileViewer.versions.title')}
+        className="modal-backdrop viewer-modal-backdrop file-version-backdrop"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
       >
+        <div
+          className="file-version-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('fileViewer.versions.title')}
+        >
         <div className="file-version-sidebar">
           <div className="file-version-sidebar-head">
             <span className="file-version-count">{versionCountLabel}</span>
@@ -2937,39 +3090,43 @@ function FileVersionManagerModal({
                   void primeVersionContent(version.id);
                 };
                 return (
-                  <button
+                  <div
                     key={version.id}
-                    type="button"
                     className={`file-version-item${selected ? ' active' : ''}`}
-                    role="option"
-                    aria-selected={selected}
-                    onClick={() => setSelectedId(version.id)}
                     onMouseEnter={prefetch}
-                    onFocus={prefetch}
                   >
-                    <span className="file-version-item-top">
-                      {version.current ? (
-                        <span className="file-version-current-badge">{t('fileViewer.versions.current')}</span>
-                      ) : null}
-                      <span className={`file-version-source-badge ${fileVersionSourceClassName(version)}`}>
-                        {fileVersionSourceLabel(version, t)}
-                      </span>
-                      <span className="file-version-time">
-                        {formatVersionDateTime(version.createdAt, locale)}
-                      </span>
-                    </span>
-                    <span className="file-version-item-title">
-                      {version.prompt || version.label || t('fileViewer.versions.versionLabel', { version: version.version })}
-                    </span>
-                    <span className="file-version-item-meta">
-                      {t('fileViewer.versions.versionLabel', { version: version.version })}
-                      {itemRestoredFrom ? (
-                        <span className="file-version-item-restored">
-                          {t('fileViewer.versions.restoredFrom', { version: itemRestoredFrom.version })}
+                    <button
+                      type="button"
+                      className="file-version-item-select"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => setSelectedId(version.id)}
+                      onFocus={prefetch}
+                    >
+                      <span className="file-version-item-top">
+                        {version.current ? (
+                          <span className="file-version-current-badge">{t('fileViewer.versions.current')}</span>
+                        ) : null}
+                        <span className={`file-version-source-badge ${fileVersionSourceClassName(version)}`}>
+                          {fileVersionSourceLabel(version, t)}
                         </span>
-                      ) : null}
-                    </span>
-                  </button>
+                        <span className="file-version-time">
+                          {formatVersionDateTime(version.createdAt, locale)}
+                        </span>
+                      </span>
+                      <span className="file-version-item-title">
+                        {version.prompt || version.label || t('fileViewer.versions.versionLabel', { version: version.version })}
+                      </span>
+                      <span className="file-version-item-meta">
+                        {t('fileViewer.versions.versionLabel', { version: version.version })}
+                        {itemRestoredFrom ? (
+                          <span className="file-version-item-restored">
+                            {t('fileViewer.versions.restoredFrom', { version: itemRestoredFrom.version })}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -3086,6 +3243,74 @@ function FileVersionManagerModal({
                   ) : null}
                 </div>
               ) : null}
+              {selectedVersion ? (
+                <div className="file-version-download-wrap file-version-head-download-wrap">
+                  <button
+                    type="button"
+                    className="viewer-action viewer-action-icon od-tooltip"
+                    aria-haspopup="menu"
+                    aria-expanded={downloadMenuVersionId === selectedVersion.id}
+                    aria-label={`${t('fileViewer.download')} ${t('fileViewer.versions.versionLabel', { version: selectedVersion.version })}`}
+                    title={`${t('fileViewer.download')} ${t('fileViewer.versions.versionLabel', { version: selectedVersion.version })}`}
+                    data-tooltip={`${t('fileViewer.download')} ${t('fileViewer.versions.versionLabel', { version: selectedVersion.version })}`}
+                    data-tooltip-placement="bottom"
+                    onClick={() => {
+                      void primeVersionContent(selectedVersion.id);
+                      setDownloadMenuVersionId((current) => current === selectedVersion.id ? null : selectedVersion.id);
+                    }}
+                  >
+                    <RemixIcon name="download-line" size={15} />
+                  </button>
+                  {downloadMenuVersionId === selectedVersion.id ? (
+                    <div className="share-menu-popover file-version-download-menu" role="menu">
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          void exportVersionPdf(selectedVersion);
+                        }}
+                      >
+                        <span className="share-menu-icon"><RemixIcon name="file-line" size={15} /></span>
+                        <span>{t('fileViewer.exportPdf')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          openVersionImageExport(selectedVersion);
+                        }}
+                      >
+                        <span className="share-menu-icon"><RemixIcon name="image-line" size={15} /></span>
+                        <span>{t('fileViewer.exportImage')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          void runVersionExport(selectedVersion, (content, title) => exportAsZip(content, title));
+                        }}
+                      >
+                        <span className="share-menu-icon"><RemixIcon name="file-zip-line" size={15} /></span>
+                        <span>{t('fileViewer.exportZip')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          void runVersionExport(selectedVersion, (content, title) => exportAsHtml(content, title));
+                        }}
+                      >
+                        <span className="share-menu-icon"><RemixIcon name="file-code-line" size={15} /></span>
+                        <span>{t('fileViewer.exportHtml')}</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <FileVersionViewportControls
                 viewport={previewViewport}
                 onViewport={setPreviewViewport}
@@ -3153,8 +3378,81 @@ function FileVersionManagerModal({
             )}
           </div>
         </div>
+        </div>
       </div>
-    </div>,
+      {versionImageExportVersion ? (
+        <div className="modal-backdrop viewer-modal-backdrop image-export-backdrop file-version-export-backdrop" role="presentation">
+          <div
+            className="modal deploy-modal image-export-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={versionImageExportTitleId}
+          >
+            <div className="modal-head">
+              <div className="kicker">IMAGE</div>
+              <h2 id={versionImageExportTitleId}>{t('fileViewer.exportImage')}</h2>
+              <p className="subtitle">{t('fileViewer.exportImageModalSubtitle')}</p>
+            </div>
+            <div className="deploy-form image-export-form">
+              <fieldset className="image-export-format-field">
+                <legend>{t('fileViewer.exportImageFormatLabel')}</legend>
+                <div className="image-export-format-options">
+                  {IMAGE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`image-export-format-option${versionImageExportFormat === option.value ? ' active' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="version-image-export-format"
+                        value={option.value}
+                        aria-label={option.label}
+                        checked={versionImageExportFormat === option.value}
+                        onChange={() => setVersionImageExportFormat(option.value)}
+                      />
+                      <span className="image-export-format-text">
+                        <strong>{option.label}</strong>
+                        <span aria-hidden="true">{option.extension}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+            <div className="modal-foot">
+              <button
+                type="button"
+                className="ghost-link button-like"
+                disabled={versionImageExportInFlight}
+                onClick={() => setVersionImageExportVersionId(null)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                className="viewer-action primary"
+                disabled={versionImageExportInFlight}
+                onClick={() => {
+                  void handleVersionImageExportSave();
+                }}
+              >
+                {versionImageExportInFlight ? t('fileViewer.exportImageSaving') : t('common.save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {versionExportToast ? (
+        <Toast
+          message={versionExportToast.message}
+          tone={versionExportToast.tone}
+          role={versionExportToast.tone === 'error' ? 'alert' : 'status'}
+          ttlMs={versionExportToast.tone === 'loading' ? 60000 : 2200}
+          placement="top"
+          onDismiss={() => setVersionExportToast(null)}
+        />
+      ) : null}
+    </>,
     document.body,
   );
 }
@@ -6231,13 +6529,22 @@ function HtmlViewer({
   // let it fade so the panel returns to its resting look.
   useEffect(() => {
     if (speakerNotesStatus !== 'saved') return;
-    const id = window.setTimeout(() => setSpeakerNotesStatus(null), 2400);
+    const id = window.setTimeout(() => setSpeakerNotesStatus(null), 4200);
     return () => window.clearTimeout(id);
   }, [speakerNotesStatus]);
   useEffect(() => {
     if (!speakerNotesEditMode) return;
     const id = window.requestAnimationFrame(() => {
-      speakerNotesTextareaRef.current?.focus();
+      const textarea = speakerNotesTextareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      const end = textarea.value.length;
+      try {
+        textarea.setSelectionRange(end, end);
+      } catch {
+        // Some browser/input combinations can reject selection changes; focus
+        // is still the important fallback.
+      }
     });
     return () => window.cancelAnimationFrame(id);
   }, [speakerNotesEditMode, activeDeckSlideIndex]);
@@ -6247,7 +6554,11 @@ function HtmlViewer({
   // ordinary pages use it for carousels/testimonials and must export as full
   // pages.
   const structuredDeckExportSignal = sourceLooksLikeExportableDeck(source);
-  const livePreviewSource = inlinedSource ?? source;
+  const deckVisualSource = useMemo(() => {
+    if (!effectiveDeck || source == null) return source;
+    return normalizeDeckVisualSource(removeSpeakerNotesFromHtml(source));
+  }, [effectiveDeck, source]);
+  const livePreviewSource = inlinedSource ?? deckVisualSource;
   // Annotation modes that should hold the preview still while open. Manual
   // Edit is handled by its own freeze just below; these are the non-edit
   // passes (Mark/Draw, Comment, Inspect) that also must not be yanked out
@@ -6433,7 +6744,7 @@ function HtmlViewer({
   // it eagerly would re-run buildSrcdoc on every source edit for a document
   // nobody is presenting.
   const presentationSrcDoc = useMemo(
-    () => (source && inTabPresent ? buildSrcdoc(source, {
+    () => (deckVisualSource && inTabPresent ? buildSrcdoc(deckVisualSource, {
       deck: effectiveDeck,
       baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
       initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
@@ -6441,7 +6752,7 @@ function HtmlViewer({
       deckClickNavigation: effectiveDeck,
       previewFocusGuard: true,
     }) : ''),
-    [source, inTabPresent, effectiveDeck, projectId, file.name, previewStateKey],
+    [deckVisualSource, inTabPresent, effectiveDeck, projectId, file.name, previewStateKey],
   );
   // Per-slide thumbnail documents are built lazily by DeckThumbnailRail, one
   // slide at a time and only for thumbnails near the rail viewport. This
@@ -6450,7 +6761,7 @@ function HtmlViewer({
   // `freezeMotion` settles deck animations at their final frame so N
   // miniature documents don't keep the compositor rasterizing forever.
   const buildDeckThumbnailSrcDoc = useCallback(
-    (index: number) => buildSrcdoc(source ?? '', {
+    (index: number) => buildSrcdoc(deckVisualSource ?? '', {
       deck: true,
       baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
       initialSlideIndex: index,
@@ -6458,7 +6769,7 @@ function HtmlViewer({
       previewFocusGuard: true,
       freezeMotion: true,
     }),
-    [source, projectId, file.name],
+    [deckVisualSource, projectId, file.name],
   );
   // Parse the deck once per source into per-slide shadow-root render data. When
   // renderable, DeckThumbnailRail mounts a single cloned slide per thumbnail
@@ -6467,10 +6778,10 @@ function HtmlViewer({
   // (external CSS, viewport-sized slides, no inline styles) keep the iframe
   // fallback via `parsedDeck = null`.
   const parsedDeckThumbnails = useMemo(() => {
-    if (!effectiveDeck || !source) return null;
-    const parsed = parseDeckThumbnails(source, projectRawUrl(projectId, baseDirFor(file.name)));
+    if (!effectiveDeck || !deckVisualSource) return null;
+    const parsed = parseDeckThumbnails(deckVisualSource, projectRawUrl(projectId, baseDirFor(file.name)));
     return parsed.renderable ? parsed : null;
-  }, [effectiveDeck, source, projectId, file.name]);
+  }, [effectiveDeck, deckVisualSource, projectId, file.name]);
   // Stable thunk so HtmlViewer's frequent re-renders (slide state, streaming
   // edits) never invalidate the memoized rail; the ref always calls the
   // freshest goToSlide closure.
@@ -7856,7 +8167,6 @@ function HtmlViewer({
       setSource(nextSource);
       sourceRef.current = nextSource;
       setInlinedSource(null);
-      setReloadKey((key) => key + 1);
       setSpeakerNotesStatus('saved');
       await onFileSaved?.();
       return true;
@@ -7885,9 +8195,9 @@ function HtmlViewer({
   }
 
   function openPresenterWindow() {
-    if (!source || typeof window === 'undefined') return;
+    if (!deckVisualSource || typeof window === 'undefined') return;
     const count = Math.max(deckSlideCount, speakerNotes.length, 1);
-    const presenterPreviewHtmlBySlide = Array.from({ length: count }, (_, index) => buildSrcdoc(source, {
+    const presenterPreviewHtmlBySlide = Array.from({ length: count }, (_, index) => buildSrcdoc(deckVisualSource, {
       deck: true,
       baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
       initialSlideIndex: index,
@@ -9952,6 +10262,11 @@ function HtmlViewer({
       composer={null}
     />
   ) : null;
+  const speakerNotesFeedback = speakerNotesStatus === 'saved'
+      ? { className: 'saved', label: t('fileViewer.speakerNotesSaved') }
+      : speakerNotesStatus === 'error'
+        ? { className: 'error', label: t('fileViewer.speakerNotesSaveFailed') }
+        : null;
   const speakerNotesPanel = showSpeakerNotesPanel ? (
     <section className="speaker-notes-panel" data-testid="speaker-notes-panel" aria-label={t('fileViewer.speakerNotes')}>
       <div className="speaker-notes-panel-head">
@@ -9964,6 +10279,14 @@ function HtmlViewer({
             })}
           </span>
         </div>
+        {speakerNotesFeedback ? (
+          <span
+            className={`speaker-notes-status speaker-notes-header-status ${speakerNotesFeedback.className}`}
+            aria-live="polite"
+          >
+            {speakerNotesFeedback.label}
+          </span>
+        ) : null}
       </div>
       {speakerNotesEditMode ? (
         <div className="speaker-notes-editor">
@@ -9977,14 +10300,6 @@ function HtmlViewer({
             placeholder={t('fileViewer.speakerNotesPlaceholder')}
             rows={4}
           />
-          <div className="speaker-notes-actions">
-            {speakerNotesSaving ? (
-              <span className="speaker-notes-status saving">{t('fileViewer.speakerNotesSaving')}</span>
-            ) : null}
-            {speakerNotesStatus === 'error' ? (
-              <span className="speaker-notes-status error">{t('fileViewer.speakerNotesSaveFailed')}</span>
-            ) : null}
-          </div>
         </div>
       ) : (
         <div
@@ -10004,12 +10319,6 @@ function HtmlViewer({
           ) : (
             <span className="speaker-notes-empty">{t('fileViewer.speakerNotesEmpty')}</span>
           )}
-          {speakerNotesStatus === 'saved' ? (
-            <span className="speaker-notes-status saved">{t('fileViewer.speakerNotesSaved')}</span>
-          ) : null}
-          {speakerNotesStatus === 'error' ? (
-            <span className="speaker-notes-status error">{t('fileViewer.speakerNotesSaveFailed')}</span>
-          ) : null}
         </div>
       )}
     </section>

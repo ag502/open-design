@@ -1300,10 +1300,10 @@
   padding: 0;
   border-color: var(--border);
   background-color: var(--bg-panel);
-  color: var(--text);
+  color: var(--text-muted);
   font-size: 12.5px;
   line-height: 1.2;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
 }
 .viewer-viewport-trigger > svg {
   flex: 0 0 auto;
@@ -1327,6 +1327,7 @@
 .viewer-viewport-trigger[aria-expanded='true'] {
   border-color: var(--border-strong);
   background-color: var(--bg-subtle);
+  color: var(--text);
 }
 .viewer-viewport-menu {
   position: absolute;
@@ -2834,22 +2835,33 @@ button.ghost.mcp-copy-btn:hover:not(:disabled) {
   position: relative;
   width: 100%;
   min-height: 90px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 13px;
+  display: block;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--bg-panel);
   color: var(--text);
-  text-align: left;
-  cursor: pointer;
   box-shadow: var(--shadow-xs);
   transition:
     border-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
     background-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
     box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1),
     transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.file-version-item-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 13px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
 }
 .file-version-item + .file-version-item {
   margin-top: 8px;
@@ -2860,10 +2872,14 @@ button.ghost.mcp-copy-btn:hover:not(:disabled) {
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
-.file-version-item:focus-visible {
+.file-version-item:focus-within {
   outline: none;
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.file-version-item-select:focus-visible,
+.file-version-head-download-wrap .viewer-action:focus-visible {
+  outline: none;
 }
 .file-version-item.active {
   border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
@@ -2879,6 +2895,18 @@ button.ghost.mcp-copy-btn:hover:not(:disabled) {
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--accent);
+}
+.file-version-download-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.file-version-download-menu.share-menu-popover {
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  min-width: 252px;
+  max-width: calc(100vw - 64px);
+  z-index: 9;
 }
 .file-version-item-top {
   min-width: 0;

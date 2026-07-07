@@ -315,10 +315,25 @@ export function buildSpeakerNotesPresenterHtml(options: {
       var editing = false;
       var activeTextarea = null;
       var saveActiveEdit = null;
+      var suppressNotesEditClickUntil = 0;
       function beginEdit(){
         if (editing) return;
         editing = true;
         renderNotes();
+      }
+      function handleNotesBodyMouseDown(ev){
+        if (!editing || !activeTextarea) return;
+        var target = ev.target;
+        if (target === activeTextarea || (target && activeTextarea.contains && activeTextarea.contains(target))) return;
+        suppressNotesEditClickUntil = Date.now() + 800;
+      }
+      function handleNotesBodyClick(){
+        if (suppressNotesEditClickUntil && Date.now() <= suppressNotesEditClickUntil) {
+          suppressNotesEditClickUntil = 0;
+          return;
+        }
+        suppressNotesEditClickUntil = 0;
+        beginEdit();
       }
       function renderNotes(){
         var note = noteAt(index);
@@ -357,7 +372,6 @@ export function buildSpeakerNotesPresenterHtml(options: {
           div.setAttribute('role', 'textbox');
           div.setAttribute('aria-readonly', 'true');
           div.textContent = note.trim() ? note : (labels.empty || '');
-          div.addEventListener('click', beginEdit);
           div.addEventListener('keydown', function(ev){
             if (ev.key === 'Enter') {
               ev.preventDefault();
@@ -415,7 +429,8 @@ export function buildSpeakerNotesPresenterHtml(options: {
         tick();
         go(0);
       };
-      els.notesBody.addEventListener('click', beginEdit);
+      els.notesBody.addEventListener('mousedown', handleNotesBodyMouseDown);
+      els.notesBody.addEventListener('click', handleNotesBodyClick);
       // Clicking any preview cell navigates: the current stage advances, the
       // filmstrip cells jump to that slide. The iframes are pointer-events:none
       // so these clicks always land on the cell, never inside the deck.

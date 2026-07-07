@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { JSDOM } from 'jsdom';
 
 import {
   buildSpeakerNotesPresenterHtml,
@@ -243,8 +244,57 @@ describe('speaker notes HTML helpers', () => {
     expect(html).not.toContain('class="edit-toggle"');
     expect(html).not.toContain('role="switch"');
     expect(html).not.toContain('type="checkbox" id="edit"');
-    expect(html).toContain("els.notesBody.addEventListener('click', beginEdit)");
+    expect(html).toContain("els.notesBody.addEventListener('mousedown', handleNotesBodyMouseDown)");
+    expect(html).toContain("els.notesBody.addEventListener('click', handleNotesBodyClick)");
     expect(html).toContain("div.setAttribute('role', 'textbox')");
+  });
+
+  it('does not immediately refocus presenter notes after clicking blank space during blur save', async () => {
+    const html = buildSpeakerNotesPresenterHtml({
+      previewHtml: '<!doctype html><html><head></head><body>slide</body></html>',
+      title: 'Deck',
+      projectId: 'project-1',
+      fileName: 'deck.html',
+      notes: ['Intro'],
+      initialSlideIndex: 0,
+      slideCount: 1,
+      labels: {
+        title: 'Speaker notes',
+        edit: 'Edit',
+        save: 'Save notes',
+        pause: 'Pause',
+        resume: 'Resume',
+        reset: 'Reset',
+        previous: 'Previous',
+        next: 'Next',
+        empty: 'Empty',
+        slide: 'Slide {current} / {total}',
+      },
+    });
+    const dom = new JSDOM(html, {
+      pretendToBeVisual: true,
+      runScripts: 'dangerously',
+      url: 'http://localhost',
+    });
+
+    try {
+      const notesBody = dom.window.document.getElementById('notes-body');
+      expect(notesBody).not.toBeNull();
+      notesBody!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const textarea = notesBody!.querySelector('textarea');
+      expect(textarea).not.toBeNull();
+
+      textarea!.value = 'Edited note';
+      notesBody!.dispatchEvent(new dom.window.MouseEvent('mousedown', { bubbles: true }));
+      textarea!.blur();
+      await new Promise<void>((resolve) => dom.window.setTimeout(resolve, 0));
+      notesBody!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      expect(notesBody!.querySelector('textarea')).toBeNull();
+      expect(notesBody!.textContent).toContain('Edited note');
+    } finally {
+      dom.window.close();
+    }
   });
 
   it('pins the previous filmstrip cell to the left column and next to the right', () => {

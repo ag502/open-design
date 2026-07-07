@@ -1668,6 +1668,43 @@ async function captureArtifactSlides(
   return slides;
 }
 
+/** Programmatic, client-side image export for an in-memory HTML snapshot. */
+export async function exportArtifactImageDataUrl(
+  html: string,
+  opts: { deck: boolean; onProgress?: ExportProgress },
+): Promise<PreviewSnapshot> {
+  const slides = await captureArtifactSlides(html, {
+    deck: opts.deck,
+    mode: 'image',
+    onProgress: opts.onProgress,
+  });
+  const images = slides.filter((s) => s.dataUrl && s.w > 0 && s.h > 0);
+  if (!images.length) throw new Error('Nothing was captured for image export');
+  if (images.length === 1) {
+    const image = images[0]!;
+    return { dataUrl: image.dataUrl!, w: image.w, h: image.h };
+  }
+
+  const width = Math.max(...images.map((image) => image.w));
+  const height = images.reduce((sum, image) => sum + image.h, 0);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, width, height);
+
+  let top = 0;
+  for (const image of images) {
+    const element = await loadImageFromDataUrl(image.dataUrl!);
+    ctx.drawImage(element, 0, top, image.w, image.h);
+    top += image.h;
+  }
+
+  return { dataUrl: canvas.toDataURL('image/png'), w: width, h: height };
+}
+
 /** Programmatic, client-side PDF: image-per-slide (deck) or paginated full page. */
 export async function exportArtifactAsPdf(
   html: string,
