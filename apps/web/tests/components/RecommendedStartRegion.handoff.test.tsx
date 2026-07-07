@@ -70,14 +70,19 @@ describe('RecommendedStartRegion — Start in Studio handoff', () => {
     setItem.mockRestore();
   });
 
-  it('does not swallow the click when onStart rejects', async () => {
-    const onStart = vi.fn(async () => {
-      throw new Error('create failed');
-    });
+  it('re-enables the CTA for retry when the start fails', async () => {
+    // `onStart` (the Home wrapper) surfaces its own visible error and resolves
+    // `false` on failure — it never rejects. The region should drop its pending
+    // state so the user can retry, and never leave a stale sessionStorage slot.
+    const onStart = vi.fn(async () => false);
     renderRegion(onStart);
-    fireEvent.click(screen.getByTestId('home-recommendation-start'));
+    const cta = screen.getByTestId('home-recommendation-start') as HTMLButtonElement;
+    fireEvent.click(cta);
     await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
-    // Nothing was persisted, so there is no stale slot to leak on failure.
+    await waitFor(() => expect(cta.disabled).toBe(false));
     expect(window.sessionStorage.length).toBe(0);
+    // Retry is possible: a second click fires onStart again.
+    fireEvent.click(cta);
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(2));
   });
 });

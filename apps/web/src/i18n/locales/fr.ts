@@ -2240,6 +2240,7 @@ export const fr: Dict = {
   'home.recommendation.change': 'Essayer un autre',
   'home.recommendation.browseAll': 'Tous les types',
   'home.recommendation.defaultProjectName': 'Nouveau projet',
+  'home.recommendation.startFailed': 'Impossible de démarrer la création. Veuillez réessayer.',
   'studio.firstArtifactHint.title': 'Votre première création est prête',
   'studio.firstArtifactHint.body': "Essayez de le modifier et de l'annoter directement — exportez ou partagez quand vous êtes satisfait.",
   'studio.firstArtifactHint.dismiss': 'Compris',

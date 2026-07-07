@@ -2241,6 +2241,7 @@ export const en: Dict = {
   'home.recommendation.change': 'Try another',
   'home.recommendation.browseAll': 'All types',
   'home.recommendation.defaultProjectName': 'New project',
+  'home.recommendation.startFailed': "Couldn't start creating. Please try again.",
   'studio.firstArtifactHint.title': 'Your first design is ready',
   'studio.firstArtifactHint.body': "Try editing and annotating it directly — export or share whenever you're happy.",
   'studio.firstArtifactHint.dismiss': 'Got it',

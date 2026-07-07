@@ -2240,6 +2240,7 @@ export const fa: Dict = {
   'home.recommendation.change': 'یک مورد دیگر را امتحان کنید',
   'home.recommendation.browseAll': 'همه انواع',
   'home.recommendation.defaultProjectName': 'پروژه جدید',
+  'home.recommendation.startFailed': 'شروع ساخت ممکن نشد. لطفاً دوباره تلاش کنید.',
   'studio.firstArtifactHint.title': 'اولین طراحی شما آماده است',
   'studio.firstArtifactHint.body': 'ویرایش و حاشیه‌نویسی را مستقیم امتحان کنید — هر وقت راضی بودید خروجی بگیرید یا به اشتراک بگذارید.',
   'studio.firstArtifactHint.dismiss': 'متوجه شدم',

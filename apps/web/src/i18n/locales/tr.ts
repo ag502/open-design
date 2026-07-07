@@ -2240,6 +2240,7 @@ export const tr: Dict = {
   'home.recommendation.change': 'Başka bir tane dene',
   'home.recommendation.browseAll': 'Tüm türler',
   'home.recommendation.defaultProjectName': 'Yeni proje',
+  'home.recommendation.startFailed': 'Oluşturma başlatılamadı. Lütfen tekrar deneyin.',
   'studio.firstArtifactHint.title': 'İlk tasarımınız hazır',
   'studio.firstArtifactHint.body': 'Doğrudan düzenlemeyi ve not eklemeyi dene — memnun kaldığında dışa aktar veya paylaş.',
   'studio.firstArtifactHint.dismiss': 'Anladım',

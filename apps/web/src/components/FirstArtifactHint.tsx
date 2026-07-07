@@ -71,14 +71,19 @@ export function FirstArtifactHint() {
   const firedRef = useRef(false);
 
   useEffect(() => {
-    if (!visible || firedRef.current) return;
+    // The card renders nothing until `settled` (the 600ms layout-settle
+    // window). Emitting the impression before that would count a mount that
+    // was unmounted during settle as a `surface_view` the user never saw,
+    // inflating the hint's denominator. Gate on `settled` so the impression
+    // fires only once the card is actually renderable.
+    if (!visible || !settled || firedRef.current) return;
     firedRef.current = true;
     trackStudioOnboardingHintSurfaceView(analytics.track, {
       page_name: 'chat_panel',
       area: 'onboarding_first_artifact_hint',
       hint_type: 'view_artifact',
     });
-  }, [visible, analytics.track]);
+  }, [visible, settled, analytics.track]);
 
   if (!visible || !settled) return null;
 

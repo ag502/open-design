@@ -2240,6 +2240,7 @@ export const ja: Dict = {
   'home.recommendation.change': '別のものを試す',
   'home.recommendation.browseAll': 'すべてのタイプ',
   'home.recommendation.defaultProjectName': '新規プロジェクト',
+  'home.recommendation.startFailed': '作成を開始できませんでした。もう一度お試しください。',
   'studio.firstArtifactHint.title': '最初のデザインが完成しました',
   'studio.firstArtifactHint.body': 'そのまま編集や注釈を試してみましょう。満足したらいつでもエクスポート・共有できます。',
   'studio.firstArtifactHint.dismiss': 'OK',

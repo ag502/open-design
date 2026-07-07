@@ -2464,6 +2464,7 @@ export const zhTW: Dict = {
   'home.recommendation.change': '換一換',
   'home.recommendation.browseAll': '全部類型',
   'home.recommendation.defaultProjectName': '新增專案',
+  'home.recommendation.startFailed': '無法開始建立，請重試。',
   'studio.firstArtifactHint.title': '你的第一個設計已就緒',
   'studio.firstArtifactHint.body': '試試直接編輯和標註，滿意後隨時匯出分享。',
   'studio.firstArtifactHint.dismiss': '知道了',

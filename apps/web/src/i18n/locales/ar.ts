@@ -2240,6 +2240,7 @@ export const ar: Dict = {
   'home.recommendation.change': 'جرّب نوعًا آخر',
   'home.recommendation.browseAll': 'كل الأنواع',
   'home.recommendation.defaultProjectName': 'مشروع جديد',
+  'home.recommendation.startFailed': 'تعذّر بدء الإنشاء. حاول مرة أخرى.',
   'studio.firstArtifactHint.title': 'تصميمك الأول جاهز',
   'studio.firstArtifactHint.body': 'جرّب التحرير وإضافة التعليقات مباشرة — صدِّر أو شارك متى كنت راضيًا.',
   'studio.firstArtifactHint.dismiss': 'حسنًا',

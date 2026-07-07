@@ -762,23 +762,24 @@ export function EntryShell({
     // no way to retry the starter they just picked. On failure we keep the
     // recommendation mounted. The onboarding entry rides along so the create
     // success path stashes it keyed by the created project id — nothing is
-    // written on failure. A thrown create is treated as a failure.
-    let ok = false;
-    try {
-      ok =
-        (await onCreateProject({
-          name: input.name,
-          skillId: null,
-          designSystemId: null,
-          metadata: input.metadata,
-          pendingPrompt: input.prompt,
-          ...(pluginId ? { pluginId } : {}),
-          autoSendFirstMessage: false,
-          onboardingEntry: input.onboardingEntry,
-        })) !== false;
-    } catch {
-      ok = false;
-    }
+    // written on failure.
+    //
+    // Do NOT swallow the failure here: `onCreateProject` throws on real create
+    // failures, and a silent `catch` would leave the CTA looking clickable with
+    // no feedback. Let the error propagate so Home surfaces it in the same
+    // error channel the other entry actions use (HomeView owns `setError`), and
+    // return `false` for a clean no-project result so the caller can retry.
+    const ok =
+      (await onCreateProject({
+        name: input.name,
+        skillId: null,
+        designSystemId: null,
+        metadata: input.metadata,
+        pendingPrompt: input.prompt,
+        ...(pluginId ? { pluginId } : {}),
+        autoSendFirstMessage: false,
+        onboardingEntry: input.onboardingEntry,
+      })) !== false;
     if (ok) dismissRecommendation();
     return ok;
   }

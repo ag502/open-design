@@ -2454,6 +2454,7 @@ export const zhCN: Dict = {
   'home.recommendation.change': '换一换',
   'home.recommendation.browseAll': '全部类型',
   'home.recommendation.defaultProjectName': '新建项目',
+  'home.recommendation.startFailed': '无法开始创建，请重试。',
   'studio.firstArtifactHint.title': '你的第一个设计已就绪',
   'studio.firstArtifactHint.body': '试试直接编辑和标注，满意后随时导出分享。',
   'studio.firstArtifactHint.dismiss': '知道了',

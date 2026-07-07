@@ -2240,6 +2240,7 @@ export const th: Dict = {
   'home.recommendation.change': 'ลองแบบอื่น',
   'home.recommendation.browseAll': 'ทุกประเภท',
   'home.recommendation.defaultProjectName': 'โปรเจกต์ใหม่',
+  'home.recommendation.startFailed': 'ไม่สามารถเริ่มสร้างได้ โปรดลองอีกครั้ง',
   'studio.firstArtifactHint.title': 'งานออกแบบชิ้นแรกของคุณพร้อมแล้ว',
   'studio.firstArtifactHint.body': 'ลองแก้ไขและใส่คำอธิบายได้เลย พอใจเมื่อไรก็ส่งออกหรือแชร์ได้ทุกเมื่อ',
   'studio.firstArtifactHint.dismiss': 'เข้าใจแล้ว',

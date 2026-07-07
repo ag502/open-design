@@ -38,6 +38,20 @@ function keyForProject(projectId: string): string {
   return `${KEY_PREFIX}${projectId}`;
 }
 
+// StrictMode safety: `consumeOnboardingEntryForProject` is a destructive read
+// (it removes the sessionStorage slot). Under React StrictMode the throwaway
+// first mount would consume the slot and the committed remount would then see
+// `null`, silently dropping every recommendation-only behavior in dev (funnel
+// attribution, path-scoped starter cards, first-artifact hint). We cache the
+// first successfully parsed entry per project id in this module so repeated
+// consumes for the SAME id (both mount passes, or any later remount in the same
+// session) return the same value, while the sessionStorage slot is still
+// cleared on the first read so it never leaks to an unrelated project. The
+// cache only holds real entries — a project with no handoff never populates it,
+// so it stays bounded to the handful of recommendation-started projects a
+// session actually creates.
+const parsedEntryCache = new Map<string, OnboardingEntry>();
+
 // Stash the entry for a specific created project. Called from the create
 // success path, where the project id is finally known — never before, so an
 // unrelated project mount cannot consume it.
@@ -60,6 +74,11 @@ export function consumeOnboardingEntryForProject(
   projectId: string,
 ): OnboardingEntry | null {
   if (!projectId) return null;
+  // StrictMode-safe: a value read once (and removed from storage) is served
+  // from the module cache on every later consume for the same id, so the
+  // throwaway StrictMode mount can't strand the committed remount with `null`.
+  const cached = parsedEntryCache.get(projectId);
+  if (cached) return cached;
   const key = keyForProject(projectId);
   try {
     const raw = window.sessionStorage.getItem(key);
@@ -72,7 +91,7 @@ export function consumeOnboardingEntryForProject(
       typeof parsed.productType === 'string' &&
       typeof parsed.recommendationId === 'string'
     ) {
-      return {
+      const entry: OnboardingEntry = {
         source: 'home_recommendation',
         productType: parsed.productType,
         recommendationId: parsed.recommendationId,
@@ -82,6 +101,8 @@ export function consumeOnboardingEntryForProject(
           ? { useCases: parsed.useCases }
           : {}),
       };
+      parsedEntryCache.set(projectId, entry);
+      return entry;
     }
     return null;
   } catch {

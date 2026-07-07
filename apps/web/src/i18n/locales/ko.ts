@@ -2240,6 +2240,7 @@ export const ko: Dict = {
   'home.recommendation.change': '다른 것 시도하기',
   'home.recommendation.browseAll': '전체 유형',
   'home.recommendation.defaultProjectName': '새 프로젝트',
+  'home.recommendation.startFailed': '생성을 시작할 수 없습니다. 다시 시도해 주세요.',
   'studio.firstArtifactHint.title': '첫 번째 디자인이 준비되었습니다',
   'studio.firstArtifactHint.body': '바로 편집하고 주석을 달아 보세요. 마음에 들면 언제든 내보내거나 공유할 수 있어요.',
   'studio.firstArtifactHint.dismiss': '확인',

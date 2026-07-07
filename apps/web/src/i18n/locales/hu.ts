@@ -2240,6 +2240,7 @@ export const hu: Dict = {
   'home.recommendation.change': 'Próbálj ki másikat',
   'home.recommendation.browseAll': 'Összes típus',
   'home.recommendation.defaultProjectName': 'Új projekt',
+  'home.recommendation.startFailed': 'Nem sikerült elindítani a létrehozást. Próbáld újra.',
   'studio.firstArtifactHint.title': 'Az első terved elkészült',
   'studio.firstArtifactHint.body': 'Próbáld meg közvetlenül szerkeszteni és jegyzetelni — exportáld vagy oszd meg, ha elégedett vagy.',
   'studio.firstArtifactHint.dismiss': 'Értem',

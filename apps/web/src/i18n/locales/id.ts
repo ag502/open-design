@@ -2240,6 +2240,7 @@ export const id: Dict = {
   'home.recommendation.change': 'Coba yang lain',
   'home.recommendation.browseAll': 'Semua jenis',
   'home.recommendation.defaultProjectName': 'Proyek baru',
+  'home.recommendation.startFailed': 'Tidak dapat memulai pembuatan. Coba lagi.',
   'studio.firstArtifactHint.title': 'Desain pertama Anda sudah siap',
   'studio.firstArtifactHint.body': 'Coba edit dan beri anotasi langsung — ekspor atau bagikan kapan saja setelah puas.',
   'studio.firstArtifactHint.dismiss': 'Mengerti',

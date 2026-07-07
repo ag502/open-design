@@ -2240,6 +2240,7 @@ export const ru: Dict = {
   'home.recommendation.change': 'Попробовать другой',
   'home.recommendation.browseAll': 'Все типы',
   'home.recommendation.defaultProjectName': 'Новый проект',
+  'home.recommendation.startFailed': 'Не удалось начать создание. Попробуйте снова.',
   'studio.firstArtifactHint.title': 'Ваш первый дизайн готов',
   'studio.firstArtifactHint.body': 'Попробуйте отредактировать и добавить пометки — экспортируйте или поделитесь, когда будете довольны.',
   'studio.firstArtifactHint.dismiss': 'Понятно',

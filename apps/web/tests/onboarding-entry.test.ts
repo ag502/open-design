@@ -17,6 +17,14 @@ function createStorageStub() {
   };
 }
 
+// The helper keeps a module-level parsed-entry cache (StrictMode safety), so
+// tests use a unique project id each to stay independent of one another.
+let seq = 0;
+function nextProjectId(): string {
+  seq += 1;
+  return `proj-${seq}`;
+}
+
 describe('onboarding entry (id-keyed session hand-off)', () => {
   beforeEach(() => {
     (globalThis as unknown as { window: unknown }).window = {
@@ -28,12 +36,13 @@ describe('onboarding entry (id-keyed session hand-off)', () => {
   });
 
   it('round-trips a stashed entry for its project id', () => {
-    stashOnboardingEntryForProject('proj-1', {
+    const id = nextProjectId();
+    stashOnboardingEntryForProject(id, {
       source: 'home_recommendation',
       productType: 'product_ui',
       recommendationId: 'product_ui_prototype',
     });
-    expect(consumeOnboardingEntryForProject('proj-1')).toEqual({
+    expect(consumeOnboardingEntryForProject(id)).toEqual({
       source: 'home_recommendation',
       productType: 'product_ui',
       recommendationId: 'product_ui_prototype',
@@ -41,14 +50,15 @@ describe('onboarding entry (id-keyed session hand-off)', () => {
   });
 
   it('carries the survey answers when present', () => {
-    stashOnboardingEntryForProject('proj-1', {
+    const id = nextProjectId();
+    stashOnboardingEntryForProject(id, {
       source: 'home_recommendation',
       productType: 'marketing',
       recommendationId: 'marketing_landing',
       role: 'growth',
       useCases: ['landing', 'ads'],
     });
-    expect(consumeOnboardingEntryForProject('proj-1')).toEqual({
+    expect(consumeOnboardingEntryForProject(id)).toEqual({
       source: 'home_recommendation',
       productType: 'marketing',
       recommendationId: 'marketing_landing',
@@ -57,18 +67,29 @@ describe('onboarding entry (id-keyed session hand-off)', () => {
     });
   });
 
-  it('is read-once — a second consume returns null', () => {
-    stashOnboardingEntryForProject('proj-1', {
+  // StrictMode regression (PR #5111 review): the consume is a destructive read
+  // called from ProjectView render. Under React StrictMode the throwaway first
+  // mount consumes the slot; the committed remount must still see the entry.
+  // The module cache serves the same value on the second consume even though
+  // the sessionStorage slot was already removed by the first.
+  it('survives a StrictMode double-consume for the same project id', () => {
+    const id = nextProjectId();
+    stashOnboardingEntryForProject(id, {
       source: 'home_recommendation',
-      productType: 'marketing',
-      recommendationId: 'marketing_landing',
+      productType: 'product_ui',
+      recommendationId: 'product_ui_prototype',
     });
-    expect(consumeOnboardingEntryForProject('proj-1')).not.toBeNull();
-    expect(consumeOnboardingEntryForProject('proj-1')).toBeNull();
+    // First (throwaway) mount consumes and clears the storage slot.
+    const first = consumeOnboardingEntryForProject(id);
+    expect(first).toMatchObject({ recommendationId: 'product_ui_prototype' });
+    // The storage slot is gone...
+    expect(window.sessionStorage.getItem(`open-design:onboarding-entry:${id}`)).toBeNull();
+    // ...but the committed remount still gets the entry from the cache.
+    expect(consumeOnboardingEntryForProject(id)).toEqual(first);
   });
 
   it('returns null when nothing was stashed for that id', () => {
-    expect(consumeOnboardingEntryForProject('proj-1')).toBeNull();
+    expect(consumeOnboardingEntryForProject(nextProjectId())).toBeNull();
   });
 
   // The race the id-keyed slot fixes (PR #5111 review): clicking "进入 Studio"
@@ -77,27 +98,30 @@ describe('onboarding entry (id-keyed session hand-off)', () => {
   // The entry is keyed by the created project id, so a concurrent mount for a
   // different id consumes nothing, and the intended project still gets it.
   it('is isolated per project id — a concurrent unrelated project cannot steal it', () => {
-    stashOnboardingEntryForProject('recommended-proj', {
+    const recommended = nextProjectId();
+    const other = nextProjectId();
+    stashOnboardingEntryForProject(recommended, {
       source: 'home_recommendation',
       productType: 'product_ui',
       recommendationId: 'product_ui_prototype',
     });
     // An unrelated project mounts first (mid-create navigation) and reads its
     // own key — nothing there.
-    expect(consumeOnboardingEntryForProject('other-proj')).toBeNull();
+    expect(consumeOnboardingEntryForProject(other)).toBeNull();
     // The recommendation-started project still finds its context intact.
-    expect(consumeOnboardingEntryForProject('recommended-proj')).toMatchObject({
+    expect(consumeOnboardingEntryForProject(recommended)).toMatchObject({
       source: 'home_recommendation',
       recommendationId: 'product_ui_prototype',
     });
   });
 
   it('ignores a malformed stored value', () => {
+    const id = nextProjectId();
     window.sessionStorage.setItem(
-      'open-design:onboarding-entry:proj-1',
+      `open-design:onboarding-entry:${id}`,
       '{"source":"nope"}',
     );
-    expect(consumeOnboardingEntryForProject('proj-1')).toBeNull();
+    expect(consumeOnboardingEntryForProject(id)).toBeNull();
   });
 
   it('treats a missing project id as a no-op', () => {

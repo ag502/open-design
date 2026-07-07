@@ -2240,6 +2240,7 @@ export const ptBR: Dict = {
   'home.recommendation.change': 'Tentar outro',
   'home.recommendation.browseAll': 'Todos os tipos',
   'home.recommendation.defaultProjectName': 'Novo projeto',
+  'home.recommendation.startFailed': 'Não foi possível iniciar a criação. Tente novamente.',
   'studio.firstArtifactHint.title': 'Seu primeiro design está pronto',
   'studio.firstArtifactHint.body': 'Experimente editar e anotar diretamente — exporte ou compartilhe quando estiver satisfeito.',
   'studio.firstArtifactHint.dismiss': 'Entendi',

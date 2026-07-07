@@ -2103,7 +2103,27 @@ export function HomeView({
           recommendation && onRecommendationStart && onRecommendationDismiss ? (
             <RecommendedStartRegion
               recommendation={recommendation}
-              onStart={onRecommendationStart}
+              onStart={async (input) => {
+                // Route recommendation-start failures into the same Home error
+                // channel every other entry action uses, so a failed "Start
+                // creating" surfaces a visible, retryable message instead of a
+                // silent no-op. `onRecommendationStart` returns `false` for a
+                // clean no-project result and throws on real create failures;
+                // both land here as the localized error, and returning `false`
+                // lets RecommendedStartRegion drop its pending state for retry.
+                setError(null);
+                try {
+                  const ok = await onRecommendationStart(input);
+                  if (ok === false) {
+                    setError(t('home.recommendation.startFailed'));
+                    return false;
+                  }
+                  return true;
+                } catch {
+                  setError(t('home.recommendation.startFailed'));
+                  return false;
+                }
+              }}
               onDismiss={() => {
                 onRecommendationDismiss();
                 // "浏览全部类型" must land the user somewhere concrete — open

@@ -2988,6 +2988,7 @@ export interface Dict {
   'home.recommendation.change': string;
   'home.recommendation.browseAll': string;
   'home.recommendation.defaultProjectName': string;
+  'home.recommendation.startFailed': string;
   'studio.firstArtifactHint.title': string;
   'studio.firstArtifactHint.body': string;
   'studio.firstArtifactHint.dismiss': string;

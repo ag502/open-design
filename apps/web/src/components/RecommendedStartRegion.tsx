@@ -100,7 +100,13 @@ export function RecommendedStartRegion({ recommendation, onStart, onDismiss }: P
     });
   }
 
-  function handleEnter() {
+  // Pending state for the create round-trip. The CTA disables while a start is
+  // in flight and re-enables on failure so the user can retry (a successful
+  // start unmounts this region because the parent dismisses the recommendation).
+  const [pending, setPending] = useState(false);
+
+  async function handleEnter() {
+    if (pending) return;
     fireClick('enter_studio', current.id);
     // Hand the entry context to the create pipeline (session-only) so the
     // first-prompt / first-generation funnel events can attribute back to this
@@ -115,12 +121,18 @@ export function RecommendedStartRegion({ recommendation, onStart, onDismiss }: P
       ...(recommendation.role ? { role: recommendation.role } : {}),
       ...(recommendation.useCases.length > 0 ? { useCases: recommendation.useCases } : {}),
     };
-    void onStart({
-      name: projectNameFromPrompt(firstPrompt, t('home.recommendation.defaultProjectName')),
-      prompt: firstPrompt,
-      metadata: { kind: PRODUCT_KIND[current.productType], nameSource: 'prompt' },
-      onboardingEntry,
-    });
+    setPending(true);
+    // `onStart` surfaces its own visible error (Home error channel) and never
+    // rejects; it resolves `false` when the start failed. Only drop the pending
+    // state on failure — on success the parent unmounts this region.
+    const started =
+      (await onStart({
+        name: projectNameFromPrompt(firstPrompt, t('home.recommendation.defaultProjectName')),
+        prompt: firstPrompt,
+        metadata: { kind: PRODUCT_KIND[current.productType], nameSource: 'prompt' },
+        onboardingEntry,
+      })) !== false;
+    if (!started) setPending(false);
   }
 
   function handleChange() {
@@ -177,6 +189,8 @@ export function RecommendedStartRegion({ recommendation, onStart, onDismiss }: P
         className={styles.primary}
         onClick={() => void handleEnter()}
         data-testid="home-recommendation-start"
+        disabled={pending}
+        aria-busy={pending}
       >
         {t('home.recommendation.primaryCta')}
         <Icon name="chevron-right" size={14} />
