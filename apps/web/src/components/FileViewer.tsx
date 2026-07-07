@@ -10846,6 +10846,7 @@ function HtmlViewer({
                   comments={commentCreateMode ? visibleSideComments : []}
                   driftLadder={collab.enabled}
                   currentVersion={collab.publishedVersion ?? undefined}
+                  {...(collab.onLostAnchors ? { onLostAnchors: collab.onLostAnchors } : {})}
                   liveTargets={liveCommentTargets}
                   hoveredTarget={hoveredCommentTarget}
                   hoveredPodMemberId={hoveredPodMemberId}

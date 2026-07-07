@@ -204,7 +204,9 @@ import { localizePluginTitle } from './plugins-home/localization';
 import { DesignSystemPicker } from './DesignSystemPicker';
 import { PresenceBar } from '../collab/PresenceBar';
 import { useProjectCollab } from '../collab/useProjectCollab';
-import { CollabProvider } from '../collab/collab-context';
+import { CollabProvider, type CollabContextValue } from '../collab/collab-context';
+import { persistCommentAnchors } from '../collab/comment-anchor-client';
+import type { AnchorWriteBack } from '../comments';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { ChatPane } from './ChatPane';
@@ -1407,6 +1409,24 @@ export function ProjectView({
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [conversations, activeConversationId],
+  );
+  // Team-collab (C lane): persist a comment that drifted to `lost` so its ghost
+  // pin survives reload. Only ProjectView has the active conversation id the
+  // anchor route needs; fed to the drift ladder through the collab context.
+  const handleLostAnchors = useCallback(
+    (writeBacks: AnchorWriteBack[]) => {
+      if (!activeConversationId || writeBacks.length === 0) return;
+      void persistCommentAnchors({
+        projectId: project.id,
+        conversationId: activeConversationId,
+        writeBacks,
+      });
+    },
+    [project.id, activeConversationId],
+  );
+  const collabValue = useMemo<CollabContextValue>(
+    () => ({ ...projectCollab, onLostAnchors: handleLostAnchors }),
+    [projectCollab, handleLostAnchors],
   );
   const activeSessionMode = activeConversation?.sessionMode ?? 'design';
   const [messagesConversationId, setMessagesConversationId] = useState<string | null>(null);
@@ -8026,7 +8046,7 @@ export function ProjectView({
   );
 
   return (
-    <CollabProvider value={projectCollab}>
+    <CollabProvider value={collabValue}>
     <div className="app">
       <CritiqueTheaterMount
         projectId={project.id}
