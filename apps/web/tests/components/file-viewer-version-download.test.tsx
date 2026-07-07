@@ -10,14 +10,24 @@ const {
   exportAsHtmlMock,
   exportAsPdfMock,
   exportAsZipMock,
+  exportProjectAsHtmlMock,
+  exportProjectAsPdfMock,
+  exportProjectAsZipMock,
+  exportProjectScreenshotPdfMock,
   exportSnapshotAsPdfMock,
+  isOpenDesignHostAvailableMock,
   requestPreviewSnapshotMock,
 } = vi.hoisted(() => ({
   captureHostIframeSnapshotMock: vi.fn(),
   exportAsHtmlMock: vi.fn(),
   exportAsPdfMock: vi.fn(),
   exportAsZipMock: vi.fn(),
+  exportProjectAsHtmlMock: vi.fn(),
+  exportProjectAsPdfMock: vi.fn(),
+  exportProjectAsZipMock: vi.fn(),
+  exportProjectScreenshotPdfMock: vi.fn(),
   exportSnapshotAsPdfMock: vi.fn(),
+  isOpenDesignHostAvailableMock: vi.fn(() => false),
   requestPreviewSnapshotMock: vi.fn(),
 }));
 
@@ -31,7 +41,12 @@ vi.mock('../../src/runtime/exports', async () => {
     exportAsHtml: exportAsHtmlMock,
     exportAsPdf: exportAsPdfMock,
     exportAsZip: exportAsZipMock,
+    exportProjectAsHtml: exportProjectAsHtmlMock,
+    exportProjectAsPdf: exportProjectAsPdfMock,
+    exportProjectAsZip: exportProjectAsZipMock,
+    exportProjectScreenshotPdf: exportProjectScreenshotPdfMock,
     exportSnapshotAsPdf: exportSnapshotAsPdfMock,
+    isOpenDesignHostAvailable: isOpenDesignHostAvailableMock,
     requestPreviewSnapshot: requestPreviewSnapshotMock,
   };
 });
@@ -110,7 +125,7 @@ function setupVersionFetch(file = htmlFile()) {
   return { currentVersion, fetchMock, file, priorContent, priorVersion };
 }
 
-async function renderVersionDialog(file = htmlFile()) {
+async function renderVersionDialog(file = htmlFile(), selected: 'current' | 'prior' = 'prior') {
   render(
     <FileViewer
       projectId="project-1"
@@ -122,22 +137,49 @@ async function renderVersionDialog(file = htmlFile()) {
 
   fireEvent.click(screen.getByRole('button', { name: 'Versions' }));
   const versionDialog = await screen.findByRole('dialog', { name: 'Versions' });
-  fireEvent.click(within(versionDialog).getByRole('option', { name: /Prior prompt/ }));
+  if (selected === 'prior') {
+    fireEvent.click(within(versionDialog).getByRole('option', { name: /Prior prompt/ }));
+  }
+  const version = selected === 'prior' ? 1 : 2;
   await waitFor(() => {
-    expect(within(versionDialog).getByRole('button', { name: 'Download Version 1' })).toBeTruthy();
+    expect(within(versionDialog).getByRole('button', { name: `Download Version ${version}` })).toBeTruthy();
   });
   return versionDialog;
 }
 
-function openVersionDownloadMenu(versionDialog: HTMLElement) {
-  fireEvent.click(within(versionDialog).getByRole('button', { name: 'Download Version 1' }));
+function openVersionDownloadMenu(versionDialog: HTMLElement, version = 1) {
+  fireEvent.click(within(versionDialog).getByRole('button', { name: `Download Version ${version}` }));
 }
 
 describe('FileViewer version download actions', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    isOpenDesignHostAvailableMock.mockReturnValue(false);
     vi.unstubAllGlobals();
+  });
+
+  it('routes current version PDFs through the main download PDF exporter', async () => {
+    isOpenDesignHostAvailableMock.mockReturnValue(true);
+    exportProjectScreenshotPdfMock.mockResolvedValueOnce({ ok: true });
+    const { file } = setupVersionFetch();
+    const versionDialog = await renderVersionDialog(file, 'current');
+
+    openVersionDownloadMenu(versionDialog, 2);
+    fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as PDF' }));
+
+    await waitFor(() => {
+      expect(exportProjectScreenshotPdfMock).toHaveBeenCalledWith(expect.objectContaining({
+        deck: false,
+        fileName: 'index.html',
+        projectId: 'project-1',
+        title: 'index',
+      }));
+    });
+    expect(requestPreviewSnapshotMock).not.toHaveBeenCalled();
+    expect(exportSnapshotAsPdfMock).not.toHaveBeenCalled();
+    expect(exportProjectAsPdfMock).not.toHaveBeenCalled();
+    expect(exportAsPdfMock).not.toHaveBeenCalled();
   });
 
   it('exports version PDFs from the rendered version preview container', async () => {
@@ -201,6 +243,20 @@ describe('FileViewer version download actions', () => {
     expect(await screen.findByRole('dialog', { name: 'Export as image' })).toBeTruthy();
   });
 
+  it('opens the main image export dialog for the current version', async () => {
+    const { file } = setupVersionFetch();
+    const versionDialog = await renderVersionDialog(file, 'current');
+
+    openVersionDownloadMenu(versionDialog, 2);
+    fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as image' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Versions' })).toBeNull();
+    });
+    expect(await screen.findByRole('dialog', { name: 'Export as image' })).toBeTruthy();
+    expect(requestPreviewSnapshotMock).not.toHaveBeenCalled();
+  });
+
   it('routes version HTML and ZIP actions through the selected version content', async () => {
     const { file, priorContent } = setupVersionFetch();
     const versionDialog = await renderVersionDialog(file);
@@ -218,6 +274,37 @@ describe('FileViewer version download actions', () => {
     await waitFor(() => {
       expect(exportAsZipMock).toHaveBeenCalledWith(priorContent, 'index-v1');
     });
+  });
+
+  it('routes current version HTML and ZIP actions through the main download exporters', async () => {
+    const { file } = setupVersionFetch();
+    const versionDialog = await renderVersionDialog(file, 'current');
+
+    openVersionDownloadMenu(versionDialog, 2);
+    fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Export as standalone HTML' }));
+
+    await waitFor(() => {
+      expect(exportProjectAsHtmlMock).toHaveBeenCalledWith(expect.objectContaining({
+        fallbackHtml: '<html><body><h1>Current</h1></body></html>',
+        fallbackTitle: 'index',
+        filePath: 'index.html',
+        projectId: 'project-1',
+      }));
+    });
+
+    openVersionDownloadMenu(versionDialog, 2);
+    fireEvent.click(within(versionDialog).getByRole('menuitem', { name: 'Download as .zip' }));
+
+    await waitFor(() => {
+      expect(exportProjectAsZipMock).toHaveBeenCalledWith(expect.objectContaining({
+        fallbackHtml: '<html><body><h1>Current</h1></body></html>',
+        fallbackTitle: 'index',
+        filePath: 'index.html',
+        projectId: 'project-1',
+      }));
+    });
+    expect(exportAsHtmlMock).not.toHaveBeenCalled();
+    expect(exportAsZipMock).not.toHaveBeenCalled();
   });
 
   it('keeps version export popovers and feedback above the preview modal layers', () => {

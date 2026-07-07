@@ -118,6 +118,10 @@ import {
   buildSpeakerNotesPresenterHtml,
   extractSpeakerNotesFromHtml,
   normalizeSpeakerNotes,
+  PRESENTER_WINDOW_INITIAL_HEIGHT,
+  PRESENTER_WINDOW_INITIAL_WIDTH,
+  PRESENTER_WINDOW_MIN_HEIGHT,
+  PRESENTER_WINDOW_MIN_WIDTH,
   removeSpeakerNotesFromHtml,
   upsertSpeakerNotesInHtml,
 } from '../runtime/speaker-notes';
@@ -2590,6 +2594,12 @@ function fileVersionExportTitle(fileName: string, version: ProjectFileVersion): 
   return `${base}-v${version.version}`;
 }
 
+type HtmlVersionExportContext = {
+  content: string;
+  title: string;
+  versionId?: string;
+};
+
 export type DeckKeyboardShortcut = 'next' | 'prev' | 'first' | 'last' | 'reset';
 
 type DeckKeyboardShortcutEvent = Pick<
@@ -2619,6 +2629,10 @@ function FileVersionManagerModal({
   file,
   currentSource,
   entryFrom,
+  onExportPdf,
+  onOpenImageExport,
+  onExportZip,
+  onExportHtml,
   onClose,
   onRestored,
 }: {
@@ -2627,6 +2641,10 @@ function FileVersionManagerModal({
   file: ProjectFile;
   currentSource: string | null;
   entryFrom: 'toolbar' | 'more_menu';
+  onExportPdf?: (context: HtmlVersionExportContext) => void;
+  onOpenImageExport?: (context: HtmlVersionExportContext) => Promise<void> | void;
+  onExportZip?: (context: HtmlVersionExportContext) => void;
+  onExportHtml?: (context: HtmlVersionExportContext) => void;
   onClose: () => void;
   onRestored: (content: string, version: ProjectFileVersion) => Promise<void> | void;
 }) {
@@ -3015,7 +3033,31 @@ function FileVersionManagerModal({
     return requestPreviewSnapshotWithRetry(iframe, options);
   }
 
+  async function runProjectVersionExport(
+    version: ProjectFileVersion,
+    action: (context: HtmlVersionExportContext) => Promise<unknown> | unknown,
+  ): Promise<void> {
+    setDownloadMenuVersionId(null);
+    setError(null);
+    setVersionExportToast(null);
+    const content = await ensureVersionContent(version);
+    if (!content) {
+      setVersionExportToast({ message: t('fileViewer.exportFailed'), tone: 'error' });
+      return;
+    }
+    const context: HtmlVersionExportContext = {
+      content,
+      title: version.current ? file.name.replace(/\.html?$/i, '') || file.name : fileVersionExportTitle(file.name, version),
+      ...(version.current ? {} : { versionId: version.id }),
+    };
+    await action(context);
+  }
+
   async function exportVersionPdf(version: ProjectFileVersion) {
+    if (onExportPdf) {
+      await runProjectVersionExport(version, onExportPdf);
+      return;
+    }
     await runVersionExport(version, async (content, title) => {
       const snapshot = await captureVersionPreviewSnapshot({ full: true });
       if (!snapshot) throw new Error(t('fileViewer.exportFailed'));
@@ -3054,10 +3096,35 @@ function FileVersionManagerModal({
 
   function openVersionImageExport(version: ProjectFileVersion) {
     setDownloadMenuVersionId(null);
+    if (onOpenImageExport) {
+      void runProjectVersionExport(version, (context) => {
+        onClose();
+        window.requestAnimationFrame(() => {
+          void onOpenImageExport(context);
+        });
+      });
+      return;
+    }
     setSelectedId(version.id);
     void primeVersionContent(version.id);
     setVersionImageExportFormat('png');
     setVersionImageExportVersionId(version.id);
+  }
+
+  function exportVersionZip(version: ProjectFileVersion) {
+    if (onExportZip) {
+      void runProjectVersionExport(version, onExportZip);
+      return;
+    }
+    void runVersionExport(version, (content, title) => exportAsZip(content, title));
+  }
+
+  function exportVersionHtml(version: ProjectFileVersion) {
+    if (onExportHtml) {
+      void runProjectVersionExport(version, onExportHtml);
+      return;
+    }
+    void runVersionExport(version, (content, title) => exportAsHtml(content, title));
   }
 
   function openVersionInNewTab() {
@@ -3424,7 +3491,7 @@ function FileVersionManagerModal({
                         className="share-menu-item"
                         role="menuitem"
                         onClick={() => {
-                          void runVersionExport(selectedVersion, (content, title) => exportAsZip(content, title));
+                          exportVersionZip(selectedVersion);
                         }}
                       >
                         <span className="share-menu-icon"><RemixIcon name="file-zip-line" size={15} /></span>
@@ -3435,7 +3502,7 @@ function FileVersionManagerModal({
                         className="share-menu-item"
                         role="menuitem"
                         onClick={() => {
-                          void runVersionExport(selectedVersion, (content, title) => exportAsHtml(content, title));
+                          exportVersionHtml(selectedVersion);
                         }}
                       >
                         <span className="share-menu-icon"><RemixIcon name="file-code-line" size={15} /></span>
@@ -6406,6 +6473,7 @@ function HtmlViewer({
   const [versionRestoredToast, setVersionRestoredToast] = useState<{ id: number; message: string } | null>(null);
   const versionRestoredToastIdRef = useRef(0);
   const [imageExportModalOpen, setImageExportModalOpen] = useState(false);
+  const [imageExportContext, setImageExportContext] = useState<HtmlVersionExportContext | null>(null);
   const [imageExportFormat, setImageExportFormat] = useState<ImageExportFormat>('png');
   const [imageExportError, setImageExportError] = useState<string | null>(null);
   const [pptxExportModalOpen, setPptxExportModalOpen] = useState(false);
@@ -8436,7 +8504,14 @@ function HtmlViewer({
       hideDeckChrome: true,
       previewFocusGuard: true,
     }));
-    const popup = window.open('', `od-presenter-${projectId}-${file.name}`, 'popup,width=1320,height=820');
+    const popupFeatures = [
+      'popup',
+      `width=${PRESENTER_WINDOW_INITIAL_WIDTH}`,
+      `height=${PRESENTER_WINDOW_INITIAL_HEIGHT}`,
+      `minWidth=${PRESENTER_WINDOW_MIN_WIDTH}`,
+      `minHeight=${PRESENTER_WINDOW_MIN_HEIGHT}`,
+    ].join(',');
+    const popup = window.open('', `od-presenter-${projectId}-${file.name}`, popupFeatures);
     if (!popup) return;
     presenterWindowRef.current = popup;
     const html = buildSpeakerNotesPresenterHtml({
@@ -9621,6 +9696,67 @@ function HtmlViewer({
   const showMarkdownExport = source !== null && isMarkdownArtifact;
   const showImageExport = canShare;
 
+  function deckExportSignalForContext(context?: HtmlVersionExportContext | null): boolean {
+    return context ? isDeckArtifact || sourceLooksLikeExportableDeck(context.content) : deckExportSignal;
+  }
+
+  async function exportHtmlPdf(context?: HtmlVersionExportContext | null) {
+    const pdfTitle = context?.title ?? exportTitle;
+    const pdfSource = context?.content ?? source ?? '';
+    const pdfDeck = deckExportSignalForContext(context);
+    if (isOpenDesignHostAvailable()) {
+      const res = await exportProjectScreenshotPdf({
+        projectId,
+        fileName: file.name,
+        title: pdfTitle,
+        // Broader deck signal than the viewer's nav so runtime-managed decks
+        // (<deck-stage>) paginate per slide; the vector fallback below uses
+        // the SAME signal, so an artifact exports identically with or without
+        // a desktop host (no per-host divergence).
+        deck: pdfDeck,
+        ...(context?.versionId ? { versionId: context.versionId } : {}),
+      });
+      if (res.ok) return;
+      // A SEMANTIC failure (bad deck routing, unreadable renderer output,
+      // renderer 502, ...) must surface, not silently downgrade to the vector
+      // PDF, which can reintroduce the fidelity bugs the screenshot path
+      // exists to avoid. Only a genuinely unavailable renderer falls through.
+      if (!('unavailable' in res)) throw new Error(res.error);
+    }
+    await exportProjectAsPdf({
+      deck: pdfDeck,
+      fallbackPdf: () => exportAsPdf(pdfSource, pdfTitle, { deck: pdfDeck, onProgress: onExportProgress }),
+      filePath: file.name,
+      projectId,
+      title: pdfTitle,
+      ...(context?.versionId ? { versionId: context.versionId } : {}),
+    });
+  }
+
+  function triggerPdfExport(context?: HtmlVersionExportContext) {
+    fireShareExport('pdf', () => exportHtmlPdf(context));
+  }
+
+  function triggerZipExport(context?: HtmlVersionExportContext) {
+    fireShareExport('zip', () => exportProjectAsZip({
+      projectId,
+      filePath: file.name,
+      fallbackHtml: context?.content ?? source ?? '',
+      fallbackTitle: context?.title ?? exportTitle,
+      ...(context?.versionId ? { versionId: context.versionId } : {}),
+    }));
+  }
+
+  function triggerHtmlExport(context?: HtmlVersionExportContext) {
+    fireShareExport('html', () => exportProjectAsHtml({
+      projectId,
+      filePath: file.name,
+      fallbackHtml: context?.content ?? source ?? '',
+      fallbackTitle: context?.title ?? exportTitle,
+      ...(context?.versionId ? { versionId: context.versionId } : {}),
+    }));
+  }
+
   useEffect(() => {
     const nudgeKey = `${projectId}\n${file.name}`;
     if (!canShare || exportReadyNudgeSeenRef.current.has(nudgeKey)) return;
@@ -9707,8 +9843,10 @@ function HtmlViewer({
     setDeployMenuOpen((v) => !v);
   };
   const captureExportImageSnapshot = useCallback(async (
-    options?: { wholeDeck?: boolean },
+    options?: { wholeDeck?: boolean; context?: HtmlVersionExportContext | null },
   ) => {
+    const exportContext = options?.context ?? null;
+    const imageDeckSignal = deckExportSignalForContext(exportContext);
     // The host compositor grabs on-screen pixels, so any transient hover chrome
     // over the preview leaks into the capture. The screenshot control's own
     // tooltip is already dismissed by TooltipLayer's pointerdown/click listener,
@@ -9725,7 +9863,7 @@ function HtmlViewer({
     // CURRENT slide, mirroring what's on screen. An ordinary page is its
     // full-page capture either way.
     if (isOpenDesignHostAvailable() && projectId && file.name) {
-      // Deck-vs-page uses `deckExportSignal` — broader than the viewer's nav
+      // Deck-vs-page uses the same signal as PDF export — broader than the viewer's nav
       // signal — so runtime-managed decks (`<deck-stage>` / `data-screen-label`,
       // no literal `.slide`) export as a deck instead of a single page-mode shot
       // of slide 1. The vector-PDF fallback below uses the SAME signal, so an
@@ -9738,13 +9876,14 @@ function HtmlViewer({
       // visible host snapshot (= the slide on screen). Whole-deck / pages /
       // tracked `.slide` decks still render off-screen.
       const trackedActive = slideState?.active ?? htmlPreviewSlideState.get(previewStateKey)?.active ?? null;
-      const plan = planDeckImageCapture({ deck: deckExportSignal, wholeDeck, trackedActive });
+      const plan = planDeckImageCapture({ deck: imageDeckSignal, wholeDeck, trackedActive });
       if (plan.useOffscreen) {
         const rendered = await exportProjectImageDataUrl({
           projectId,
           fileName: file.name,
-          deck: deckExportSignal,
+          deck: imageDeckSignal,
           ...(plan.index != null ? { index: plan.index } : {}),
+          ...(exportContext?.versionId ? { versionId: exportContext.versionId } : {}),
         });
         if (rendered.ok) return rendered.snapshot;
         // A semantic failure (e.g. "page is too tall — export as PDF") must surface,
@@ -9753,6 +9892,8 @@ function HtmlViewer({
         if ('error' in rendered) throw new Error(rendered.error);
       }
     }
+
+    if (exportContext?.versionId) return null;
 
     // Fallback: desktop compositor screenshot of the visible preview region.
     // Returns real rendered pixels and is never tainted, unlike the in-iframe
@@ -9803,7 +9944,6 @@ function HtmlViewer({
     srcDocShellReady,
     useLazySrcDocTransport,
     useUrlLoadPreview,
-    deckExportSignal,
     slideState?.active,
     previewStateKey,
     projectId,
@@ -9845,7 +9985,7 @@ function HtmlViewer({
     }
   }, [captureExportImageSnapshot, t]);
 
-  const openImageExportModal = async () => {
+  const openImageExportModal = async (context?: HtmlVersionExportContext) => {
     // Don't reopen while an export is still running: reopening resets the shared
     // request/result bookkeeping refs, which would mis-attribute or drop the
     // in-flight export's analytics result.
@@ -9874,6 +10014,7 @@ function HtmlViewer({
     );
     setImageExportError(null);
     imageExportSnapshotDataUrlRef.current = null;
+    setImageExportContext(context ?? null);
     // Just open the modal. Rendering happens on Save, after the user picks a
     // format — not eagerly on open.
     setImageExportModalOpen(true);
@@ -9930,12 +10071,14 @@ function HtmlViewer({
     await waitForAnimationFrame();
     await waitForAnimationFrame();
     try {
+      const context = imageExportContext;
+      const targetTitle = context?.title ?? exportTitle;
       let dataUrl = imageExportSnapshotDataUrlRef.current;
       if (!dataUrl) {
         // Export as image of a deck = the whole deck stitched into one long
         // image (every slide), matching the count the viewer reports. Copy
         // screenshot keeps the current slide.
-        const snap = await captureExportImageSnapshot({ wholeDeck: true });
+        const snap = await captureExportImageSnapshot({ wholeDeck: true, context });
         if (!snap) {
           setExportToast({ message: t('fileViewer.exportImageFailed'), tone: 'error' });
           fireImageExportResult('failed', 'CAPTURE_FAILED');
@@ -9950,7 +10093,7 @@ function HtmlViewer({
         fireImageExportResult('failed', 'EMPTY_IMAGE');
         return;
       }
-      const target = await prepareImageExportTarget(exportTitle, imageExportFormat, { useNativePicker: false });
+      const target = await prepareImageExportTarget(targetTitle, imageExportFormat, { useNativePicker: false });
       if (!target) {
         // User dismissed the save picker — clear the loading toast.
         setExportToast(null);
@@ -11207,43 +11350,7 @@ function HtmlViewer({
                     role="menuitem"
                     onClick={() => {
                       setDownloadMenuOpen(false);
-                      // Pixel-perfect screenshot PDF (matches the preview, same
-                      // renderer as image/PPTX). Chosen over Chromium's vector
-                      // printToPDF because that path drops CJK glyphs in the
-                      // packaged runtime (no embedded fonts) — unacceptable for a
-                      // Chinese-first product. Falls back to the vector/browser
-                      // print path on web or on failure.
-                      fireShareExport('pdf', async () => {
-                        if (isOpenDesignHostAvailable()) {
-                          const res = await exportProjectScreenshotPdf({
-                            projectId,
-                            fileName: file.name,
-                            title: exportTitle,
-                            // Broader deck signal than the viewer's nav so
-                            // runtime-managed decks (<deck-stage>) paginate per
-                            // slide; the vector fallback below uses the SAME
-                            // signal, so an artifact exports identically with or
-                            // without a desktop host (no per-host divergence).
-                            deck: deckExportSignal,
-                          });
-                          if (res.ok) return;
-                          // A SEMANTIC failure (bad deck routing, unreadable
-                          // renderer output, renderer 502, …) must surface — NOT
-                          // silently downgrade to the vector PDF, which can
-                          // reintroduce the CJK-glyph / fidelity bugs the
-                          // screenshot path exists to avoid. Only a genuinely
-                          // unavailable renderer (no host / 501 / transport)
-                          // falls through to the vector path below.
-                          if (!('unavailable' in res)) throw new Error(res.error);
-                        }
-                        await exportProjectAsPdf({
-                          deck: deckExportSignal,
-                          fallbackPdf: () => exportAsPdf(source ?? '', exportTitle, { deck: deckExportSignal, onProgress: onExportProgress }),
-                          filePath: file.name,
-                          projectId,
-                          title: exportTitle,
-                        });
-                      });
+                      triggerPdfExport();
                     }}
                   >
                     <span className="share-menu-icon"><RemixIcon name="file-line" size={15} /></span>
@@ -11275,7 +11382,9 @@ function HtmlViewer({
                       type="button"
                       className="share-menu-item"
                       role="menuitem"
-                      onClick={openImageExportModal}
+                      onClick={() => {
+                        void openImageExportModal();
+                      }}
                     >
                       <span className="share-menu-icon"><RemixIcon name="image-line" size={15} /></span>
                       <span>{t('fileViewer.exportImage')}</span>
@@ -11287,12 +11396,7 @@ function HtmlViewer({
                     role="menuitem"
                     onClick={() => {
                       setDownloadMenuOpen(false);
-                      fireShareExport('zip', () => exportProjectAsZip({
-                        projectId,
-                        filePath: file.name,
-                        fallbackHtml: source ?? '',
-                        fallbackTitle: exportTitle,
-                      }));
+                      triggerZipExport();
                     }}
                   >
                     <span className="share-menu-icon"><RemixIcon name="file-zip-line" size={15} /></span>
@@ -11304,12 +11408,7 @@ function HtmlViewer({
                     role="menuitem"
                     onClick={() => {
                       setDownloadMenuOpen(false);
-                      fireShareExport('html', () => exportProjectAsHtml({
-                        projectId,
-                        filePath: file.name,
-                        fallbackHtml: source ?? '',
-                        fallbackTitle: exportTitle,
-                      }));
+                      triggerHtmlExport();
                     }}
                   >
                     <span className="share-menu-icon"><RemixIcon name="file-code-line" size={15} /></span>
@@ -11588,7 +11687,7 @@ function HtmlViewer({
                       role={exportToast.tone === 'error' ? 'alert' : 'status'}
                       ttlMs={exportToast.tone === 'loading' ? 60000 : 2200}
                       placement="top"
-                      onDismiss={() => setExportToast(null)}
+                      onDismiss={exportToast.tone === 'loading' ? undefined : () => setExportToast(null)}
                     />,
                     document.body,
                   )
@@ -11817,6 +11916,10 @@ function HtmlViewer({
           file={file}
           currentSource={source}
           entryFrom={versionModalOpen}
+          onExportPdf={triggerPdfExport}
+          onOpenImageExport={openImageExportModal}
+          onExportZip={triggerZipExport}
+          onExportHtml={triggerHtmlExport}
           onClose={() => setVersionModalOpen(false)}
           onRestored={handleVersionRestored}
         />

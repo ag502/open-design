@@ -80,13 +80,16 @@ export async function exportProjectAsHtml(opts: {
   filePath: string;
   fallbackHtml: string;
   fallbackTitle: string;
+  versionId?: string;
 }): Promise<void> {
   const segments = opts.filePath
     .split('/')
     .filter(Boolean)
     .map((segment) => encodeURIComponent(segment))
     .join('/');
-  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/${segments}?inline=1`;
+  const query = new URLSearchParams({ inline: '1' });
+  if (opts.versionId) query.set('versionId', opts.versionId);
+  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/${segments}?${query.toString()}`;
   try {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`html export request failed (${resp.status})`);
@@ -758,6 +761,7 @@ export async function exportProjectAsPdf(opts: {
   filePath: string;
   projectId: string;
   title: string;
+  versionId?: string;
 }): Promise<ProjectPdfExportResult> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(opts.projectId)}/export/pdf`, {
@@ -765,6 +769,7 @@ export async function exportProjectAsPdf(opts: {
         deck: opts.deck,
         fileName: opts.filePath,
         title: opts.title,
+        ...(opts.versionId ? { versionId: opts.versionId } : {}),
       }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -842,7 +847,26 @@ export async function exportProjectAsZip(opts: {
   filePath: string;
   fallbackHtml: string;
   fallbackTitle: string;
+  versionId?: string;
 }): Promise<void> {
+  if (opts.versionId) {
+    const segments = opts.filePath
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const query = new URLSearchParams({ inline: '1', versionId: opts.versionId });
+    try {
+      const resp = await fetch(`/api/projects/${encodeURIComponent(opts.projectId)}/export/${segments}?${query.toString()}`);
+      if (!resp.ok) throw new Error(`version html export request failed (${resp.status})`);
+      exportAsZip(await resp.text(), opts.fallbackTitle);
+      return;
+    } catch (err) {
+      console.warn('[exportProjectAsZip] falling back to single-file ZIP:', err);
+      exportAsZip(opts.fallbackHtml, opts.fallbackTitle);
+      return;
+    }
+  }
   const root = archiveRootFromFilePath(opts.filePath);
   const url = `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
     root ? `?root=${encodeURIComponent(root)}` : ''
@@ -881,6 +905,7 @@ export async function exportProjectAsPptx(opts: {
   title?: string;
   format?: 'pptx' | 'pdf';
   deck?: boolean;
+  versionId?: string;
   // pptx only: produce an editable deck (native shapes/text) instead of a
   // screenshot one (one image per slide).
   editable?: boolean;
@@ -896,6 +921,7 @@ export async function exportProjectAsPptx(opts: {
       body: JSON.stringify({
         fileName: opts.fileName,
         ...(opts.title ? { title: opts.title } : {}),
+        ...(opts.versionId ? { versionId: opts.versionId } : {}),
         ...(format === 'pptx'
           ? { deck: true, ...(opts.editable ? { editable: true } : {}) }
           : typeof opts.deck === 'boolean'
@@ -1012,6 +1038,7 @@ export async function exportProjectImageDataUrl(opts: {
   fileName: string;
   index?: number;
   deck?: boolean;
+  versionId?: string;
 }): Promise<ProjectImageExportResult> {
   const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/image`;
   let resp: Response;
@@ -1023,6 +1050,7 @@ export async function exportProjectImageDataUrl(opts: {
         fileName: opts.fileName,
         ...(typeof opts.index === 'number' ? { index: opts.index } : {}),
         ...(typeof opts.deck === 'boolean' ? { deck: opts.deck } : {}),
+        ...(opts.versionId ? { versionId: opts.versionId } : {}),
       }),
     });
   } catch {
@@ -1064,6 +1092,7 @@ export function exportProjectScreenshotPdf(opts: {
   fileName: string;
   title?: string;
   deck?: boolean;
+  versionId?: string;
 }): Promise<ProjectScreenshotExportResult> {
   return exportProjectAsPptx({ ...opts, format: 'pdf' });
 }

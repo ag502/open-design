@@ -4,6 +4,8 @@ import { JSDOM } from 'jsdom';
 import {
   buildSpeakerNotesPresenterHtml,
   extractSpeakerNotesFromHtml,
+  PRESENTER_WINDOW_MIN_HEIGHT,
+  PRESENTER_WINDOW_MIN_WIDTH,
   removeSpeakerNotesFromHtml,
   upsertSpeakerNotesInHtml,
 } from '../../src/runtime/speaker-notes';
@@ -328,5 +330,41 @@ describe('speaker notes HTML helpers', () => {
     // The markup order must keep previous before next so the pinning above
     // matches the DOM the presenter script drives.
     expect(html.indexOf('id="previous-section"')).toBeLessThan(html.indexOf('id="next-section"'));
+  });
+
+  it('keeps presenter popup content responsive and enforces a minimum window size', () => {
+    const html = buildSpeakerNotesPresenterHtml({
+      previewHtml: '<!doctype html><html><head></head><body>slide</body></html>',
+      title: 'Deck',
+      projectId: 'project-1',
+      fileName: 'deck.html',
+      notes: ['Intro'],
+      initialSlideIndex: 0,
+      slideCount: 1,
+      labels: {
+        title: 'Speaker notes',
+        edit: 'Edit',
+        save: 'Save notes',
+        pause: 'Pause',
+        resume: 'Resume',
+        reset: 'Reset',
+        previous: 'Previous',
+        next: 'Next',
+        empty: 'Empty',
+        slide: 'Slide {current} / {total}',
+      },
+    });
+
+    expect(html).toContain(`--presenter-min-width: ${PRESENTER_WINDOW_MIN_WIDTH}px;`);
+    expect(html).toContain(`--presenter-min-height: ${PRESENTER_WINDOW_MIN_HEIGHT}px;`);
+    expect(html).toContain('html {');
+    expect(html).toContain('overflow: auto;');
+    expect(html).toContain('.topbar { display: flex; flex-wrap: wrap;');
+    expect(html).toContain('@media (max-width: 720px), (max-height: 640px)');
+    expect(html).toContain(`var minWindowWidth = ${PRESENTER_WINDOW_MIN_WIDTH};`);
+    expect(html).toContain(`var minWindowHeight = ${PRESENTER_WINDOW_MIN_HEIGHT};`);
+    expect(html).toContain('function enforceMinimumWindowSize(){');
+    expect(html).toContain('window.resizeTo(nextWidth, nextHeight)');
+    expect(html).toContain("window.addEventListener('resize', scheduleMinimumWindowSize)");
   });
 });
