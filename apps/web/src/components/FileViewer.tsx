@@ -89,6 +89,7 @@ import {
   exportProjectAsZip,
   exportProjectImageDataUrl,
   exportProjectScreenshotPdf,
+  exportSnapshotAsPdf,
   copyImageDataUrlToClipboard,
   exportReactComponentAsHtml,
   exportReactComponentAsZip,
@@ -2633,6 +2634,7 @@ function FileVersionManagerModal({
   const [versionImageExportInFlight, setVersionImageExportInFlight] = useState(false);
   const versionImageExportTitleId = useId();
   const [previewFrameRef, previewFrameSize] = usePreviewCanvasSize<HTMLDivElement>();
+  const versionPreviewIframeRef = useRef<HTMLIFrameElement | null>(null);
   // Track which srcDoc the iframe has finished rendering. Deriving readiness by
   // comparing to the current srcDoc during render (rather than toggling a bool
   // in a post-paint effect) keeps the overlay up across a switch with no
@@ -2933,23 +2935,50 @@ function FileVersionManagerModal({
     }
   }
 
+  async function captureVersionPreviewSnapshot() {
+    const iframe = versionPreviewIframeRef.current;
+    if (!iframe) return null;
+    await waitForIframeLoadOrTimeout(iframe, 250);
+    await waitForAnimationFrame();
+    await waitForAnimationFrame();
+    const hostSnapshot = await captureHostIframeSnapshot(iframe);
+    if (hostSnapshot) return hostSnapshot;
+    return requestPreviewSnapshotWithRetry(iframe);
+  }
+
   async function exportVersionPdf(version: ProjectFileVersion) {
-    await runVersionExport(version, (content, title) => {
+    await runVersionExport(version, async (content, title) => {
       const previewOptions = fileVersionPreviewOptions(projectId, file.name, content);
-      return exportArtifactAsPdf(content, title, {
-        deck: previewOptions.deck,
-        onProgress: onVersionExportProgress,
-      });
+      try {
+        await exportArtifactAsPdf(content, title, {
+          deck: previewOptions.deck,
+          onProgress: onVersionExportProgress,
+          timeoutMs: 8_000,
+        });
+      } catch (err) {
+        console.warn('[version-export] artifact PDF capture failed, falling back to preview snapshot:', err);
+        const snapshot = await captureVersionPreviewSnapshot();
+        if (!snapshot) throw err;
+        await exportSnapshotAsPdf(snapshot, title);
+      }
     });
   }
 
   async function exportVersionImage(version: ProjectFileVersion, format: ImageExportFormat) {
     await runVersionExport(version, async (content, title) => {
       const previewOptions = fileVersionPreviewOptions(projectId, file.name, content);
-      const snapshot = await exportArtifactImageDataUrl(content, {
-        deck: previewOptions.deck,
-        onProgress: onVersionExportProgress,
-      });
+      let snapshot;
+      try {
+        snapshot = await exportArtifactImageDataUrl(content, {
+          deck: previewOptions.deck,
+          onProgress: onVersionExportProgress,
+          timeoutMs: 8_000,
+        });
+      } catch (err) {
+        console.warn('[version-export] artifact image capture failed, falling back to preview snapshot:', err);
+        snapshot = await captureVersionPreviewSnapshot();
+        if (!snapshot) throw err;
+      }
       const blob = await imageDataUrlToBlob(snapshot.dataUrl, format);
       if (blob.size <= 0) throw new Error(t('fileViewer.exportImageFailed'));
       const target = await prepareImageExportTarget(title, format, { useNativePicker: false });
@@ -3354,6 +3383,7 @@ function FileVersionManagerModal({
                     <div className="preview-frame-clip">
                       <div style={previewScaleShellStyle(previewViewport, 1)}>
                         <iframe
+                          ref={versionPreviewIframeRef}
                           title={selectedVersion ? `${file.name} v${selectedVersion.version}` : file.name}
                           sandbox="allow-scripts allow-downloads"
                           srcDoc={srcDoc}

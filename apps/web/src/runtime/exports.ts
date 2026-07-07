@@ -1628,10 +1628,12 @@ async function captureArtifactSlides(
     width?: number;
     height?: number;
     onProgress?: ExportProgress;
+    timeoutMs?: number;
   },
 ): Promise<CapturedSlide[]> {
   const width = opts.width ?? (opts.deck ? 1920 : 1440);
   const height = opts.height ?? (opts.deck ? 1080 : 900);
+  const timeoutMs = opts.timeoutMs ?? 45_000;
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('sandbox', 'allow-scripts');
@@ -1643,7 +1645,7 @@ async function captureArtifactSlides(
 
   const slides: CapturedSlide[] = [];
   try {
-    const win = await waitForIframeWindow(iframe);
+    const win = await waitForIframeWindow(iframe, Math.min(timeoutMs, 15_000));
     // Give the deck bridge time to fit fixed-canvas (transform: scale) layouts
     // to the iframe before the first capture.
     await delayMs(opts.deck ? 600 : 150);
@@ -1659,7 +1661,7 @@ async function captureArtifactSlides(
         slides.push(slide);
         opts.onProgress?.(slides.length, total);
       },
-      45_000,
+      timeoutMs,
     );
   } finally {
     iframe.remove();
@@ -1671,12 +1673,13 @@ async function captureArtifactSlides(
 /** Programmatic, client-side image export for an in-memory HTML snapshot. */
 export async function exportArtifactImageDataUrl(
   html: string,
-  opts: { deck: boolean; onProgress?: ExportProgress },
+  opts: { deck: boolean; onProgress?: ExportProgress; timeoutMs?: number },
 ): Promise<PreviewSnapshot> {
   const slides = await captureArtifactSlides(html, {
     deck: opts.deck,
     mode: 'image',
     onProgress: opts.onProgress,
+    timeoutMs: opts.timeoutMs,
   });
   const images = slides.filter((s) => s.dataUrl && s.w > 0 && s.h > 0);
   if (!images.length) throw new Error('Nothing was captured for image export');
@@ -1709,12 +1712,13 @@ export async function exportArtifactImageDataUrl(
 export async function exportArtifactAsPdf(
   html: string,
   title: string,
-  opts: { deck: boolean; onProgress?: ExportProgress },
+  opts: { deck: boolean; onProgress?: ExportProgress; timeoutMs?: number },
 ): Promise<void> {
   const slides = await captureArtifactSlides(html, {
     deck: opts.deck,
     mode: 'image',
     onProgress: opts.onProgress,
+    timeoutMs: opts.timeoutMs,
   });
   const images = slides.filter((s) => s.dataUrl && s.w > 0 && s.h > 0);
   if (!images.length) throw new Error('Nothing was captured for PDF export');
@@ -1749,4 +1753,27 @@ export async function exportArtifactAsPdf(
     pdf.addImage(img.dataUrl!, 'PNG', 0, -p * pageH, img.w, img.h);
   }
   triggerDownload(pdf.output('blob'), filename);
+}
+
+/** Build a one-image PDF from an already-captured preview snapshot. */
+export async function exportSnapshotAsPdf(
+  snapshot: PreviewSnapshot,
+  title: string,
+): Promise<void> {
+  if (!snapshot.dataUrl || snapshot.w <= 0 || snapshot.h <= 0) {
+    throw new Error('Nothing was captured for PDF export');
+  }
+  const image = await loadImageFromDataUrl(snapshot.dataUrl);
+  const width = snapshot.w || image.naturalWidth || image.width;
+  const height = snapshot.h || image.naturalHeight || image.height;
+  if (width <= 0 || height <= 0) throw new Error('Nothing was captured for PDF export');
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({
+    orientation: width >= height ? 'landscape' : 'portrait',
+    unit: 'px',
+    format: [width, height],
+    compress: true,
+  });
+  pdf.addImage(snapshot.dataUrl, 'PNG', 0, 0, width, height);
+  triggerDownload(pdf.output('blob'), `${safeFilename(title, 'artifact')}.pdf`);
 }
