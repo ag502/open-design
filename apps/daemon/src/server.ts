@@ -3799,9 +3799,12 @@ export async function startServer({
 
 
   // Team collaboration subsystem: presence + author-side publish scheduler.
-  // The resource hub is a separate surface; the scheduler talks to it through
-  // an adapter (a local stub until the hub client is configured).
-  const collab = createCollabRuntime();
+  // The scheduler publishes/pulls through the resource-hub adapter — the real
+  // hub when OD_RESOURCE_HUB_URL + workspace member env are set, else a local
+  // stub. resolveProjectDir lets the hub adapter pack/land managed projects.
+  const collab = createCollabRuntime({
+    resolveProjectDir: (projectId) => resolveProjectDir(PROJECTS_DIR, projectId),
+  });
   registerCollabPresenceRoutes(app, { collab });
   registerCollabSyncRoutes(app, { collab });
   registerCollabContextRoutes(app, { workspaceContext: collab.workspaceContext });

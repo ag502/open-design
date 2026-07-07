@@ -20,13 +20,18 @@ export interface ResourcePublishAdapter {
    */
   publish(input: { projectId: string; reason: string }): Promise<{ version: number } | null>;
   /**
-   * Read the currently-published head for a project (the resource hub the spec
-   * `syncLatest` = getRef('published')). the sync trigger owns *when* a member pulls; the
-   * adapter reports what head is available. Optional: the local stub reports the
-   * in-memory head; the real E client resolves the ref + fetches missing blobs.
-   * Returns null when nothing has been published yet.
+   * Read the currently-published head for a project. The scheduler decides
+   * *when* a member pulls; the adapter reports what head is available. Optional:
+   * the local stub reports the in-memory head; the real hub adapter resolves the
+   * published ref. Returns null when nothing has been published yet.
    */
   syncLatest?(input: { projectId: string }): Promise<{ version: number } | null>;
+  /**
+   * Materialize the published tree into the member's local copy. Optional: the
+   * local stub has no bytes to fetch; the real hub adapter fetches the missing
+   * blobs and writes the files. The scheduler decides *when* to pull.
+   */
+  pull?(input: { projectId: string }): Promise<void>;
 }
 
 export interface CollabPublishSchedulerOptions {

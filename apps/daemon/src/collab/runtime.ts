@@ -14,6 +14,7 @@ import {
   type ResourcePublishAdapter,
 } from './publish-scheduler.js';
 import { createStubResourcePublishAdapter } from './stub-resource-adapter.js';
+import { createResourceHubPublishAdapterFromEnv } from './resource-hub-publish-adapter.js';
 import {
   createDevWorkspaceContextProvider,
   type WorkspaceContextProvider,
@@ -51,11 +52,17 @@ export interface CollabRuntime {
 }
 
 export interface CreateCollabRuntimeOptions {
-  /** Resource hub client. Defaults to the local stub until E's client ships. */
+  /**
+   * Resource-hub adapter. Precedence: an explicit adapter → the real hub adapter
+   * built from env (when `resolveProjectDir` is given and OD_RESOURCE_HUB_URL +
+   * workspace member env are set) → the local stub.
+   */
   adapter?: ResourcePublishAdapter;
-  /** Workspace-context provider. Defaults to the dev provider until B's client ships. */
+  /** Managed-project directory resolver, so the real hub adapter can pack/land. */
+  resolveProjectDir?: (projectId: string) => string;
+  /** Workspace-context provider. Defaults to a dev provider until wired to an identity source. */
   workspaceContext?: WorkspaceContextProvider;
-  /** Team-resource state provider. Defaults to the dev provider until E's hub ships. */
+  /** Team-resource state provider. Defaults to a dev provider until wired to the hub. */
   teamResources?: TeamResourceStateProvider;
   /** Fired after a project is published so the caller can notify online members. */
   onPublished?: (result: { projectId: string; version: number; reason: string }) => void;
@@ -65,7 +72,12 @@ export interface CreateCollabRuntimeOptions {
 }
 
 export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): CollabRuntime {
-  const adapter = options.adapter ?? createStubResourcePublishAdapter();
+  const adapter =
+    options.adapter ??
+    (options.resolveProjectDir
+      ? createResourceHubPublishAdapterFromEnv(options.resolveProjectDir)
+      : null) ??
+    createStubResourcePublishAdapter();
   const published = new Map<string, number>();
   const syncStates = new Map<string, ProjectSyncState>();
   // Always track the published head + sync state so members can poll them; also
@@ -107,7 +119,9 @@ export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): C
       scheduler.runBoundary(projectId);
     },
     async pullLatest(projectId) {
-      // Fall back to the tracked head when the adapter can't read it (older stub).
+      // The real hub adapter materializes the published tree locally; the stub
+      // has no bytes. Either way, report the head version.
+      if (adapter.pull) await adapter.pull({ projectId });
       const head = adapter.syncLatest
         ? await adapter.syncLatest({ projectId })
         : { version: published.get(projectId) ?? null };
