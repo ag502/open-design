@@ -195,7 +195,7 @@ const CONFIG_STRING_FLAGS = new Set(['daemon-url', 'value', 'value-json']);
 const CONFIG_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const AMR_STRING_FLAGS = new Set(['daemon-url']);
 const AMR_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'refresh']);
-const COLLAB_STRING_FLAGS = new Set(['daemon-url', 'project', 'member', 'name', 'role']);
+const COLLAB_STRING_FLAGS = new Set(['daemon-url', 'project', 'member', 'name', 'role', 'design-system']);
 const COLLAB_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const PROJECT_STRING_FLAGS = new Set([
   'daemon-url', 'name', 'skill', 'design-system', 'plugin', 'metadata-json',
@@ -704,6 +704,8 @@ function printCollabHelp() {
   od collab publish <projectId> [--json]
   od collab share <projectId> [--json]
   od collab pull <projectId> [--json]
+  od collab share-design-system <designSystemId> [--json]
+  od collab team-design-systems [--json]
 
 Team-edition collaboration: presence overlay + sync trigger. The
 client is authoritative about whether it is in a shared context, so it drives
@@ -711,20 +713,25 @@ the trigger; the daemon coalesces author edits and flushes at a run boundary,
 advancing the published head version members poll to learn when to pull.
 \`share\` is the team-share intent: it requests the project be published so
 members can pull it, and reports the sync state (local_only / pending_upload /
-synced / sync_failed).
+synced / sync_failed). \`share-design-system\` promotes a personal design system
+into the team scope through the resource hub, and \`team-design-systems\` lists
+the ones already shared.
 
 Options:
-  --project <id>       Project id (alternative to the positional argument).
-  --member <id>        Member id for the presence heartbeat / leave.
-  --name <name>        Display name attached to a heartbeat.
-  --role <role>        owner | admin | member.
-  --json               Emit raw JSON.
-  --daemon-url <url>   Override daemon URL.
+  --project <id>          Project id (alternative to the positional argument).
+  --design-system <id>    Design system id for share-design-system.
+  --member <id>           Member id for the presence heartbeat / leave.
+  --name <name>           Display name attached to a heartbeat.
+  --role <role>           owner | admin | member.
+  --json                  Emit raw JSON.
+  --daemon-url <url>      Override daemon URL.
 
 Examples:
   od collab presence p1 --json
   od collab heartbeat p1 --member m-42 --name "Ma Shu" --role member
   od collab publish p1
+  od collab share-design-system user:palette-x --json
+  od collab team-design-systems --json
   od collab status p1 --json`);
 }
 
@@ -742,6 +749,51 @@ async function runCollab(args) {
     console.error(err.message);
     process.exit(2);
   }
+  // Design-system team sharing is workspace-scoped (it takes a design-system id,
+  // not a project id), so it runs before the project-id requirement below.
+  if (sub === 'share-design-system' || sub === 'team-design-systems') {
+    const base = await cliDaemonBaseUrl(flags);
+    const emit = (payload, plain) =>
+      flags.json ? process.stdout.write(JSON.stringify(payload, null, 2) + '\n') : plain();
+    const wsRequest = async (method, path, body) => {
+      let resp;
+      try {
+        resp = await fetch(`${base}${path}`, {
+          method,
+          ...(body !== undefined
+            ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+            : {}),
+        });
+      } catch (err) {
+        surfaceFetchError(err, base);
+        process.exit(3);
+      }
+      if (!resp.ok) return structuredHttpFailure(resp);
+      return resp.json();
+    };
+    if (sub === 'team-design-systems') {
+      const body = await wsRequest('GET', '/api/workspace/design-systems/team');
+      return emit(body, () => {
+        const ids = Array.isArray(body?.ids) ? body.ids : [];
+        if (ids.length === 0) return console.log('no shared design systems');
+        for (const id of ids) console.log(id);
+      });
+    }
+    const designSystemId =
+      flags['design-system'] || positionalArgs(rest, COLLAB_STRING_FLAGS)[0];
+    if (!designSystemId) {
+      console.error('missing <designSystemId> (positional or --design-system)');
+      process.exit(2);
+    }
+    const body = await wsRequest(
+      'POST',
+      `/api/workspace/design-systems/${encodeURIComponent(designSystemId)}/share`,
+    );
+    return emit(body, () =>
+      console.log(`shared=${body?.shared ?? false}\tversion=${body?.version ?? '-'}`),
+    );
+  }
+
   const projectId =
     flags.project || positionalArgs(rest, COLLAB_STRING_FLAGS)[0] || process.env.OD_PROJECT_ID;
   if (!projectId) {
