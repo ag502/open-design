@@ -3951,6 +3951,28 @@ export async function startServer({
     res.json({ version });
   });
 
+  // Powered-preview isolation info. Reports the daemon's own directly-reachable
+  // http origin so the web host can render WebGL/Worker/WASM/SharedArrayBuffer
+  // artifacts in a cross-origin-isolated iframe (see the /powered route and
+  // apps/web/src/runtime/powered-preview.ts). The host host-swaps this origin
+  // when it collides with the app origin, guaranteeing the iframe is
+  // cross-origin to the app shell before granting allow-same-origin.
+  app.get('/api/preview/isolation', (_req, res) => {
+    const reportHost =
+      host === '0.0.0.0' || host === '::' || host === '[::]' || host === '::1'
+        ? '127.0.0.1'
+        : host;
+    const baseOrigin = resolvedPort ? `http://${reportHost}:${resolvedPort}` : null;
+    res.setHeader('Cache-Control', 'no-store');
+    /** @type {import('@open-design/contracts').ProjectPreviewIsolationResponse} */
+    const body = {
+      supported: Boolean(baseOrigin),
+      baseOrigin,
+      pathPrefix: 'powered',
+    };
+    res.json(body);
+  });
+
   registerDaemonRoutes(app, {
     db,
     paths: { RUNTIME_DATA_DIR },

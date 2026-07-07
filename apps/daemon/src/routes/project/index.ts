@@ -2413,6 +2413,41 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     res.setHeader('Content-Security-Policy', projectPreviewCsp);
   }
 
+  // "Powered preview" headers — the opposite trade-off from setProjectPreviewHeaders.
+  // Real WebGL / Web Worker / WASM sites (Gaussian-splat viewers, physics demos,
+  // ffmpeg.wasm, threaded renderers) need capabilities the opaque-origin preview
+  // sandbox blocks: same-origin Workers, real Web Storage, and — for threaded
+  // WASM — SharedArrayBuffer, which requires the document to be crossOriginIsolated.
+  //
+  // `Document-Isolation-Policy: isolate-and-credentialless` grants the SERVED
+  // document its own cross-origin-isolated agent cluster WITHOUT requiring the
+  // embedding app to opt the whole page into COOP/COEP. That is the key that
+  // unlocks SharedArrayBuffer for just this iframe. The `credentialless` variant
+  // (vs `require-corp`) still lets artifacts pull no-cors cross-origin
+  // subresources (CDN fonts/images) — those loads just drop credentials — so
+  // enabling isolation does not blank out otherwise-working artifacts.
+  //
+  // The web host renders the powered iframe with `allow-same-origin` at a
+  // loopback origin that is CROSS-origin to the app shell (see
+  // apps/web/src/runtime/powered-preview.ts), so this document cannot reach the
+  // app's DOM, storage, or authenticated app-origin context. It IS same-origin
+  // with the daemon that also hosts /api, which is why powered mode is an
+  // explicit opt-in rather than the default preview path.
+  function setPoweredPreviewHeaders(res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Document-Isolation-Policy', 'isolate-and-credentialless');
+    // Let cross-origin-isolated contexts embed these bytes (the doc + its
+    // worker/wasm/asset subresources under the same /powered prefix).
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    // The powered document runs at a real (non-null) loopback origin that is
+    // cross-origin to the app, so its own fetch()es of sibling assets are
+    // cross-origin requests; ACAO:* keeps them working. No credentials are
+    // used on these local reads.
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.removeHeader('Content-Security-Policy');
+  }
+
   function rejectInternalVersionPath(res: Response, value: unknown): boolean {
     if (!isProjectFileVersionPath(value)) return false;
     sendApiError(res, 404, 'FILE_NOT_FOUND', 'file not found');
@@ -3055,6 +3090,57 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
           return transformed;
         },
         true, // revalidate: emit ETag/Last-Modified so covers/preview/export reuse cached assets
+      );
+    } catch (err: any) {
+      const status = err && err.code === 'ENOENT' ? 404 : 400;
+      sendApiError(
+        res,
+        status,
+        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
+        String(err),
+      );
+    }
+  });
+
+  // Cross-origin preflight for powered previews. The powered iframe runs at a
+  // loopback origin cross-origin to the app, so subresource fetches from it are
+  // real CORS requests; a bare GET needs no preflight but custom headers might.
+  app.options(/^\/api\/projects\/([^/]+)\/powered\/(.+)$/u, (_req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Range');
+    res.sendStatus(204);
+  });
+
+  // "Powered preview" file serving. Mirrors /raw but stamps every response
+  // (the HTML document AND its relatively-referenced worker/wasm/asset
+  // subresources, which resolve under the same /powered/ prefix) with the
+  // cross-origin-isolation headers from setPoweredPreviewHeaders. This is the
+  // serving half of WebGL/Worker/WASM/SharedArrayBuffer support; the web host
+  // decides when to route a preview here (see file-viewer-render-mode.ts).
+  app.get(/^\/api\/projects\/([^/]+)\/powered\/(.+)$/u, async (req, res) => {
+    try {
+      const params = req.params as unknown as { 0?: string; 1?: string };
+      const projectId = String(params[0] ?? '');
+      const relPath = String(params[1] ?? '');
+      if (rejectInternalVersionPath(res, relPath)) return;
+      const project = getProject(db, projectId);
+      await sendProjectFile(
+        req,
+        res,
+        projectId,
+        relPath,
+        project?.metadata,
+        () => setPoweredPreviewHeaders(res),
+        async (file) =>
+          maybeResolveVitePreviewHtml({
+            file,
+            projectId,
+            relPath,
+            metadata: project?.metadata,
+            projectsRoot: PROJECTS_DIR,
+            readProjectFile,
+          }),
       );
     } catch (err: any) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;

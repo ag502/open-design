@@ -3480,6 +3480,8 @@ function homeHeroChipDescription(chipId: string, t: ReturnType<typeof useT>): st
     case 'video': return t('homeHero.chip.videoDesc');
     case 'audio': return t('homeHero.chip.audioDesc');
     case 'hyperframes': return t('homeHero.chip.hyperframesDesc');
+    case 'webgl': return t('homeHero.chip.webglDesc');
+    case 'worker': return t('homeHero.chip.workerDesc');
     case 'live-artifact': return t('homeHero.chip.liveArtifactDesc');
     case 'create-brand-kit': return t('homeHero.chip.createBrandKitDesc');
     default: return '';

@@ -112,11 +112,13 @@ import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport } fro
 import {
   hasUrlModeBridge,
   htmlNeedsFocusGuard,
+  htmlNeedsPoweredPreview,
   htmlNeedsSandboxShim,
   parseForceInline,
   shouldUrlLoadHtmlPreview,
   type UrlLoadDecision,
 } from './file-viewer-render-mode';
+import { resolvePoweredPreviewUrl } from '../runtime/powered-preview';
 import { saveTemplate } from '../state/projects';
 import type {
   LiveArtifactEventItem,
@@ -242,6 +244,16 @@ type DeployResultCard = {
   message?: string;
 };
 const MAX_BRIDGE_COORDINATE = 1_000_000;
+// Powered-preview iframe attributes. `allow-same-origin` is what makes real
+// Workers / Web Storage / SharedArrayBuffer possible; it is SAFE here only
+// because the powered iframe loads from an origin cross-origin to the app
+// shell (see apps/web/src/runtime/powered-preview.ts). The `allow` list
+// delegates the permissions a GPU/compute artifact typically wants, including
+// `cross-origin-isolated` so the isolated document keeps SharedArrayBuffer.
+const POWERED_PREVIEW_SANDBOX =
+  'allow-scripts allow-same-origin allow-downloads allow-popups allow-forms allow-modals allow-pointer-lock';
+const POWERED_PREVIEW_ALLOW =
+  'accelerometer; autoplay; camera; cross-origin-isolated; fullscreen; gamepad; gyroscope; microphone; xr-spatial-tracking';
 const PREVIEW_VIEWPORT_PRESETS: PreviewViewportPreset[] = [
   {
     id: 'desktop',
@@ -6421,6 +6433,20 @@ function HtmlViewer({
     const s = source ?? lastGoodSourceForRoutingRef.current;
     return s != null && htmlNeedsFocusGuard(s);
   }, [source]);
+  // A real WebGL/Worker/WASM/SharedArrayBuffer artifact needs the "powered
+  // preview" path — a cross-origin-isolated iframe with allow-same-origin —
+  // which the opaque preview sandbox cannot provide (issue #724). Powered mode
+  // supersedes the shim/focus-guard srcDoc fallbacks below: those exist only to
+  // work around the opaque origin (localStorage SecurityError, focus theft),
+  // and powered mode fixes the root cause with a REAL same-origin document, so
+  // routing such an artifact to srcDoc would strip exactly the capabilities it
+  // needs. The interactive-bridge srcDoc modes (deck/inspect/edit/palette/
+  // tweaks/comment) still win — they require host-injected bridges powered mode
+  // can't carry.
+  const needsPowered = useMemo(() => {
+    const s = source ?? lastGoodSourceForRoutingRef.current;
+    return s != null && htmlNeedsPoweredPreview(s);
+  }, [source]);
   const [urlSelectionBridgeReady, setUrlSelectionBridgeReady] = useState(false);
   const urlLoadDecision: UrlLoadDecision = {
     mode,
@@ -6432,8 +6458,8 @@ function HtmlViewer({
     urlModeBridge,
     inspectMode,
     drawMode: drawOverlayOpen,
-    forceInline: forceInline || needsSandboxShim,
-    needsFocusGuard,
+    forceInline: (forceInline || needsSandboxShim) && !needsPowered,
+    needsFocusGuard: needsFocusGuard && !needsPowered,
   };
   const useUrlLoadPreview = shouldUrlLoadHtmlPreview(urlLoadDecision) && !manualEditRequiresSrcDoc;
   const basePreviewSrcUrl = useMemo(
@@ -6512,6 +6538,38 @@ function HtmlViewer({
     iframeRef.current = useUrlLoadPreview ? urlPreviewIframeRef.current : srcDocPreviewIframeRef.current;
   }, [useUrlLoadPreview]);
 
+  // Resolve the cross-origin powered-preview URL for artifacts that need it.
+  // `resolved:false` means the (cached) daemon isolation probe is still in
+  // flight — the URL iframe stays parked at about:blank until it settles so a
+  // large artifact is never loaded twice (once opaque, once powered). A null
+  // `url` after resolution means powered mode is unavailable (e.g. no
+  // cross-origin loopback base); the viewer then falls back to the normal
+  // opaque URL-load path, which still runs WebGL/blob-Workers/WASM.
+  const [powered, setPowered] = useState<{ resolved: boolean; url: string | null }>({
+    resolved: false,
+    url: null,
+  });
+  useEffect(() => {
+    if (!(needsPowered && useUrlLoadPreview)) {
+      setPowered({ resolved: false, url: null });
+      return;
+    }
+    let cancelled = false;
+    setPowered({ resolved: false, url: null });
+    void resolvePoweredPreviewUrl(projectId, file.name).then((base) => {
+      if (cancelled) return;
+      setPowered({
+        resolved: true,
+        url: base ? `${base}?v=${Math.round(file.mtime)}&r=${reloadKey}` : null,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsPowered, useUrlLoadPreview, projectId, file.name, file.mtime, reloadKey]);
+  const usePoweredPreview = needsPowered && useUrlLoadPreview && powered.url != null;
+  const poweredResolving = needsPowered && useUrlLoadPreview && !powered.resolved;
+
   useEffect(() => {
     if (filesRefreshKey === 0) return;
     // Defer the file-watcher live-reload while annotating; the effect re-runs
@@ -6579,7 +6637,11 @@ function HtmlViewer({
   // visibility swap with no re-load. Reset on file/project change.
   const [srcDocMaterialized, setSrcDocMaterialized] = useState(false);
   const wasUrlLoadPreviewRef = useRef(useUrlLoadPreview);
-  const urlPreviewKeepAliveKey = previewIframeKeepAliveKey(projectId, file.name);
+  // Segregate the pooled-iframe cache by powered-ness: a powered frame carries
+  // a different origin + sandbox, so reusing a plain frame's DOM node for it
+  // (or vice-versa) would leave a stale sandbox attribute on a live iframe.
+  const urlPreviewKeepAliveKey =
+    previewIframeKeepAliveKey(projectId, file.name) + (usePoweredPreview ? ':powered' : '');
   // Reset the shell-ready latch whenever the srcDoc iframe re-mounts. The
   // next shell will post `od:srcdoc-transport-ready` (or fire onLoad) and
   // flip this back to true. See #2253.
@@ -6650,6 +6712,19 @@ function HtmlViewer({
     shouldUrlLoadHtmlPreview({ ...urlLoadDecision, drawMode: false });
   const urlTransportSrc =
     useUrlLoadPreview || srcDocForcedOnlyByDraw ? activePreviewSrcUrl : 'about:blank';
+  // Powered preview: swap the URL-load iframe to the cross-origin isolated
+  // daemon origin + `allow-same-origin` so Workers/Storage/WASM/SAB work.
+  // While the isolation probe resolves, park at about:blank instead of loading
+  // the opaque URL, so a large artifact isn't fetched twice.
+  const urlFrameSrc = usePoweredPreview
+    ? (powered.url as string)
+    : poweredResolving
+      ? 'about:blank'
+      : urlTransportSrc;
+  const urlFrameSandbox = usePoweredPreview
+    ? POWERED_PREVIEW_SANDBOX
+    : 'allow-scripts allow-downloads';
+  const urlFrameAllow = usePoweredPreview ? POWERED_PREVIEW_ALLOW : undefined;
   const activateSrcDocTransport = useCallback((target: HTMLIFrameElement | null = srcDocPreviewIframeRef.current) => {
     if (!canActivateSrcDocTransport({
       srcDoc,
@@ -10662,8 +10737,10 @@ function HtmlViewer({
                           aria-hidden={useUrlLoadPreview ? undefined : true}
                           tabIndex={useUrlLoadPreview ? 0 : -1}
                           title={file.name}
-                          sandbox="allow-scripts allow-downloads"
-                          src={urlTransportSrc}
+                          data-od-powered={usePoweredPreview ? 'true' : undefined}
+                          sandbox={urlFrameSandbox}
+                          allow={urlFrameAllow}
+                          src={urlFrameSrc}
                           onLoad={() => {
                             const frame = urlPreviewIframeRef.current;
                             if (useUrlLoadPreview) iframeRef.current = frame;
@@ -10687,8 +10764,10 @@ function HtmlViewer({
                           aria-hidden={useUrlLoadPreview ? undefined : true}
                           tabIndex={useUrlLoadPreview ? 0 : -1}
                           title={file.name}
-                          sandbox="allow-scripts allow-downloads"
-                          src={urlTransportSrc}
+                          data-od-powered={usePoweredPreview ? 'true' : undefined}
+                          sandbox={urlFrameSandbox}
+                          allow={urlFrameAllow}
+                          src={urlFrameSrc}
                           onLoad={() => {
                             const frame = urlPreviewIframeRef.current;
                             if (useUrlLoadPreview) iframeRef.current = frame;

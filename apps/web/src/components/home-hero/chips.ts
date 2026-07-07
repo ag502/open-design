@@ -33,7 +33,14 @@ import type { IconName } from '../Icon';
 // independently of the default-binding mapping.
 export type ChipScenarioPluginId =
   | DefaultScenarioPluginId
-  | 'example-hyperframes';
+  | 'example-hyperframes'
+  // Powered-preview scenarios: real-time GPU / off-main-thread artifacts that
+  // render in the cross-origin-isolated "powered preview" iframe. They ship
+  // their own bundled example plugins under plugins/_official/examples/, so —
+  // like example-hyperframes — they carry their plugin id directly rather than
+  // routing through the default kind→plugin table.
+  | 'example-webgl-experience'
+  | 'example-worker-visualizer';
 
 export type ChipAction =
   | {
@@ -221,6 +228,49 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     action: { kind: 'apply-scenario', pluginId: 'example-hyperframes', projectKind: 'video' },
   },
   {
+    id: 'webgl',
+    label: 'WebGL experience',
+    icon: 'sparkles',
+    group: 'create',
+    description: 'Shaders, 3D & generative GPU visuals',
+    hint: 'Build a full-screen real-time WebGL2 shader / 3D scene that runs live on the GPU.',
+    // Powered-preview scenario: binds the bundled `example-webgl-experience`
+    // plugin (shader/3D seed + P0 checklist). The artifact auto-detects into
+    // powered preview via its `getContext('webgl2')` call.
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-webgl-experience',
+      projectKind: 'prototype',
+      projectMetadata: {
+        kind: 'prototype',
+        intent: 'webgl-experience',
+        fidelity: 'high-fidelity',
+      },
+    },
+  },
+  {
+    id: 'worker',
+    label: 'Worker visualizer',
+    icon: 'grid',
+    group: 'create',
+    description: 'Off-thread sims, particles & data viz',
+    hint: 'Build a real-time visualizer whose heavy compute runs in a Web Worker (with SharedArrayBuffer).',
+    // Powered-preview scenario: binds the bundled `example-worker-visualizer`
+    // plugin. The artifact auto-detects into powered preview via its
+    // `new Worker(...)` / `SharedArrayBuffer` usage, which the opaque sandbox
+    // cannot run.
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-worker-visualizer',
+      projectKind: 'prototype',
+      projectMetadata: {
+        kind: 'prototype',
+        intent: 'worker-visualizer',
+        fidelity: 'high-fidelity',
+      },
+    },
+  },
+  {
     id: 'live-artifact',
     label: 'Live artifact',
     icon: 'refresh',
@@ -344,6 +394,8 @@ export const CREATE_RAIL_ORDER = [
   'mobile',
   'document',
   'hyperframes',
+  'webgl',
+  'worker',
   'live-artifact',
   'image',
   'video',
