@@ -995,6 +995,18 @@ export interface Dict {
   'entry.navDesignSystems': string;
   'entry.navBrands': string;
   'entry.navIntegrations': string;
+  // Team-edition navigation shell.
+  'entry.navMembers': string;
+  'entry.navWorkspaceSettings': string;
+  'entry.navDrafts': string;
+  'entry.navAllProjects': string;
+  'entry.navBoard': string;
+  'entry.navTeamSection': string;
+  'entry.teamSlotNote': string;
+  'entry.cloudCalloutTitle': string;
+  'entry.cloudCalloutBody': string;
+  'entry.workspaceLockedNote': string;
+  'entry.workspaceLockedRecover': string;
   'workspaceTabs.project': string;
   'workspaceTabs.pluginDetails': string;
   'workspaceTabs.marketplace': string;

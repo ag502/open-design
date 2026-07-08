@@ -3,11 +3,26 @@ import { resolveCollabSession, type WorkspaceCollabContext } from '../src/collab
 
 function ctx(overrides: Partial<WorkspaceCollabContext> = {}): WorkspaceCollabContext {
   return {
+    workspaceId: 'ws-1',
     workspaceType: 'team',
     workspaceMemberId: 'wm-1',
     role: 'member',
     memberStatus: 'active',
     lifecycleState: 'active',
+    billingState: 'active',
+    planId: 'team',
+    providerMode: 'platform_credits',
+    seatSummary: { seatLimit: 5, usedSeats: 2, availableSeats: 3, isSeatFull: false },
+    permissions: {
+      canManageMembers: false,
+      canManageBilling: false,
+      canInviteMembers: false,
+      canManageAutoRecharge: false,
+      canShareProjects: true,
+      canWriteSyncedFiles: true,
+      canViewWorkspaceSettings: true,
+      canManageSharedResources: false,
+    },
     displayName: 'Ma Shu',
     ...overrides,
   };
