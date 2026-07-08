@@ -3927,6 +3927,7 @@ export async function startServer({
     CRAFT_DIR,
     SKILLS_DIR,
     USER_SKILLS_DIR,
+    SKILL_ROOTS,
     PROMPT_TEMPLATES_DIR,
     BUNDLED_PETS_DIR,
     OD_BIN,
@@ -4464,7 +4465,11 @@ export async function startServer({
     research: researchDeps,
   });
 
-  registerResourceSharingRoutes(app);
+  registerResourceSharingRoutes(app, {
+    db,
+    paths: pathDeps,
+    requireLocalDaemonRequest,
+  });
   registerVelaRoutes(app, {
     paths: { RUNTIME_DATA_DIR },
     appConfig: { readAppConfig },
