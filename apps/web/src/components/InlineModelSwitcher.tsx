@@ -209,9 +209,13 @@ export function InlineModelSwitcher({
         // Surface the daemon's persisted classified failure on ordinary reads
         // (mount/focus) so a reload after a failed sign-in keeps the specific
         // reason instead of resetting to a plain signed-out entry (issue #426).
-        if (next.lastLoginFailure) {
-          setAmrLoginError(amrLoginReasonText(t, next.lastLoginFailure));
-        }
+        // Assign unconditionally so a later clean read (daemon restart drops the
+        // in-memory lastVelaLoginExit) also CLEARS a previously shown reason.
+        setAmrLoginError(
+          next.lastLoginFailure
+            ? amrLoginReasonText(t, next.lastLoginFailure)
+            : null,
+        );
       }
     }
     return next;

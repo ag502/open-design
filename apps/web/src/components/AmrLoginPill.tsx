@@ -310,10 +310,16 @@ export function AmrLoginPill({
       // Persist the daemon's classified failure across ordinary reads
       // (mount/focus), so a reload after a failed sign-in keeps the specific
       // reason instead of resetting to a plain signed-out pill (issue #426).
-      // Only in the terminal signed-out/not-signing-in state; login start,
-      // success, and cancel clear the error through their own branches.
-      if (!next.loggedIn && !next.loginInFlight && next.lastLoginFailure) {
-        setErrorMessage(amrLoginReasonText(t, next.lastLoginFailure));
+      // Assign unconditionally in the terminal signed-out/not-signing-in state
+      // so a later clean read (daemon restart drops the in-memory
+      // lastVelaLoginExit) also CLEARS a previously shown reason. The poll-stop
+      // branch overrides with the definitive outcome text on the same tick.
+      if (!next.loggedIn && !next.loginInFlight) {
+        setErrorMessage(
+          next.lastLoginFailure
+            ? amrLoginReasonText(t, next.lastLoginFailure)
+            : null,
+        );
       }
     }
     return next;

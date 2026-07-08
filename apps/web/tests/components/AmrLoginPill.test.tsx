@@ -792,6 +792,49 @@ describe('AmrLoginPill', () => {
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
 
+  it('clears a previously shown login failure when a later read returns a clean signed-out status', async () => {
+    // The daemon only reports lastLoginFailure while it still holds the
+    // in-memory lastVelaLoginExit; after a restart (or any later clean read)
+    // the field disappears and the pill must drop the stale reason (issue #426).
+    let readCount = 0;
+    globalThis.fetch = vi.fn(async () => {
+      readCount += 1;
+      return jsonResponse({
+        body:
+          readCount === 1
+            ? {
+                loggedIn: false,
+                loginInFlight: false,
+                profile: 'local',
+                user: null,
+                configPath: '/x',
+                lastLoginFailure: { code: 'AMR_LOGIN_NETWORK', recovery: 'retry' },
+              }
+            : {
+                loggedIn: false,
+                loginInFlight: false,
+                profile: 'local',
+                user: null,
+                configPath: '/x',
+              },
+      });
+    }) as typeof fetch;
+
+    const first = renderPill();
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toBe(
+        'Network problem — couldn’t reach the sign-in service. Check your connection and retry.',
+      );
+    });
+    first.unmount();
+
+    renderPill();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('does not silently auto-recover to signed-in after a local logout completes', async () => {
     let loggedIn = true;
     let statusCalls = 0;

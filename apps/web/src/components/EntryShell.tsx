@@ -1346,8 +1346,15 @@ function OnboardingView({
         // Surface the daemon's persisted classified failure on the onboarding
         // mount fetch so a reload after a failed sign-in keeps the specific
         // reason instead of resetting to the plain sign-in CTA (issue #426).
-        if (!next.loggedIn && !next.loginInFlight && next.lastLoginFailure) {
-          setAmrLoginError(amrLoginReasonText(t, next.lastLoginFailure));
+        // Assign unconditionally in the terminal signed-out/not-signing-in
+        // state so a clean read (daemon restart drops the in-memory
+        // lastVelaLoginExit) also CLEARS a previously shown reason.
+        if (!next.loggedIn && !next.loginInFlight) {
+          setAmrLoginError(
+            next.lastLoginFailure
+              ? amrLoginReasonText(t, next.lastLoginFailure)
+              : null,
+          );
         }
       })
       .finally(() => {
