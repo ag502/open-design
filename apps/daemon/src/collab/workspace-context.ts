@@ -91,7 +91,12 @@ export function resolveWorkspaceSettingsUrl(
   if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
   const base = env.OD_VELA_WEB_URL?.trim();
   if (!base) return undefined;
-  return `${base.replace(/\/$/, '')}/workspaces/${encodeURIComponent(workspaceId)}/settings`;
+  // The cloud web app serves the current workspace's settings at /settings (the
+  // workspace is implicit from the signed-in session — no id in the path). We
+  // still take an explicit URL first, so if the upstream context ever carries one
+  // it wins over this construction.
+  void workspaceId;
+  return `${base.replace(/\/$/, '')}/settings`;
 }
 
 /**
