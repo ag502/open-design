@@ -5,6 +5,8 @@ import type {
   ProjectContextMcpServerRef,
   ProjectContextPluginRef,
 } from './context.js';
+import type { ProjectSyncIntent, ProjectSyncIntentEvent, ProjectSyncState } from './project-sync.js';
+import type { TeamResourceState } from './team-resources.js';
 
 export type ProjectKind =
   | 'prototype'
@@ -311,8 +313,6 @@ export interface ProjectDetailResponse extends ProjectResponse {
 
 export type ProjectVisibility = 'personal' | 'team';
 
-export type TeamResourceState = 'active' | 'frozen' | 'deleted';
-
 // Local D-lane placeholders until the B-owned CurrentWorkspaceContext is
 // imported into open-design. The route adapter keeps these replaceable.
 export type WorkspaceProjectRole = 'owner' | 'admin' | 'member';
@@ -322,15 +322,9 @@ export type WorkspaceLifecycleState = 'active' | 'billing_past_due' | 'locked' |
 // C owns project sync orchestration. D exposes this on its read model and emits
 // intent metadata when visibility changes, but it does not upload or mirror
 // project content directly.
-export type ProjectSyncState = 'local_only' | 'pending_upload' | 'synced' | 'sync_failed';
+export type WorkspaceProjectSyncIntentEvent = ProjectSyncIntentEvent;
 
-export type WorkspaceProjectSyncIntentEvent = 'project_visibility_changed' | 'project_team_share_requested';
-
-export interface WorkspaceProjectSyncIntent {
-  event: WorkspaceProjectSyncIntentEvent;
-  projectId: string;
-  workspaceId: string;
-}
+export type WorkspaceProjectSyncIntent = ProjectSyncIntent;
 
 export type ProjectDisabledReason =
   | 'workspace_locked'
