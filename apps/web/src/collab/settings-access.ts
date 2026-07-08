@@ -1,44 +1,85 @@
-import type { CollabMemberRole } from '@open-design/contracts';
+import type { WorkspaceCollabContext } from '@open-design/contracts';
 
-// Settings shell role gating (E-frontend, D4.3). The current SettingsDialog
-// renders every section unconditionally; this is the new layer that shows the
-// *workspace* sections by role. E (our lane) owns ONLY the shell-level
-// visibility — the section internals belong to their lanes: members = B,
-// billing = A, team-space = D. Personal settings are always shown and are not
-// modeled here. Role comes from the foundation context (B's member role).
+// Settings shell role gating (E-frontend, D4.3). The base SettingsDialog renders
+// every personal section unconditionally; this is the new layer that decides
+// which *workspace* entries the Settings shell shows. E (our lane) owns ONLY the
+// shell-level visibility + the entry points — the destinations themselves belong
+// to their lanes: members = B, billing/auto-recharge = A, team space = D. Personal
+// settings are always shown and are not modeled here.
+//
+// Gating reads the folded permission bits on `WorkspaceCollabContext.permissions`
+// DIRECTLY (never re-derived from role/lifecycle here) so this shell can never
+// drift from B's authorization rules — the contract already folds role + member
+// status + lifecycle into each bit. See `packages/contracts/src/api/collab.ts`.
 //
 // Note (D4.3): there is no team-level BYOK/provider this cycle, so "member can't
-// edit the workspace provider" has no object — the sections that actually need
-// gating are these other-lane workspace entries.
+// edit the workspace provider" has no object — BYOK/provider stays personal and
+// lives in the untouched personal sections. The entries that actually need gating
+// are these other-lane workspace destinations.
 
-export type WorkspaceSettingsSection = 'members' | 'billing' | 'team-space';
+export type WorkspaceSettingsEntryId = 'members' | 'billing' | 'autoRecharge' | 'teamSpace';
 
-export const WORKSPACE_SETTINGS_SECTIONS: readonly WorkspaceSettingsSection[] = [
+export const WORKSPACE_SETTINGS_ENTRY_IDS: readonly WorkspaceSettingsEntryId[] = [
   'members',
   'billing',
-  'team-space',
+  'autoRecharge',
+  'teamSpace',
 ];
 
-// Which roles may see each workspace section. Billing is owner-only (the billing
-// owner); membership + team-space management are owner/admin.
-const SECTION_VISIBILITY: Record<WorkspaceSettingsSection, ReadonlySet<CollabMemberRole>> = {
-  members: new Set(['owner', 'admin']),
-  billing: new Set(['owner']),
-  'team-space': new Set(['owner', 'admin']),
-};
-
-/** Whether the Settings shell shows a given workspace section for this role. */
-export function canSeeWorkspaceSettingsSection(
-  role: CollabMemberRole | null | undefined,
-  section: WorkspaceSettingsSection,
+/**
+ * Whether the Settings shell shows the Workspace region at all. True only for a
+ * team workspace whose viewer may see workspace settings (`canViewWorkspaceSettings`
+ * — a read-level bit, so it stays true when the workspace is locked). Off-team,
+ * personal, signed-out, or B-unavailable → no Workspace region.
+ */
+export function canShowWorkspaceSettings(
+  context: WorkspaceCollabContext | null | undefined,
 ): boolean {
-  if (!role) return false; // no team context → no workspace sections at all
-  return SECTION_VISIBILITY[section].has(role);
+  return Boolean(
+    context &&
+      context.workspaceType === 'team' &&
+      context.permissions.canViewWorkspaceSettings,
+  );
 }
 
-/** The workspace settings sections the shell renders for this role (in order). */
-export function workspaceSettingsSectionsForRole(
-  role: CollabMemberRole | null | undefined,
-): WorkspaceSettingsSection[] {
-  return WORKSPACE_SETTINGS_SECTIONS.filter((section) => canSeeWorkspaceSettingsSection(role, section));
+/**
+ * Whether a single Workspace entry is visible, gating on the folded permission
+ * bits directly. Membership shows for members who can manage or invite; billing
+ * and auto-recharge for the billing owner; team space whenever the workspace has
+ * a team id (D provides the destination). Never re-derive from role here.
+ */
+export function isWorkspaceSettingsEntryVisible(
+  context: WorkspaceCollabContext,
+  entry: WorkspaceSettingsEntryId,
+): boolean {
+  const p = context.permissions;
+  switch (entry) {
+    case 'members':
+      return p.canManageMembers || p.canInviteMembers;
+    case 'billing':
+      return p.canManageBilling;
+    case 'autoRecharge':
+      return p.canManageAutoRecharge;
+    case 'teamSpace':
+      return Boolean(context.teamId);
+  }
+}
+
+/** The workspace entries the shell renders, in canonical order. */
+export function visibleWorkspaceSettingsEntries(
+  context: WorkspaceCollabContext,
+): WorkspaceSettingsEntryId[] {
+  return WORKSPACE_SETTINGS_ENTRY_IDS.filter((entry) =>
+    isWorkspaceSettingsEntryVisible(context, entry),
+  );
+}
+
+/**
+ * Whether opening an entry is a write-shaped action, so the shell can grey it out
+ * when the workspace is not writable (locked / past-due) — mirroring how the nav
+ * shell disables its write affordances while a locked banner explains why. Billing
+ * stays enabled while non-writable so the owner can still reach recovery.
+ */
+export function isWorkspaceSettingsEntryWriteAction(entry: WorkspaceSettingsEntryId): boolean {
+  return entry !== 'billing';
 }

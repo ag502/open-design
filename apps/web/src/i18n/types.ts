@@ -383,6 +383,20 @@ export interface Dict {
   'settings.amrBalance': string;
   'settings.amrPlan': string;
   'settings.amrUpgrade': string;
+  // Settings > Workspace region (E-frontend, D4.3): the role-gated shell for
+  // other-lane workspace destinations. Shown only for a team workspace.
+  'settings.workspace': string;
+  'settings.workspaceHint': string;
+  'settings.workspaceLede': string;
+  'settings.workspaceBack': string;
+  'settings.workspaceMembers': string;
+  'settings.workspaceMembersHint': string;
+  'settings.workspaceBilling': string;
+  'settings.workspaceBillingHint': string;
+  'settings.workspaceAutoRecharge': string;
+  'settings.workspaceAutoRechargeHint': string;
+  'settings.workspaceTeamSpace': string;
+  'settings.workspaceTeamSpaceHint': string;
   'settings.amrLoginErrorCompact': string;
   'settings.apiSection': string;
   'settings.quickFillProvider': string;
