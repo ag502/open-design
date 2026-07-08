@@ -34,6 +34,20 @@ describe('MessageCenterDemo', () => {
     expect(trigger.textContent).toContain('3');
   });
 
+  it('shows the unread count on the unread filter while unread messages remain', () => {
+    renderMessageCenter();
+    const dialog = openCenter();
+    const unreadFilter = within(dialog).getByRole('button', { name: 'Unread' });
+
+    expect(unreadFilter.textContent).toContain('3');
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Design 0\.13\.0 is available/ }));
+    expect(unreadFilter.textContent).toContain('2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all read' }));
+    expect(unreadFilter.textContent).toBe('Unread');
+  });
+
   it('opens as a dialog and closes with Escape while restoring trigger focus', () => {
     renderMessageCenter();
     const trigger = screen.getByTestId('message-center-trigger');

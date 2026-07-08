@@ -288,6 +288,11 @@ export function MessageCenterDemo({ onOpenNotificationSettings }: Props) {
                         onClick={() => setFilter(item.id)}
                       >
                         {t(item.labelKey)}
+                        {item.id === 'unread' && unreadCount > 0 ? (
+                          <span className={styles.filterBadge} aria-hidden>
+                            {unreadBadgeLabel(unreadCount)}
+                          </span>
+                        ) : null}
                       </button>
                     ))}
                   </div>

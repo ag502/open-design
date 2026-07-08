@@ -15,7 +15,7 @@
   height: 15px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--red);
   color: var(--accent-contrast, #fff);
   font-size: 9px;
   font-weight: 700;
@@ -142,6 +142,9 @@
 
 .filter {
   min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 0 9px;
   border-radius: var(--radius-sm);
 }
@@ -155,6 +158,19 @@
   background: var(--bg-elevated, var(--bg-panel));
   color: var(--text-strong);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.filterBadge {
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--red);
+  color: var(--accent-contrast, #fff);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
 }
 
 .markAll {
