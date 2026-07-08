@@ -1,8 +1,14 @@
+import {
+  buildWorkspacePermissions,
+  buildWorkspaceSeatSummary,
+} from '@open-design/contracts';
 import type {
   CollabMemberRole,
+  WorkspaceBillingState,
   WorkspaceCollabContext,
   WorkspaceLifecycleState,
   WorkspaceMemberStatus,
+  WorkspaceProviderMode,
   WorkspaceType,
 } from '@open-design/contracts';
 
@@ -38,10 +44,45 @@ const LIFECYCLE_STATES: ReadonlySet<WorkspaceLifecycleState> = new Set([
   'deleting',
   'deleted',
 ]);
+const PROVIDER_MODES: ReadonlySet<WorkspaceProviderMode> = new Set([
+  'platform_credits',
+  'personal_byok',
+]);
+const BILLING_STATES: ReadonlySet<WorkspaceBillingState> = new Set([
+  'free',
+  'active',
+  'past_due',
+  'canceled',
+  'inactive',
+  'locked',
+]);
+
+/** Fallback billing state derived from lifecycle, used when a dev payload omits
+ *  it. Production always carries B's authoritative `billingState`. */
+function billingStateForLifecycle(lifecycle: WorkspaceLifecycleState): WorkspaceBillingState {
+  switch (lifecycle) {
+    case 'active':
+      return 'active';
+    case 'billing_past_due':
+      return 'past_due';
+    case 'locked':
+      return 'locked';
+    default:
+      return 'inactive';
+  }
+}
+
+function nonNegativeInt(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : fallback;
+}
 
 /**
  * Validate an untrusted workspace-context payload (dev PUT body / env). Returns
- * the typed context or null if any required field is missing or out of enum.
+ * the typed context or null if any required enum field is missing or out of enum.
+ * Permissions and the seat summary are DERIVED through the contract helpers
+ * (B's `buildWorkspacePermissions`/`buildWorkspaceSeatSummary` mirror) so a dev
+ * payload only needs role + lifecycle + seat counts; the real B proxy passes
+ * B's already-derived values straight through.
  */
 export function parseWorkspaceCollabContext(input: unknown): WorkspaceCollabContext | null {
   if (!input || typeof input !== 'object') return null;
@@ -52,21 +93,48 @@ export function parseWorkspaceCollabContext(input: unknown): WorkspaceCollabCont
   if (!ROLES.has(raw.role as CollabMemberRole)) return null;
   if (!MEMBER_STATUSES.has(raw.memberStatus as WorkspaceMemberStatus)) return null;
   if (!LIFECYCLE_STATES.has(raw.lifecycleState as WorkspaceLifecycleState)) return null;
+
+  const workspaceType = raw.workspaceType as WorkspaceType;
+  const role = raw.role as CollabMemberRole;
+  const memberStatus = raw.memberStatus as WorkspaceMemberStatus;
+  const lifecycleState = raw.lifecycleState as WorkspaceLifecycleState;
+  const teamId = typeof raw.teamId === 'string' && raw.teamId.trim() ? raw.teamId.trim() : undefined;
+  const workspaceId =
+    typeof raw.workspaceId === 'string' && raw.workspaceId.trim()
+      ? raw.workspaceId.trim()
+      : (teamId ?? workspaceMemberId);
+  const providerMode = PROVIDER_MODES.has(raw.providerMode as WorkspaceProviderMode)
+    ? (raw.providerMode as WorkspaceProviderMode)
+    : 'platform_credits';
+  const billingState = BILLING_STATES.has(raw.billingState as WorkspaceBillingState)
+    ? (raw.billingState as WorkspaceBillingState)
+    : billingStateForLifecycle(lifecycleState);
+  const planId = typeof raw.planId === 'string' && raw.planId.trim() ? raw.planId.trim() : null;
+  const seatLimit = nonNegativeInt(raw.seatLimit, workspaceType === 'team' ? 5 : 1);
+  const usedSeats = nonNegativeInt(raw.usedSeats, 1);
+
   const context: WorkspaceCollabContext = {
-    workspaceType: raw.workspaceType as WorkspaceType,
+    workspaceId,
+    workspaceType,
     workspaceMemberId,
-    role: raw.role as CollabMemberRole,
-    memberStatus: raw.memberStatus as WorkspaceMemberStatus,
-    lifecycleState: raw.lifecycleState as WorkspaceLifecycleState,
+    role,
+    memberStatus,
+    lifecycleState,
+    billingState,
+    planId,
+    providerMode,
+    seatSummary: buildWorkspaceSeatSummary({ seatLimit, usedSeats }),
+    permissions: buildWorkspacePermissions({ role, lifecycleState, memberStatus }),
   };
-  if (typeof raw.teamId === 'string' && raw.teamId.trim()) {
-    context.teamId = raw.teamId.trim();
-  }
+  if (teamId) context.teamId = teamId;
   if (typeof raw.teamName === 'string' && raw.teamName.trim()) {
     context.teamName = raw.teamName.trim();
   }
   if (typeof raw.displayName === 'string' && raw.displayName.trim()) {
     context.displayName = raw.displayName.trim();
+  }
+  if (typeof raw.lastActiveWorkspaceId === 'string' && raw.lastActiveWorkspaceId.trim()) {
+    context.lastActiveWorkspaceId = raw.lastActiveWorkspaceId.trim();
   }
   return context;
 }
