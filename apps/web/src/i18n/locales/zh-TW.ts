@@ -267,6 +267,7 @@ export const zhTW: Dict = {
   "settings.onboardingSourceEmail": "✉️ 電子郵件 / 電子報",
   "settings.onboardingSourceBlog": "📝 部落格 / 文章",
   "settings.onboardingSourceOther": "✨ 其他",
+  "settings.onboardingSourceOtherPlaceholder": "告訴我們具體在哪（選填）",
   "settings.onboardingSelectPlaceholder": "請選擇",
   "settings.onboardingSelectMultiplePlaceholder": "可選擇多個",
   "settings.onboardingOrgSolo": "個人使用（1 人）",

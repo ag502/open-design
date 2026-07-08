@@ -271,6 +271,7 @@ export const fr: Dict = {
   'settings.onboardingSourceEmail': '✉️ E-mail / newsletter',
   'settings.onboardingSourceBlog': '📝 Blog / article',
   'settings.onboardingSourceOther': '✨ Autre',
+  'settings.onboardingSourceOtherPlaceholder': 'Dites-nous où (facultatif)',
   'settings.onboardingSelectPlaceholder': 'Sélectionnez une option',
   'settings.onboardingSelectMultiplePlaceholder': 'Sélectionnez une ou plusieurs options',
   'settings.onboardingOrgSolo': 'Solo / personnel (1)',

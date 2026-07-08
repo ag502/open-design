@@ -242,6 +242,10 @@ type OnboardingProfileState = {
   orgSize: string;
   useCase: string[];
   source: string;
+  // Free-text detail when `source === 'other'`. Kept separate from `source`
+  // so attribution can still aggregate on the 'other' bucket while capturing
+  // the raw self-reported channel.
+  sourceOther: string;
   email: string;
 };
 
@@ -1332,6 +1336,7 @@ function OnboardingView({
     orgSize: '',
     useCase: [] as string[],
     source: '',
+    sourceOther: '',
     email: '',
   });
   // Live mirror of `profile` so closures that fire faster than React
@@ -1770,7 +1775,12 @@ function OnboardingView({
       ]);
     }
     if (snapshot.source) {
-      fields.push(['Discovery source', optionLabel(sourceOptions, snapshot.source)]);
+      const sourceLabel = optionLabel(sourceOptions, snapshot.source);
+      const custom = snapshot.source === 'other' ? snapshot.sourceOther.trim() : '';
+      fields.push([
+        'Discovery source',
+        custom ? `${sourceLabel} (${custom})` : sourceLabel,
+      ]);
     }
     return fields.map(([label, value]) => `- ${label}: ${value}`).join('\n');
   }
@@ -2194,11 +2204,14 @@ function OnboardingView({
     aboutYouReportedRef.current = true;
     const snapshot = profileRef.current;
     const submittedAt = new Date();
+    const sourceOther =
+      snapshot.source === 'other' ? snapshot.sourceOther.trim() : '';
     const attributionProfile = {
       role: snapshot.role,
       orgSize: snapshot.orgSize,
       useCase: snapshot.useCase,
       source: snapshot.source,
+      ...(sourceOther ? { sourceOther } : {}),
       completedAt: submittedAt.toISOString(),
     };
     // Persist the survey so later AMR entries (outside onboarding) can forward
@@ -2228,6 +2241,7 @@ function OnboardingView({
       organization_size: snapshot.orgSize || 'unknown',
       use_cases: snapshot.useCase.length > 0 ? snapshot.useCase : ['unknown'],
       discovery_source: snapshot.source || 'unknown',
+      ...(sourceOther ? { discovery_source_other: sourceOther } : {}),
     });
   }
 
@@ -2792,9 +2806,31 @@ function OnboardingView({
                         discovery_source: value,
                       });
                     }
-                    setProfile((current) => ({ ...current, source: value }));
+                    // Clear the free-text detail whenever the chip changes away
+                    // from 'Other' so a stale custom value never leaks into
+                    // attribution for a different bucket.
+                    setProfile((current) => ({
+                      ...current,
+                      source: typeof value === 'string' ? value : current.source,
+                      sourceOther: value === 'other' ? current.sourceOther : '',
+                    }));
                   }}
                 />
+                {profile.source === 'other' ? (
+                  <input
+                    type="text"
+                    className="onboarding-chip-field__other-input"
+                    maxLength={64}
+                    autoComplete="off"
+                    placeholder={t('settings.onboardingSourceOtherPlaceholder')}
+                    aria-label={t('settings.onboardingSourceOtherPlaceholder')}
+                    value={profile.sourceOther}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setProfile((current) => ({ ...current, sourceOther: next }));
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
           ) : null}

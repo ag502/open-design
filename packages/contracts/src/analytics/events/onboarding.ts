@@ -211,6 +211,9 @@ export interface OnboardingClickProps {
   // the final selection at Finish-setup time without firing N rows.
   use_cases?: TrackingOnboardingUseCase[];
   discovery_source?: TrackingOnboardingDiscoverySource;
+  // Free-text detail the user typed when `discovery_source === 'other'`.
+  // Open string, capped client-side; absent for the named channels.
+  discovery_source_other?: string;
   source_type?: TrackingOnboardingSourceType;
   has_brand_description?: boolean;
   source_count?: number;

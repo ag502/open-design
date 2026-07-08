@@ -265,6 +265,7 @@ export interface Dict {
   'settings.onboardingSourceEmail': string;
   'settings.onboardingSourceBlog': string;
   'settings.onboardingSourceOther': string;
+  'settings.onboardingSourceOtherPlaceholder': string;
   'settings.onboardingSelectPlaceholder': string;
   'settings.onboardingSelectMultiplePlaceholder': string;
   'settings.onboardingOrgSolo': string;

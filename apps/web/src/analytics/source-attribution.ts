@@ -64,6 +64,8 @@ function onboardingPersonProperties(
   const orgSize = cleanValue(profile.orgSize);
   const useCases = cleanList(profile.useCase);
   const source = cleanValue(profile.source);
+  // Raw self-reported channel behind the 'other' bucket, if any.
+  const sourceOther = source === 'other' ? cleanValue(profile.sourceOther) : null;
   if (!role && !orgSize && useCases.length === 0 && !source) return null;
   return {
     ...(role ? { od_role: role } : {}),
@@ -76,6 +78,7 @@ function onboardingPersonProperties(
           od_source_resolution: 'onboarding',
         }
       : {}),
+    ...(sourceOther ? { od_onboarding_source_other: sourceOther } : {}),
     od_onboarding_at: onboardingCompletedAt(profile, now),
   };
 }

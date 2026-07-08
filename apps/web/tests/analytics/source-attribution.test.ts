@@ -2,7 +2,10 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordAmrEntry } from '../../src/analytics/amr-attribution';
-import { saveOnboardingProfile } from '../../src/state/onboarding-profile';
+import {
+  readOnboardingProfile,
+  saveOnboardingProfile,
+} from '../../src/state/onboarding-profile';
 
 vi.mock('../../src/analytics/client', () => ({
   setAnalyticsPersonProperties: vi.fn(),
@@ -41,6 +44,53 @@ describe('source attribution person properties', () => {
       od_source_resolution: 'onboarding',
       od_onboarding_at: '2026-07-02T08:00:00.000Z',
     });
+  });
+
+  it('persists the free-text detail only for the "other" bucket', () => {
+    saveOnboardingProfile(
+      { source: 'other', sourceOther: '  Design podcast  ' },
+      new Date('2026-07-02T08:00:00.000Z'),
+    );
+    expect(readOnboardingProfile()).toEqual(
+      expect.objectContaining({ source: 'other', sourceOther: 'Design podcast' }),
+    );
+
+    window.localStorage.clear();
+    saveOnboardingProfile(
+      { source: 'github', sourceOther: 'leftover' },
+      new Date('2026-07-02T08:00:00.000Z'),
+    );
+    expect(readOnboardingProfile()).not.toHaveProperty('sourceOther');
+  });
+
+  it('captures the free-text detail behind the "other" source bucket', () => {
+    setOnboardingAttributionPersonProperties(
+      {
+        source: 'other',
+        sourceOther: 'Design podcast',
+      },
+      new Date('2026-07-02T08:00:00.000Z'),
+    );
+
+    expect(setAnalyticsPersonProperties).toHaveBeenCalledWith(
+      expect.objectContaining({
+        od_onboarding_source: 'other',
+        od_onboarding_source_other: 'Design podcast',
+      }),
+    );
+  });
+
+  it('drops a stale free-text detail when the source is not "other"', () => {
+    setOnboardingAttributionPersonProperties(
+      {
+        source: 'github',
+        sourceOther: 'leftover text',
+      },
+      new Date('2026-07-02T08:00:00.000Z'),
+    );
+
+    const props = vi.mocked(setAnalyticsPersonProperties).mock.calls[0]?.[0] ?? {};
+    expect(props).not.toHaveProperty('od_onboarding_source_other');
   });
 
   it('binds a signed-in AMR user to the stored onboarding source', () => {
