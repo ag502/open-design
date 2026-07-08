@@ -18,10 +18,8 @@ import {
   contextToResourceHubPrincipal,
   createResourceHubPublishAdapterFromEnv,
 } from './resource-hub-publish-adapter.js';
-import {
-  createDevWorkspaceContextProvider,
-  type WorkspaceContextProvider,
-} from './workspace-context.js';
+import type { WorkspaceContextProvider } from './workspace-context.js';
+import { createWorkspaceContextProviderFromEnv } from './vela-workspace-context.js';
 import {
   createDevTeamResourceStateProvider,
   type TeamResourceStateProvider,
@@ -79,7 +77,7 @@ export interface CreateCollabRuntimeOptions {
 }
 
 export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): CollabRuntime {
-  const workspaceContext = options.workspaceContext ?? createDevWorkspaceContextProvider();
+  const workspaceContext = options.workspaceContext ?? createWorkspaceContextProviderFromEnv();
   // Single identity source: the resource-hub principal derives from the same
   // workspace context the web gate reads, so one signed-in identity drives both.
   const adapter =
