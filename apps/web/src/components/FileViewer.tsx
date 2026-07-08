@@ -5456,9 +5456,6 @@ function HtmlViewer({
       },
       { requestId },
     );
-    // Onboarding first-loop 交付 step (spec §8.3), scoped to this project —
-    // a no-op unless the project was started from the Home recommendation.
-    recordFirstLoopStep(analytics.track, 'delivered', projectId);
     const started = performance.now();
     const finish = (result: 'success' | 'failed' | 'cancelled', errorCode?: string) => {
       trackArtifactExportResult(
@@ -5477,6 +5474,10 @@ function HtmlViewer({
         },
         { requestId },
       );
+      // Onboarding first-loop 交付 step (spec §8.3): only a SUCCESSFUL export
+      // closes the loop. Project-scoped — a no-op unless the project was
+      // started from the Home recommendation.
+      if (result === 'success') recordFirstLoopStep(analytics.track, 'delivered', projectId);
     };
     const toastFormats = new Set(['pdf', 'pptx', 'zip', 'html', 'image', 'markdown']);
     // Programmatic exports compute in-browser and can take a while (one render
@@ -8197,8 +8198,6 @@ function HtmlViewer({
       },
       { requestId },
     );
-    // Onboarding first-loop 交付 step (spec §8.3), scoped to this project.
-    recordFirstLoopStep(analytics.track, 'delivered', projectId);
     const defaultName =
       file.name.replace(/\.html?$/i, '') || t('fileViewer.templateNameDefault');
     setTemplateName(defaultName);
@@ -8233,6 +8232,9 @@ function HtmlViewer({
       },
       { requestId },
     );
+    // Onboarding first-loop 交付 step (spec §8.3): only a SUCCESSFUL template
+    // export closes the loop. Project-scoped no-op unless started from Home.
+    if (result === 'success') recordFirstLoopStep(analytics.track, 'delivered', projectId);
   };
 
   async function handleSaveAsTemplate() {
@@ -9176,8 +9178,6 @@ function HtmlViewer({
       },
       { requestId },
     );
-    // Onboarding first-loop 交付 step (spec §8.3), scoped to this project.
-    recordFirstLoopStep(analytics.track, 'delivered', projectId);
     setImageExportError(null);
     imageExportSnapshotDataUrlRef.current = null;
     // Just open the modal. Rendering happens on Save, after the user picks a
@@ -9215,6 +9215,9 @@ function HtmlViewer({
       },
       { requestId },
     );
+    // Onboarding first-loop 交付 step (spec §8.3): only a SUCCESSFUL image
+    // export closes the loop. Project-scoped no-op unless started from Home.
+    if (result === 'success') recordFirstLoopStep(analytics.track, 'delivered', projectId);
   };
 
   async function handleImageExportSave() {
