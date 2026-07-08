@@ -35,9 +35,10 @@
   </div>
 </div>
 <script>
+(() => {
 const canvas=document.getElementById('gl');
 const gl=canvas.getContext('webgl2',{antialias:true});
-if(!gl){document.body.innerHTML='<p style="color:#fff;padding:2rem;font-family:sans-serif">WebGL2 not available.</p>';}
+if (!gl) { document.body.innerHTML='<p style="color:#fff;padding:2rem;font-family:sans-serif">WebGL2 not available.</p>'; return; }
 const VERT=`#version 300 es
 void main(){ vec2 p=vec2((gl_VertexID<<1)&2, gl_VertexID&2); gl_Position=vec4(p*2.0-1.0,0.0,1.0); }`;
 const FRAG=`#version 300 es
@@ -89,6 +90,7 @@ function frame(now){ mouse[0]+=(target[0]-mouse[0])*0.05; mouse[1]+=(target[1]-m
   gl.uniform2f(uRes,canvas.width,canvas.height); gl.uniform1f(uTime,(now-t0)/1000); gl.uniform2f(uMouse,mouse[0],mouse[1]);
   gl.drawArrays(gl.TRIANGLES,0,3); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
+})();
 </script>
 </body>
 </html>
