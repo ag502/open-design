@@ -30,6 +30,45 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 // flat (not deeply nested) so missing-key TS errors point straight at the
 // offending string instead of a generic object mismatch.
 export interface Dict {
+  // Workspace invite acceptance (C lane)
+  'invite.header.eyebrow': string;
+  'invite.loading': string;
+  'invite.landing.title': string;
+  'invite.landing.subtitle': string;
+  'invite.landing.roleLabel': string;
+  'invite.landing.invitedEmail': string;
+  'invite.landing.expires': string;
+  'invite.role.admin': string;
+  'invite.role.member': string;
+  'invite.role.admin.desc': string;
+  'invite.role.member.desc': string;
+  'invite.accept.cta': string;
+  'invite.accountMismatch.title': string;
+  'invite.accountMismatch.body': string;
+  'invite.accountMismatch.continue': string;
+  'invite.accountMismatch.switch': string;
+  'invite.accepting.title': string;
+  'invite.accepting.body': string;
+  'invite.success.title': string;
+  'invite.success.body': string;
+  'invite.success.roleReceipt': string;
+  'invite.success.enter': string;
+  'invite.open.cta': string;
+  'invite.open.opening': string;
+  'invite.open.retry': string;
+  'invite.notInstalled.title': string;
+  'invite.notInstalled.body': string;
+  'invite.notInstalled.download': string;
+  'invite.error.title': string;
+  'invite.error.invite_expired': string;
+  'invite.error.invite_consumed': string;
+  'invite.error.workspace_seat_limit_reached': string;
+  'invite.error.workspace_subscription_locked': string;
+  'invite.error.workspace_not_found': string;
+  'invite.error.workspace_forbidden': string;
+  'invite.error.invite_unavailable': string;
+  'invite.error.generic': string;
+  'invite.error.retry': string;
   // Common
   'common.cancel': string;
   'chat.selectFromLibrary': string;
