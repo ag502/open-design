@@ -258,14 +258,14 @@ describe('POST /api/provider/models', () => {
       kind: 'success',
       models: [
         {
-          id: 'gpt-4o',
-          label: 'gpt-4o',
-          metadata: { cost: 'medium', capability: 'advanced' },
-        },
-        {
           id: 'gpt-4o-mini',
           label: 'gpt-4o-mini',
           metadata: { cost: 'low', capability: 'standard' },
+        },
+        {
+          id: 'gpt-4o',
+          label: 'gpt-4o',
+          metadata: { cost: 'medium', capability: 'advanced' },
         },
       ],
     });
@@ -386,8 +386,8 @@ describe('POST /api/provider/models', () => {
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
       models: [
-        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
         { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
       ],
     });
   });
@@ -433,8 +433,8 @@ describe('POST /api/provider/models', () => {
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
       models: [
-        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
         { id: 'gemini-custom', label: 'Gemini Custom' },
+        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
       ],
     });
   });
